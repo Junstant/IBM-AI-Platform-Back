@@ -1,0 +1,14 @@
+# requirements.txt
+
+# Servidor y framework de API
+fastapi
+uvicorn[standard]
+
+# Conexión a PostgreSQL
+psycopg2-binary
+
+# Cliente HTTP asíncrono (ya lo usabas)
+httpx
+
+# Para gestionar variables de entorno (.env)
+python-dotenv

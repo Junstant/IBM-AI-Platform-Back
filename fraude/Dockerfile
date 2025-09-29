@@ -1,0 +1,23 @@
+# Usa una imagen base de Python ligera
+FROM python:3.10-slim
+
+# Establece el directorio de trabajo dentro del contenedor
+WORKDIR /app
+
+# Copia el archivo de requisitos
+COPY requirements.txt .
+
+# Instala las dependencias usando los repositorios de wheels para PPC64LE
+RUN pip install --no-cache-dir \
+    --extra-index-url https://repo.fury.io/mgiessing \
+    --prefer-binary \
+    -r requirements.txt
+
+# Copia el resto de tus archivos de la aplicación
+COPY . .
+
+# Expón el puerto que usará tu API
+EXPOSE 8000
+
+# Comando para ejecutar la API con Uvicorn
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
