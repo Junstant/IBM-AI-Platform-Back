@@ -27,7 +27,7 @@ services:
       start_period: 60s
 
   # === MODELO LLM PRINCIPAL ===
-  # Gemma 2B - Modelo pequeño y eficiente
+  # Mistral 7B - Modelo de propósito general
   llm-server:
     image: quay.io/daniel_casali/llama.cpp-mma:v5
     container_name: llm-server
@@ -40,31 +40,30 @@ services:
       - ai_platform_network
     entrypoint: ["/bin/sh", "-c"]
     command: |
-      "if [ ! -f /models/gemma-2-2b-it-Q4_K_S.gguf ]; then
-        echo '⚠️  Modelo no encontrado en /models/gemma-2-2b-it-Q4_K_S.gguf'
+      "if [ ! -f /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf ]; then
+        echo '⚠️  Modelo no encontrado en /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf'
         echo '📋 Use el script de instalación para descargar modelos:'
-        echo '    ./ai-platform.sh'
-        echo '    Opción 5: Descargar modelos manualmente'
+        echo '    ./setup.sh'
         echo ''
         echo '💡 O descargue manualmente desde:'
-        echo '    https://huggingface.co/lmstudio-community/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_S.gguf'
+        echo '    https://huggingface.co/SanctumAI/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/mistral-7b-instruct-v0.3.Q4_K_M.gguf'
         echo ''
         echo '🔄 Reintentando en 60 segundos...'
         sleep 60
         exit 1
       else
-        echo '✅ Modelo encontrado: gemma-2-2b-it-Q4_K_S.gguf'
+        echo '✅ Modelo encontrado: mistral-7b-instruct-v0.3.Q4_K_M.gguf'
         echo '🚀 Iniciando servidor LLM...'
       fi
       exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/gemma-2-2b-it-Q4_K_S.gguf \
-        --prio 3 -c 2048 -b 32 -t 16 -n -1"
+        --model /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf \
+        --prio 3 -c 4096 -b 32 -t 16 -n -1"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 60s
       timeout: 30s
       retries: 3
-      start_period: 120s
+      start_period: 180s
 
   # === APLICACIONES ===
   textosql-api:

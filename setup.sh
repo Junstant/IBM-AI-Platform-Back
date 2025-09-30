@@ -15,6 +15,17 @@ log() {
 check_requirements() {
     log "🔍 Verificando requisitos del sistema..."
     
+    # Verificar arquitectura
+    local ARCH=$(uname -m)
+    log "🏗️ Arquitectura detectada: $ARCH"
+    
+    if [[ "$ARCH" == "ppc64le" ]]; then
+        log "⚡ Sistema Power PC detectado - aplicando optimizaciones"
+        export USE_PPC_OPTIMIZATIONS=true
+    else
+        log "💻 Arquitectura estándar detectada"
+    fi
+    
     # Verificar sistema operativo
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         log "✅ Sistema: Linux detectado"
@@ -36,6 +47,10 @@ check_requirements() {
     # Verificar Docker Compose
     if command -v docker-compose &> /dev/null; then
         log "✅ Docker Compose está instalado: $(docker-compose --version)"
+    elif docker compose version &> /dev/null 2>&1; then
+        log "✅ Docker Compose (plugin) está disponible"
+        # Crear alias para compatibilidad
+        echo 'alias docker-compose="docker compose"' >> ~/.bashrc
     else
         log "❌ Docker Compose no está instalado"
         log "📋 Por favor instale Docker Compose desde: https://docs.docker.com/compose/install/"
@@ -47,26 +62,26 @@ check_requirements() {
         log "✅ Docker está ejecutándose"
     else
         log "❌ Docker no está ejecutándose"
-        log "📋 Por favor inicie Docker y ejecute este script nuevamente"
+        log "📋 Por favor inicie Docker"
         exit 1
     fi
     
-    # Verificar espacio en disco (al menos 5GB)
+    # Verificar espacio en disco (al menos 10GB para Mistral)
     available_space=$(df . | tail -1 | awk '{print $4}')
-    if [ "$available_space" -lt 5242880 ]; then  # 5GB en KB
-        log "⚠️ Espacio en disco bajo (menos de 5GB disponibles)"
-        log "💡 Se recomienda tener al menos 5GB libres para los modelos"
+    if [ "$available_space" -lt 10485760 ]; then  # 10GB en KB
+        log "⚠️ Advertencia: Poco espacio en disco disponible"
+        log "💡 Se recomienda tener al menos 10GB libres para el modelo Mistral"
     else
         log "✅ Espacio en disco suficiente"
     fi
     
-    # Verificar memoria RAM (al menos 4GB)
+    # Verificar memoria RAM (al menos 8GB para Mistral)
     if command -v free &> /dev/null; then
-        available_memory=$(free -m | awk 'NR==2{print $2}')
-        if [ "$available_memory" -lt 4096 ]; then  # 4GB
-            log "⚠️ RAM total menor a 4GB. El rendimiento puede ser limitado"
+        local mem_gb=$(free -g | awk '/^Mem:/ {print $2}')
+        if [ "$mem_gb" -lt 8 ]; then
+            log "⚠️ Advertencia: Solo ${mem_gb}GB de RAM. Mistral requiere al menos 8GB"
         else
-            log "✅ RAM suficiente: ${available_memory}MB"
+            log "✅ Memoria suficiente: ${mem_gb}GB"
         fi
     fi
 }
@@ -113,9 +128,60 @@ EOF
     fi
 }
 
+# ===== DESCARGAR MODELO MISTRAL =====
+download_mistral_model() {
+    log "🧠 Descargando modelo Mistral 7B..."
+    
+    # Crear directorio de modelos
+    mkdir -p models
+    
+    local filename="mistral-7b-instruct-v0.3.Q4_K_M.gguf"
+    local url="https://huggingface.co/SanctumAI/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/mistral-7b-instruct-v0.3.Q4_K_M.gguf"
+    
+    if [ -f "models/$filename" ]; then
+        log "✅ Modelo Mistral ya existe"
+        ls -lh "models/$filename"
+        return 0
+    fi
+    
+    log "⏳ Descargando Mistral 7B (~4GB)... esto puede tomar varios minutos"
+    log "📍 URL: $url"
+    
+    if curl -L --progress-bar -o "models/$filename" "$url"; then
+        log "✅ Modelo Mistral descargado exitosamente"
+        ls -lh "models/$filename"
+        return 0
+    else
+        log "❌ Error descargando Mistral"
+        rm -f "models/$filename"
+        return 1
+    fi
+}
+
 # ===== INSTALAR DEPENDENCIAS =====
 install_dependencies() {
-    log "📦 Verificando dependencias adicionales..."
+    log "📦 Configurando dependencias..."
+    
+    local ARCH=$(uname -m)
+    
+    # Configurar Python para ppc64le si es necesario
+    if [[ "$ARCH" == "ppc64le" ]]; then
+        log "⚡ Configurando repositorios optimizados para Power PC..."
+        
+        # Actualizar pip primero
+        pip3 install --upgrade pip || true
+        
+        # Configurar pip para usar repositorios de wheels ppc64le
+        mkdir -p ~/.pip
+        cat > ~/.pip/pip.conf << 'EOF'
+[global]
+extra-index-url = https://repo.fury.io/mgiessing
+prefer-binary = true
+timeout = 300
+break-system-packages = true
+EOF
+        log "✅ Configuración PPC64LE aplicada"
+    fi
     
     # Verificar curl
     if command -v curl &> /dev/null; then
@@ -128,6 +194,9 @@ install_dependencies() {
         elif command -v yum &> /dev/null; then
             log "📦 Instalando curl..."
             sudo yum install -y curl
+        elif command -v dnf &> /dev/null; then
+            log "📦 Instalando curl..."
+            sudo dnf install -y curl
         elif command -v brew &> /dev/null; then
             log "📦 Instalando curl..."
             brew install curl
@@ -188,13 +257,12 @@ show_final_info() {
     echo "📋 PRÓXIMOS PASOS:"
     echo "=================="
     echo ""
-    echo "1. Descargar el modelo LLM (recomendado):"
-    echo "   ./ai-platform.sh"
-    echo "   Opción 4: Descargar modelo Gemma 2B"
+    echo "1. Los modelos se descargan automáticamente durante la instalación"
+    echo "   • Mistral 7B descargado y configurado"
     echo ""
     echo "2. Iniciar todos los servicios:"
     echo "   ./ai-platform.sh"
-    echo "   Opción 1: Iniciar todos los servicios"
+    echo "   Opción 2: Iniciar todos los servicios"
     echo ""
     echo "3. Acceder a las aplicaciones:"
     echo "   • TextoSQL API: http://localhost:8001/docs"
@@ -211,9 +279,10 @@ show_final_info() {
     echo ""
     echo "💡 CONSEJOS:"
     echo "============"
-    echo "• El modelo Gemma 2B (~1.5GB) es recomendado para empezar"
-    echo "• Asegúrese de tener suficiente RAM libre antes de iniciar"
+    echo "• Mistral 7B (~4GB) es un modelo potente y versátil"
+    echo "• Requiere al menos 8GB de RAM para funcionar bien"
     echo "• Los datos de PostgreSQL se mantienen entre reinicios"
+    echo "• Compatible con arquitectura ppc64le (Power PC)"
     echo ""
 }
 
@@ -233,6 +302,10 @@ main() {
     
     # Instalar dependencias
     install_dependencies
+    echo ""
+    
+    # Descargar modelo Mistral
+    download_mistral_model
     echo ""
     
     # Construir imágenes

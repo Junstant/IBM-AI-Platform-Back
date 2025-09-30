@@ -1,6 +1,31 @@
 #!/bin/bash
 
-# Script simplificado para gestionar AI Platform
+# Scrip    echo "🔧 C    echo "🔧 Configuración y Administración:"
+    echo "   1) 📥 Descargar modelo Mistral 7B"
+    echo "   2) 🚀 Iniciar todos los servicios"
+    echo "   3) 🛑 Detener todos los servicios" 
+    echo "   4) 🔄 Reiniciar servicios"
+    echo "   5) 📊 Ver estado de servicios"
+    echo "   6) 📋 Ver logs en tiempo real"
+    echo "   7) 🧹 Limpiar y eliminar contenedores"
+    echo "   8) 🔍 Diagnóstico del sistema"
+    echo "   9) 📚 Ver documentación de APIs"
+    echo "  10) 🌍 Configurar variables de entorno"
+    echo "   0) 🚪 Salir"y Administración:"
+    echo "   1) 📥 Descargar modelo Mistral 7B"
+    echo "   2) 🚀 Iniciar todos los servicios"
+    echo "   3) 🛑 Detener todos los servicios" 
+    echo "   4) 🔄 Reiniciar servicios"
+    echo "          1)
+            download_mistral_7b
+            ;; 📊 Ver estado de servicios"
+    echo "   6) 📋 Ver logs en tiempo real"
+    echo "   7) 🧹 Limpiar y eliminar contenedores"
+    echo "   8) 🔍 Diagnóstico del sistema"
+    echo "   9) 📚 Ver documentación de APIs"
+    echo "  10) 🌍 Configurar variables de entorno"
+    echo "  11) ⚙️  Configuración ppc64le (PowerPC)"
+    echo "   0) 🚪 Salir"o para gestionar AI Platform
 echo "🚀 AI PLATFORM - GESTOR SIMPLIFICADO"
 echo "===================================="
 
@@ -14,37 +39,36 @@ log() {
 # Función para mostrar menú
 show_menu() {
     clear
-    echo "🚀 AI PLATFORM - MENÚ PRINCIPAL"
-    echo "==============================="
+    echo "🚀 === IBM AI Platform Management === 🚀"
     echo ""
-    echo "📋 OPCIONES DISPONIBLES:"
-    echo "========================"
+    echo "�️  Arquitectura detectada: $(uname -m)"
     echo ""
-    echo "🔧 GESTIÓN BÁSICA:"
-    echo "  1) Iniciar todos los servicios"
-    echo "  2) Detener todos los servicios"
-    echo "  3) Reinicio limpio completo"
-    echo ""
-    echo "📥 GESTIÓN DE MODELOS:"
-    echo "  4) Descargar modelo Gemma 2B (recomendado)"
-    echo "  5) Descargar otros modelos disponibles"
-    echo "  6) Ver estado de modelos"
-    echo "  7) Limpiar modelos descargados"
-    echo ""
-    echo "🔍 DIAGNÓSTICO:"
-    echo "  8) Ver estado actual"
-    echo "  9) Ver logs de servicios"
-    echo ""
-    echo "⚙️ CONFIGURACIÓN:"
-    echo "  10) Crear archivo .env"
-    echo ""
-    echo "  0) Salir"
-    echo ""
+    echo "🔧 Configuración y Administración:"
+    echo "   1) � Descargar modelo Gemma 2B"
+    echo "   2) 🚀 Iniciar todos los servicios"
+    echo "   3) 🛑 Detener todos los servicios" 
+    echo "   4) 🔄 Reiniciar servicios"
+    echo "   5) � Ver estado de servicios"
+    echo "   6) 📋 Ver logs en tiempo real"
+    echo "   7) 🧹 Limpiar y eliminar contenedores"
+    echo "   8) 🔍 Diagnóstico del sistema"
+    echo "   9) 📚 Ver documentación de APIs"
+    echo "  10) 🌍 Configurar variables de entorno"
+    echo "  11) ⚙️  Configuración ppc64le (PowerPC)"
+    echo "   0) 🚪 Salir"
 }
 
 # Función para verificar requisitos
 check_requirements() {
     log "🔍 Verificando requisitos..."
+    
+    # Verificar arquitectura
+    local ARCH=$(uname -m)
+    if [[ "$ARCH" == "ppc64le" ]]; then
+        log "✅ Arquitectura ppc64le detectada"
+    else
+        log "⚠️ Arquitectura: $ARCH (este script está optimizado para ppc64le)"
+    fi
     
     # Verificar Docker
     if ! docker --version > /dev/null 2>&1; then
@@ -62,29 +86,29 @@ check_requirements() {
     return 0
 }
 
-# Función para descargar Gemma 2B
-download_gemma_2b() {
-    log "📥 Descargando modelo Gemma 2B (recomendado)..."
+# Función para descargar Mistral 7B
+download_mistral_7b() {
+    log "📥 Descargando modelo Mistral 7B..."
     
     # Crear directorio de modelos
     mkdir -p models
     
-    local filename="gemma-2-2b-it-Q4_K_S.gguf"
-    local url="https://huggingface.co/lmstudio-community/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_S.gguf"
+    local filename="mistral-7b-instruct-v0.3.Q4_K_M.gguf"
+    local url="https://huggingface.co/SanctumAI/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/mistral-7b-instruct-v0.3.Q4_K_M.gguf"
     
     if [ -f "models/$filename" ]; then
-        log "✅ Modelo Gemma 2B ya existe"
+        log "✅ Modelo Mistral 7B ya existe"
         ls -lh "models/$filename"
         return 0
     fi
     
     log "⏳ Descargando... (esto puede tomar varios minutos)"
     if curl -L --progress-bar -o "models/$filename" "$url"; then
-        log "✅ Modelo Gemma 2B descargado exitosamente"
+        log "✅ Modelo Mistral 7B descargado exitosamente"
         ls -lh "models/$filename"
         return 0
     else
-        log "❌ Error descargando Gemma 2B"
+        log "❌ Error descargando Mistral 7B"
         rm -f "models/$filename"
         return 1
     fi
@@ -101,11 +125,11 @@ show_other_models() {
     echo "2. Modificar docker-compose.yaml para apuntar al nuevo modelo"
     echo ""
     echo "Modelos sugeridos:"
-    echo "• Mistral 7B (~4GB): https://huggingface.co/SanctumAI/Mistral-7B-Instruct-v0.3-GGUF"
+    echo "• Gemma 2B (~1.5GB): https://huggingface.co/lmstudio-community/gemma-2-2b-it-GGUF"
     echo "• Granite 8B (~5GB): https://huggingface.co/bartowski/granite-3.3-8b-instruct-GGUF"
     echo "• Llama 3.2 3B (~2GB): https://huggingface.co/lmstudio-community/Llama-3.2-3B-Instruct-GGUF"
     echo ""
-    echo "💡 Consejo: Mantenga Gemma 2B para mejor compatibilidad y menor uso de recursos"
+    echo "💡 Consejo: Mistral 7B está configurado por defecto para mejor compatibilidad"
     echo ""
     read -p "Presiona Enter para continuar..."
 }
@@ -119,7 +143,7 @@ view_logs() {
     echo "1) PostgreSQL"
     echo "2) TextoSQL API"
     echo "3) Fraude API"
-    echo "4) LLM Server (Gemma 2B)"
+    echo "4) LLM Server (Mistral 7B)"
     echo "5) Todos los servicios"
     echo ""
     read -p "Opción: " log_choice
