@@ -52,17 +52,11 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
     log "✅ Base de datos inicializada correctamente"
 fi
 
-# Iniciar PostgreSQL en segundo plano para ejecutar scripts de inicialización
+# Iniciar PostgreSQL normalmente para scripts de inicialización
 if [ "$1" = 'postgres' ]; then
     # Verificar si hay scripts de inicialización pendientes
-    if [ "$(ls -A /docker-entrypoint-initdb.d/ 2>/dev/null)" ]; then
+    if [ "$(ls -A /docker-entrypoint-initdb.d/ 2>/dev/null)" ] && [ ! -f "$PGDATA/.initialized" ]; then
         log "🚀 Iniciando PostgreSQL temporalmente para ejecutar scripts de inicialización..."
-        
-        # Iniciar PostgreSQL en background
-        postgres --single -E <<-EOSQL
-            CREATE USER IF NOT EXISTS $POSTGRES_USER;
-            ALTER USER $POSTGRES_USER PASSWORD '$POSTGRES_PASSWORD';
-EOSQL
         
         # Iniciar servidor para ejecutar scripts
         pg_ctl -D "$PGDATA" -o "-c listen_addresses=''" -w start
@@ -98,6 +92,10 @@ EOSQL
         pg_ctl -D "$PGDATA" -m fast -w stop
         
         log "✅ Scripts de inicialización completados"
+        
+        # Marcar como inicializado
+        touch "$PGDATA/.initialized"
+    fi
         
         # Marcar como inicializado
         touch "$PGDATA/.initialized"
