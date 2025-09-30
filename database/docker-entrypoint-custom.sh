@@ -96,10 +96,6 @@ if [ "$1" = 'postgres' ]; then
         # Marcar como inicializado
         touch "$PGDATA/.initialized"
     fi
-        
-        # Marcar como inicializado
-        touch "$PGDATA/.initialized"
-    fi
     
     log "🎯 Iniciando PostgreSQL en modo producción..."
 fi
