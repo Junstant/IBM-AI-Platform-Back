@@ -26,8 +26,67 @@ services:
       retries: 5
       start_period: 60s
 
-  # === MODELO LLM PRINCIPAL ===
-  # Mistral 7B - Modelo de propósito general
+  # === MODELOS LLM MÚLTIPLES ===
+  
+  # Gemma 2B - Modelo ligero y eficiente
+  gemma2b-server:
+    image: quay.io/daniel_casali/llama.cpp-mma:v5
+    container_name: gemma2b-server
+    restart: always
+    ports:
+      - "9470:8080"
+    volumes:
+      - ./models:/models
+    networks:
+      - ai_platform_network
+    entrypoint: ["/usr/local/bin/llama-server"]
+    command: [
+      "--host", "0.0.0.0",
+      "--port", "8080",
+      "-m", "/models/gemma-2-2b-it-Q4_K_S.gguf",
+      "--prio", "3",
+      "-c", "2048",
+      "-b", "512", 
+      "-t", "16",
+      "-n", "-1"
+    ]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "||", "exit", "1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 180s
+
+  # Mistral 7B - Modelo principal
+  mistral-server:
+    image: quay.io/daniel_casali/llama.cpp-mma:v5
+    container_name: mistral-server
+    restart: always
+    ports:
+      - "8096:8080"
+    volumes:
+      - ./models:/models
+    networks:
+      - ai_platform_network
+    entrypoint: ["/usr/local/bin/llama-server"]
+    command: [
+      "--host", "0.0.0.0", 
+      "--port", "8080",
+      "-m", "/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf",
+      "--prio", "3",
+      "-c", "2048",
+      "-b", "512",
+      "-t", "90", 
+      "-n", "-1"
+    ]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "||", "exit", "1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 180s
+
+  # LLM Server principal (detecta automáticamente el modelo disponible)
   llm-server:
     image: quay.io/daniel_casali/llama.cpp-mma:v5
     container_name: llm-server
@@ -40,23 +99,29 @@ services:
       - ai_platform_network
     entrypoint: ["/bin/sh", "-c"]
     command: |
-      "if [ ! -f /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf ]; then
-        echo '⚠️  Modelo no encontrado en /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf'
-        echo '📋 Use el script de instalación para descargar modelos:'
-        echo '    ./setup.sh'
+      "# Detectar modelo disponible automáticamente
+      MODEL_FILE=''
+      if [ -f /models/gemma-2-2b-it-Q4_K_S.gguf ]; then
+        MODEL_FILE='/models/gemma-2-2b-it-Q4_K_S.gguf'
+        echo '✅ Modelo encontrado: Gemma 2B'
+      elif [ -f /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf ]; then
+        MODEL_FILE='/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf'
+        echo '✅ Modelo encontrado: Mistral 7B'
+      else
+        echo '⚠️  No se encontró ningún modelo compatible'
+        echo '📋 Modelos soportados:'
+        echo '  • Gemma 2B: gemma-2-2b-it-Q4_K_S.gguf'
+        echo '  • Mistral 7B: mistral-7b-instruct-v0.3.Q4_K_M.gguf'
         echo ''
-        echo '💡 O descargue manualmente desde:'
-        echo '    https://huggingface.co/SanctumAI/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/mistral-7b-instruct-v0.3.Q4_K_M.gguf'
-        echo ''
+        echo '💡 Use: ./ai-platform.sh para descargar modelos'
         echo '🔄 Reintentando en 60 segundos...'
         sleep 60
         exit 1
-      else
-        echo '✅ Modelo encontrado: mistral-7b-instruct-v0.3.Q4_K_M.gguf'
-        echo '🚀 Iniciando servidor LLM...'
       fi
+      
+      echo '🚀 Iniciando servidor LLM principal con modelo: '$MODEL_FILE
       exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        --model /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf \
+        --model $MODEL_FILE \
         --prio 3 -c 4096 -b 32 -t 16 -n -1"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
