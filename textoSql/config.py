@@ -81,7 +81,7 @@ DATABASE_CONFIG = {
     "host": DB_HOST,
     "port": os.getenv("DB_PORT", "5432"),
     "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", "password")
+    "password": os.getenv("DB_PASSWORD", "root")
 }
 
 def get_available_models():
