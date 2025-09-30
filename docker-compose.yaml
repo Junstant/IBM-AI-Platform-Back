@@ -1,5 +1,5 @@
 services:
-  # === BASE DE DATOS PERSONALIZADA ===
+  # === BASE DE DATOS ===
   postgres:
     build:
       context: ./database
@@ -10,7 +10,7 @@ services:
       - "${DB_PORT:-8070}:5432"
     environment:
       - POSTGRES_USER=${DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-root}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
       - POSTGRES_DB=postgres
       - PGDATA=/var/lib/postgresql/data
     volumes:
@@ -26,44 +26,14 @@ services:
       retries: 5
       start_period: 60s
 
-  # === MODELOS LLM ===
-  # Modelos con descarga automática desde Hugging Face
-  mistral-td-server:
+  # === MODELO LLM PRINCIPAL ===
+  # Gemma 2B - Modelo pequeño y eficiente
+  llm-server:
     image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: mistral-td-server
+    container_name: llm-server
     restart: always
     ports:
-      - "${MISTRAL_PORT:-8096}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf ]; then
-        echo '📥 Descargando modelo Mistral 7B...'
-        curl -L -o /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf \
-          'https://huggingface.co/SanctumAI/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/mistral-7b-instruct-v0.3.Q4_K_M.gguf'
-        echo '✅ Modelo Mistral descargado'
-      else
-        echo '✅ Modelo Mistral ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf \
-        --prio 3 -c 4096 -b 32 -t 32 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 300s
-
-  gemma2b-td-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: gemma2b-td-server
-    restart: always
-    ports:
-      - "${GEMMA_2B_PORT:-9470}:8080"
+      - "${LLM_PORT:-8080}:8080"
     volumes:
       - ./models:/models
     networks:
@@ -71,12 +41,20 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: |
       "if [ ! -f /models/gemma-2-2b-it-Q4_K_S.gguf ]; then
-        echo '📥 Descargando modelo Gemma 2B...'
-        curl -L -o /models/gemma-2-2b-it-Q4_K_S.gguf \
-          'https://huggingface.co/lmstudio-community/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_S.gguf'
-        echo '✅ Modelo Gemma 2B descargado'
+        echo '⚠️  Modelo no encontrado en /models/gemma-2-2b-it-Q4_K_S.gguf'
+        echo '📋 Use el script de instalación para descargar modelos:'
+        echo '    ./ai-platform.sh'
+        echo '    Opción 5: Descargar modelos manualmente'
+        echo ''
+        echo '💡 O descargue manualmente desde:'
+        echo '    https://huggingface.co/lmstudio-community/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_S.gguf'
+        echo ''
+        echo '🔄 Reintentando en 60 segundos...'
+        sleep 60
+        exit 1
       else
-        echo '✅ Modelo Gemma 2B ya existe'
+        echo '✅ Modelo encontrado: gemma-2-2b-it-Q4_K_S.gguf'
+        echo '🚀 Iniciando servidor LLM...'
       fi
       exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
         -m /models/gemma-2-2b-it-Q4_K_S.gguf \
@@ -86,241 +64,7 @@ services:
       interval: 60s
       timeout: 30s
       retries: 3
-      start_period: 300s
-
-  granite-td-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: granite-td-server
-    restart: always
-    ports:
-      - "${GRANITE_PORT:-8095}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/granite-3.3-8b-instruct-Q4_K_M.gguf ]; then
-        echo '📥 Descargando modelo Granite 3.3 8B...'
-        curl -L -o /models/granite-3.3-8b-instruct-Q4_K_M.gguf \
-          'https://huggingface.co/bartowski/granite-3.3-8b-instruct-GGUF/resolve/main/granite-3.3-8b-instruct-Q4_K_M.gguf'
-        echo '✅ Modelo Granite descargado'
-      else
-        echo '✅ Modelo Granite ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/granite-3.3-8b-instruct-Q4_K_M.gguf \
-        --prio 3 -c 4096 -b 32 -t 32 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 300s
-
-  # Nuevos modelos con descarga automática
-  google_gemma12b-td-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: google_gemma12b-td-server
-    restart: always
-    ports:
-      - "${GEMMA_12B_PORT:-2005}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/google_gemma-3-12b-it-Q4_K_M.gguf ]; then
-        echo '📥 Descargando modelo Gemma 3 12B...'
-        curl -L -o /models/google_gemma-3-12b-it-Q4_K_M.gguf \
-          'https://huggingface.co/bartowski/gemma-3-12b-it-GGUF/resolve/main/gemma-3-12b-it-Q4_K_M.gguf'
-        echo '✅ Modelo Gemma 12B descargado'
-      else
-        echo '✅ Modelo Gemma 12B ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/google_gemma-3-12b-it-Q4_K_M.gguf --prio 3 -c 8192 -b 32 -t 32 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 600s
-
-  google_gemma4b-td-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: google_gemma4b-td-server
-    restart: always
-    ports:
-      - "${GEMMA_4B_PORT:-8094}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/google_gemma-3-4b-it-IQ4_NL.gguf ]; then
-        echo '📥 Descargando modelo Gemma 3 4B...'
-        curl -L -o /models/google_gemma-3-4b-it-IQ4_NL.gguf \
-          'https://huggingface.co/bartowski/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-IQ4_NL.gguf'
-        echo '✅ Modelo Gemma 4B descargado'
-      else
-        echo '✅ Modelo Gemma 4B ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/google_gemma-3-4b-it-IQ4_NL.gguf --prio 3 -c 4096 -b 32 -t 32 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 300s
-
-  deepseek8b-td-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: deepseek8b-td-server
-    restart: always
-    ports:
-      - "${DEEPSEEK_8B_PORT:-8092}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/DeepSeek-R1-Distill-Llama-8B-Q4_K_L.gguf ]; then
-        echo '📥 Descargando modelo DeepSeek 8B...'
-        curl -L -o /models/DeepSeek-R1-Distill-Llama-8B-Q4_K_L.gguf \
-          'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_L.gguf'
-        echo '✅ Modelo DeepSeek 8B descargado'
-      else
-        echo '✅ Modelo DeepSeek 8B ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/DeepSeek-R1-Distill-Llama-8B-Q4_K_L.gguf --prio 3 -c 4096 -b 32 -t 32 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 300s
-
-  deepseek1.5B-td-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: deepseek1.5B-td-server
-    restart: always
-    ports:
-      - "${DEEPSEEK_1_5B_PORT:-8091}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf ]; then
-        echo '📥 Descargando modelo DeepSeek 1.5B...'
-        curl -L -o /models/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf \
-          'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf'
-        echo '✅ Modelo DeepSeek 1.5B descargado'
-      else
-        echo '✅ Modelo DeepSeek 1.5B ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf --prio 3 -c 2048 -b 32 -t 16 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 200s
-
-  deepseek14B-td-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: deepseek14B-td-server
-    restart: always
-    ports:
-      - "${DEEPSEEK_14B_PORT:-8090}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf ]; then
-        echo '📥 Descargando modelo DeepSeek 14B...'
-        curl -L -o /models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf \
-          'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf'
-        echo '✅ Modelo DeepSeek 14B descargado'
-      else
-        echo '✅ Modelo DeepSeek 14B ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf --prio 3 -c 8192 -b 32 -t 32 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 600s
-
-  granite-2b-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: granite-2b-server
-    restart: always
-    ports:
-      - "${GRANITE_2B_PORT:-8097}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/granite-3.1-2b-instruct-Q4_K_M.gguf ]; then
-        echo '📥 Descargando modelo Granite 2B...'
-        curl -L -o /models/granite-3.1-2b-instruct-Q4_K_M.gguf \
-          'https://huggingface.co/bartowski/granite-3.1-2b-instruct-GGUF/resolve/main/granite-3.1-2b-instruct-Q4_K_M.gguf'
-        echo '✅ Modelo Granite 2B descargado'
-      else
-        echo '✅ Modelo Granite 2B ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/granite-3.1-2b-instruct-Q4_K_M.gguf --prio 3 -c 2048 -b 32 -t 16 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 200s
-
-  gpt-oss-20b-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: gpt-oss-20b-server
-    restart: always
-    ports:
-      - "${GPT_OSS_20B_PORT:-8098}:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "if [ ! -f /models/gpt-oss-20b-f16.gguf ]; then
-        echo '📥 Descargando modelo GPT OSS 20B...'
-        curl -L -o /models/gpt-oss-20b-f16.gguf \
-          'https://huggingface.co/mradermacher/GPT-OSS-20B-GGUF/resolve/main/GPT-OSS-20B.f16.gguf'
-        echo '✅ Modelo GPT OSS 20B descargado'
-      else
-        echo '✅ Modelo GPT OSS 20B ya existe'
-      fi
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        -m /models/gpt-oss-20b-f16.gguf --prio 3 -c 4096 -b 32 -t 32 -n -1"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 900s
+      start_period: 120s
 
   # === APLICACIONES ===
   textosql-api:
@@ -338,9 +82,9 @@ services:
       - DB_HOST=postgres_ai_platform
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-root}
-      - LLM_HOST=${LLM_HOST:-localhost}
-      - GRANITE_PORT=${GRANITE_PORT:-8095}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - LLM_HOST=llm-server
+      - LLM_PORT=8080
     volumes:
       - ./textoSql:/app
     networks:
@@ -348,13 +92,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      granite-td-server:
-        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 60s
+      timeout: 30s
       retries: 3
+      start_period: 120s
 
   fraude-api:
     build: 
@@ -367,11 +110,10 @@ services:
     env_file:
       - .env
     environment:
-      - DB_NAME_FRAUDE=${DB_NAME_FRAUDE:-bank_transactions}
       - DB_HOST=postgres_ai_platform
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
     volumes:
       - ./fraude:/app
     networks:
@@ -380,11 +122,11 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 30s
       retries: 3
-
+      start_period: 120s
 
 volumes:
   postgres_data:

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Script maestro para gestionar AI Platform con descarga automática de modelos
-echo "🚀 AI PLATFORM - GESTOR MAESTRO"
-echo "==============================="
+# Script simplificado para gestionar AI Platform
+echo "🚀 AI PLATFORM - GESTOR SIMPLIFICADO"
+echo "===================================="
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 
 # Función para logging
 log() {
@@ -21,24 +21,22 @@ show_menu() {
     echo "========================"
     echo ""
     echo "🔧 GESTIÓN BÁSICA:"
-    echo "  1) Iniciar servicios básicos (PostgreSQL + APIs + Modelos pequeños)"
-    echo "  2) Iniciar todos los servicios"
-    echo "  3) Detener todos los servicios"
-    echo "  4) Reinicio limpio completo"
+    echo "  1) Iniciar todos los servicios"
+    echo "  2) Detener todos los servicios"
+    echo "  3) Reinicio limpio completo"
     echo ""
     echo "📥 GESTIÓN DE MODELOS:"
-    echo "  5) Descargar modelos manualmente"
+    echo "  4) Descargar modelo Gemma 2B (recomendado)"
+    echo "  5) Descargar otros modelos disponibles"
     echo "  6) Ver estado de modelos"
     echo "  7) Limpiar modelos descargados"
     echo ""
     echo "🔍 DIAGNÓSTICO:"
-    echo "  8) Diagnóstico completo del sistema"
+    echo "  8) Ver estado actual"
     echo "  9) Ver logs de servicios"
-    echo "  10) Ver estado actual"
     echo ""
     echo "⚙️ CONFIGURACIÓN:"
-    echo "  11) Recrear archivos de configuración"
-    echo "  12) Verificar requisitos del sistema"
+    echo "  10) Crear archivo .env"
     echo ""
     echo "  0) Salir"
     echo ""
@@ -46,39 +44,70 @@ show_menu() {
 
 # Función para verificar requisitos
 check_requirements() {
-    log "🔍 Verificando requisitos del sistema..."
+    log "🔍 Verificando requisitos..."
     
     # Verificar Docker
     if ! docker --version > /dev/null 2>&1; then
         log "❌ Docker no está instalado"
         return 1
     fi
-    log "✅ Docker disponible"
     
     # Verificar Docker Compose
     if ! docker-compose --version > /dev/null 2>&1; then
         log "❌ Docker Compose no está disponible"
         return 1
     fi
-    log "✅ Docker Compose disponible"
     
-    # Verificar espacio en disco
-    available_space=$(df . | tail -1 | awk '{print $4}')
-    if [ "$available_space" -lt 10485760 ]; then  # 10GB en KB
-        log "⚠️ Espacio en disco bajo (menos de 10GB disponibles)"
-    else
-        log "✅ Espacio en disco suficiente"
-    fi
-    
-    # Verificar memoria
-    available_memory=$(free -m | awk 'NR==2{print $7}')
-    if [ "$available_memory" -lt 4096 ]; then  # 4GB
-        log "⚠️ Memoria disponible baja (menos de 4GB)"
-    else
-        log "✅ Memoria suficiente"
-    fi
-    
+    log "✅ Requisitos verificados"
     return 0
+}
+
+# Función para descargar Gemma 2B
+download_gemma_2b() {
+    log "📥 Descargando modelo Gemma 2B (recomendado)..."
+    
+    # Crear directorio de modelos
+    mkdir -p models
+    
+    local filename="gemma-2-2b-it-Q4_K_S.gguf"
+    local url="https://huggingface.co/lmstudio-community/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_S.gguf"
+    
+    if [ -f "models/$filename" ]; then
+        log "✅ Modelo Gemma 2B ya existe"
+        ls -lh "models/$filename"
+        return 0
+    fi
+    
+    log "⏳ Descargando... (esto puede tomar varios minutos)"
+    if curl -L --progress-bar -o "models/$filename" "$url"; then
+        log "✅ Modelo Gemma 2B descargado exitosamente"
+        ls -lh "models/$filename"
+        return 0
+    else
+        log "❌ Error descargando Gemma 2B"
+        rm -f "models/$filename"
+        return 1
+    fi
+}
+
+# Función para mostrar otros modelos disponibles
+show_other_models() {
+    echo ""
+    echo "📋 OTROS MODELOS DISPONIBLES:"
+    echo "============================"
+    echo ""
+    echo "Para usar otros modelos, necesitará:"
+    echo "1. Descargar el modelo manualmente"
+    echo "2. Modificar docker-compose.yaml para apuntar al nuevo modelo"
+    echo ""
+    echo "Modelos sugeridos:"
+    echo "• Mistral 7B (~4GB): https://huggingface.co/SanctumAI/Mistral-7B-Instruct-v0.3-GGUF"
+    echo "• Granite 8B (~5GB): https://huggingface.co/bartowski/granite-3.3-8b-instruct-GGUF"
+    echo "• Llama 3.2 3B (~2GB): https://huggingface.co/lmstudio-community/Llama-3.2-3B-Instruct-GGUF"
+    echo ""
+    echo "💡 Consejo: Mantenga Gemma 2B para mejor compatibilidad y menor uso de recursos"
+    echo ""
+    read -p "Presiona Enter para continuar..."
 }
 
 # Función para ver logs
@@ -90,10 +119,8 @@ view_logs() {
     echo "1) PostgreSQL"
     echo "2) TextoSQL API"
     echo "3) Fraude API"
-    echo "4) Mistral 7B"
-    echo "5) Granite 8B"
-    echo "6) Gemma 2B"
-    echo "7) Todos los servicios"
+    echo "4) LLM Server (Gemma 2B)"
+    echo "5) Todos los servicios"
     echo ""
     read -p "Opción: " log_choice
     
@@ -101,10 +128,8 @@ view_logs() {
         1) docker-compose logs -f postgres ;;
         2) docker-compose logs -f textosql-api ;;
         3) docker-compose logs -f fraude-api ;;
-        4) docker-compose logs -f mistral-td-server ;;
-        5) docker-compose logs -f granite-td-server ;;
-        6) docker-compose logs -f gemma2b-td-server ;;
-        7) docker-compose logs -f ;;
+        4) docker-compose logs -f llm-server ;;
+        5) docker-compose logs -f ;;
         *) echo "❌ Opción no válida" ;;
     esac
 }
@@ -115,7 +140,7 @@ clean_models() {
     echo "====================="
     echo ""
     echo "⚠️ ADVERTENCIA: Esto eliminará todos los modelos descargados"
-    echo "Tendrás que descargarlos nuevamente para usar los servicios LLM"
+    echo "Tendrás que descargarlos nuevamente para usar el servidor LLM"
     echo ""
     read -p "¿Estás seguro? (s/N): " confirm
     
@@ -123,88 +148,113 @@ clean_models() {
         log "🧹 Limpiando modelos..."
         rm -rf models/*
         log "✅ Modelos eliminados"
-        du -sh models/ 2>/dev/null || echo "📁 Directorio models vacío"
     else
         log "❌ Operación cancelada"
     fi
 }
 
-# Función para recrear configuración
-recreate_config() {
-    log "⚙️ Recreando archivos de configuración..."
+# Función para crear .env
+create_env() {
+    log "⚙️ Creando archivo .env..."
     
-    # Recrear .env si no existe
-    if [ ! -f .env ]; then
-        log "📝 Creando archivo .env..."
-        cat > .env << 'EOF'
+    if [ -f .env ]; then
+        echo "⚠️ El archivo .env ya existe. ¿Desea sobrescribirlo?"
+        read -p "(s/N): " confirm
+        if [[ ! $confirm =~ ^[Ss]$ ]]; then
+            log "❌ Operación cancelada"
+            return
+        fi
+    fi
+    
+    cat > .env << 'EOF'
 # Configuración de la base de datos
-DB_HOST=postgres
+DB_HOST=postgres_ai_platform
 DB_PORT=8070
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=postgres
+DB_NAME_TEXTOSQL=banco_global
 
 # APIs
 FRAUDE_API_PORT=8000
 TEXTOSQL_API_PORT=8001
 
-# Modelos LLM
-MISTRAL_PORT=8096
-GRANITE_PORT=8095
-GEMMA2B_PORT=9470
-GEMMA_4B_PORT=8094
-GEMMA_12B_PORT=2005
-DEEPSEEK_1_5B_PORT=8091
-DEEPSEEK_8B_PORT=8092
-DEEPSEEK_14B_PORT=8090
-GRANITE_2B_PORT=8097
-GPT_OSS_20B_PORT=8098
+# Modelo LLM
+LLM_PORT=8080
+LLM_HOST=llm-server
 
 # Configuración general
 COMPOSE_PROJECT_NAME=platform_ai_lj
-NGINX_PORT=2012
 EOF
-        log "✅ Archivo .env creado"
-    else
-        log "✅ Archivo .env ya existe"
-    fi
     
-    # Crear directorio de modelos
-    mkdir -p models
-    log "✅ Directorio models verificado"
+    log "✅ Archivo .env creado exitosamente"
+    echo ""
+    echo "📋 Contenido del archivo .env:"
+    cat .env
+}
+
+# Función para reinicio limpio
+clean_restart() {
+    log "🔄 Ejecutando reinicio limpio..."
     
-    # Verificar permisos de scripts
-    chmod +x scripts/*.sh
-    log "✅ Permisos de scripts verificados"
+    log "🛑 Deteniendo servicios..."
+    docker-compose down --remove-orphans
+    
+    log "🧹 Limpiando recursos Docker..."
+    docker system prune -f
+    
+    log "🔨 Reconstruyendo imágenes..."
+    docker-compose build --no-cache
+    
+    log "🚀 Iniciando servicios..."
+    docker-compose up -d
+    
+    log "✅ Reinicio completado"
 }
 
 # Menú principal
 while true; do
     show_menu
-    read -p "Selecciona una opción (0-12): " choice
+    read -p "Selecciona una opción (0-10): " choice
     
     case $choice in
         1)
-            log "🚀 Iniciando servicios básicos..."
-            ./scripts/start-basic-models.sh
-            ;;
-        2)
+            if ! check_requirements; then
+                echo ""
+                read -p "Presiona Enter para continuar..."
+                continue
+            fi
+            
             log "🚀 Iniciando todos los servicios..."
+            
+            # Verificar si existe el modelo
+            if [ ! -f "models/gemma-2-2b-it-Q4_K_S.gguf" ]; then
+                echo "⚠️ Modelo no encontrado. El servidor LLM no funcionará."
+                echo "💡 Use la opción 4 para descargar el modelo Gemma 2B"
+                echo ""
+                read -p "¿Continuar de todos modos? (s/N): " confirm
+                if [[ ! $confirm =~ ^[Ss]$ ]]; then
+                    continue
+                fi
+            fi
+            
             docker-compose up -d
-            echo "⏳ Los modelos se descargarán automáticamente en el primer uso"
+            echo ""
             echo "📊 Estado actual:"
             docker-compose ps
             ;;
-        3)
+        2)
             log "🛑 Deteniendo todos los servicios..."
             docker-compose down
             ;;
+        3)
+            clean_restart
+            ;;
         4)
-            log "🔄 Ejecutando reinicio limpio..."
-            ./scripts/restart-clean.sh
+            download_gemma_2b
             ;;
         5)
-            ./scripts/download-models.sh
+            show_other_models
             ;;
         6)
             log "📊 Estado de modelos descargados:"
@@ -221,12 +271,6 @@ while true; do
             clean_models
             ;;
         8)
-            ./scripts/diagnose.sh
-            ;;
-        9)
-            view_logs
-            ;;
-        10)
             log "📊 Estado actual de servicios:"
             docker-compose ps
             echo ""
@@ -234,22 +278,20 @@ while true; do
             echo "   PostgreSQL:     http://localhost:8070"
             echo "   TextoSQL API:   http://localhost:8001/docs"
             echo "   Fraude API:     http://localhost:8000/docs"
-            echo "   Mistral 7B:     http://localhost:8096"
-            echo "   Granite 8B:     http://localhost:8095"
-            echo "   Gemma 2B:       http://localhost:9470"
+            echo "   LLM Server:     http://localhost:8080"
             ;;
-        11)
-            recreate_config
+        9)
+            view_logs
             ;;
-        12)
-            check_requirements
+        10)
+            create_env
             ;;
         0)
             log "👋 ¡Hasta luego!"
             exit 0
             ;;
         *)
-            echo "❌ Opción no válida. Por favor selecciona 0-12."
+            echo "❌ Opción no válida. Por favor selecciona 0-10."
             ;;
     esac
     
