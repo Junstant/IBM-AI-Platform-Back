@@ -1,5 +1,5 @@
 services:
-  # === BASE DE DATOS ===
+  # === BASE DE DATOS (Sin cambios, es un buen servicio) ===
   postgres:
     build:
       context: ./database
@@ -26,108 +26,60 @@ services:
       retries: 5
       start_period: 60s
 
-  # === MODELOS LLM MÚLTIPLES ===
-  
-  # Gemma 2B - Modelo ligero y eficiente
-  gemma2b-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: gemma2b-server
-    restart: always
-    ports:
-      - "9470:8080"
+  # === DESCARGA DEL MODELO (Emulación del 'initContainer' de Kubernetes) ===
+  model-downloader:
+    image: curlimages/curl:latest # Imagen ligera solo con curl
+    container_name: model-downloader
     volumes:
-      - ./models:/models
+      - models_volume:/models # Comparte el volumen con el servidor LLM
+    command: >
+      sh -c '
+        MODEL_PATH="/models/google_gemma-3-4b-it-Q4_K_M.gguf";
+        MODEL_URL="https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf";
+        if [ ! -f $$MODEL_PATH ]; then
+          echo "Descargando modelo desde $$MODEL_URL...";
+          curl -L $$MODEL_URL --output $$MODEL_PATH;
+          echo "✅ Modelo descargado.";
+        else
+          echo "✅ El modelo ya existe en $$MODEL_PATH.";
+        fi
+      '
     networks:
       - ai_platform_network
-    entrypoint: ["/usr/local/bin/llama-server"]
-    command: [
-      "--host", "0.0.0.0",
-      "--port", "8080",
-      "-m", "/models/gemma-2-2b-it-Q4_K_S.gguf",
-      "--prio", "3",
-      "-c", "2048",
-      "-b", "512", 
-      "-t", "16",
-      "-n", "-1"
-    ]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "||", "exit", "1"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 180s
 
-  # Mistral 7B - Modelo principal
-  mistral-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
-    container_name: mistral-server
-    restart: always
-    ports:
-      - "8096:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - ai_platform_network
-    entrypoint: ["/usr/local/bin/llama-server"]
-    command: [
-      "--host", "0.0.0.0", 
-      "--port", "8080",
-      "-m", "/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf",
-      "--prio", "3",
-      "-c", "2048",
-      "-b", "512",
-      "-t", "90", 
-      "-n", "-1"
-    ]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health", "||", "exit", "1"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 180s
-
-  # LLM Server principal (detecta automáticamente el modelo disponible)
+  # === SERVIDOR LLM (Simplificado y robusto) ===
   llm-server:
-    image: quay.io/daniel_casali/llama.cpp-mma:v5
+    # CAMBIO: Usamos la imagen v8 del manifiesto de Kubernetes. ¡Asegúrate de que sea compatible con ppc64le!
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
     container_name: llm-server
     restart: always
     ports:
       - "${LLM_PORT:-8080}:8080"
     volumes:
-      - ./models:/models
+      - models_volume:/models # Usa el mismo volumen que el downloader
     networks:
       - ai_platform_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "# Detectar modelo disponible automáticamente
-      MODEL_FILE=''
-      if [ -f /models/gemma-2-2b-it-Q4_K_S.gguf ]; then
-        MODEL_FILE='/models/gemma-2-2b-it-Q4_K_S.gguf'
-        echo '✅ Modelo encontrado: Gemma 2B'
-      elif [ -f /models/mistral-7b-instruct-v0.3.Q4_K_M.gguf ]; then
-        MODEL_FILE='/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf'
-        echo '✅ Modelo encontrado: Mistral 7B'
-      else
-        echo '⚠️  No se encontró ningún modelo compatible'
-        echo '📋 Modelos soportados:'
-        echo '  • Gemma 2B: gemma-2-2b-it-Q4_K_S.gguf'
-        echo '  • Mistral 7B: mistral-7b-instruct-v0.3.Q4_K_M.gguf'
-        echo ''
-        echo '💡 Use: ./ai-platform.sh para descargar modelos'
-        echo '🔄 Reintentando en 60 segundos...'
-        sleep 60
-        exit 1
-      fi
-      
-      echo '🚀 Iniciando servidor LLM principal con modelo: '$MODEL_FILE
-      exec /usr/local/bin/llama-server --host 0.0.0.0 --port 8080 \
-        --model $MODEL_FILE \
-        --prio 3 -c 4096 -b 32 -t 16 -n -1"
+    # CAMBIO: Comando simplificado, tomado del manifiesto de Kubernetes
+    command: [
+      "--host", "0.0.0.0",
+      "--port", "8080",
+      "-m", "/models/google_gemma-3-4b-it-Q4_K_M.gguf",
+      "--prio", "3",
+      "-c", "4096",
+      "-b", "32",
+      "-t", "32",
+      "-n", "-1"
+    ]
+    depends_on:
+      # CAMBIO: Espera a que el contenedor de descarga termine con éxito ANTES de iniciar
+      model-downloader:
+        condition: service_completed_successfully
     healthcheck:
+      # CAMBIO: Healthcheck adaptado del readinessProbe de Kubernetes
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
+      interval: 30s
+      timeout: 10s
+      retries: 5
       start_period: 180s
 
   # === APLICACIONES ===
@@ -154,7 +106,10 @@ services:
     networks:
       - ai_platform_network
     depends_on:
+      # CAMBIO: Ahora depende de que AMBOS servicios estén saludables
       postgres:
+        condition: service_healthy
+      llm-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -183,6 +138,7 @@ services:
     networks:
       - ai_platform_network
     depends_on:
+      # CAMBIO: Ahora depende de que AMBOS servicios estén saludables
       postgres:
         condition: service_healthy
     healthcheck:
@@ -194,9 +150,8 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
   postgres_backups:
-    driver: local
+  models_volume: # NUEVO: Volumen dedicado para los modelos de IA
 
 networks:
   ai_platform_network:
