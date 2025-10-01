@@ -1,9 +1,7 @@
 services:
-  # === BASE DE DATOS (Sin cambios, es un buen servicio) ===
+  # === BASE DE DATOS (Funciona correctamente) ===
   postgres:
-    build:
-      context: ./database
-      dockerfile: Dockerfile
+    image: postgres:15-alpine
     container_name: postgres_ai_platform
     restart: always
     ports:
@@ -26,40 +24,41 @@ services:
       retries: 5
       start_period: 60s
 
-  # === DESCARGA DEL MODELO (Emulación del 'initContainer' de Kubernetes) ===
+  # === DESCARGA DEL MODELO (Corregido con permisos) ===
   model-downloader:
-    image: curlimages/curl:latest # Imagen ligera solo con curl
+    image: curlimages/curl:latest
     container_name: model-downloader
+    # CAMBIO: Se ejecuta el contenedor como usuario 'root' para tener permisos de escritura en el volumen.
+    user: "root"
     volumes:
-      - models_volume:/models # Comparte el volumen con el servidor LLM
+      - models_volume:/models
     command: >
       sh -c '
-        MODEL_PATH="/models/google_gemma-3-4b-it-Q4_K_M.gguf";
-        MODEL_URL="https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf";
-        if [ ! -f $$MODEL_PATH ]; then
-          echo "Descargando modelo desde $$MODEL_URL...";
-          curl -L $$MODEL_URL --output $$MODEL_PATH;
+        FILE_PATH="/models/google_gemma-3-4b-it-Q4_K_M.gguf";
+        if [ ! -f "$$FILE_PATH" ]; then
+          echo "Modelo no encontrado en $$FILE_PATH. Descargando...";
+          curl -L "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf" --output "$$FILE_PATH";
           echo "✅ Modelo descargado.";
         else
-          echo "✅ El modelo ya existe en $$MODEL_PATH.";
+          echo "✅ El modelo ya existe.";
         fi
       '
     networks:
       - ai_platform_network
 
-  # === SERVIDOR LLM (Simplificado y robusto) ===
+  # === SERVIDOR LLM (Corregido con permisos) ===
   llm-server:
-    # CAMBIO: Usamos la imagen v8 del manifiesto de Kubernetes. ¡Asegúrate de que sea compatible con ppc64le!
     image: quay.io/daniel_casali/llama.cpp-mma:v8
     container_name: llm-server
+    # CAMBIO: Se ejecuta como 'root' para asegurar que pueda leer el modelo descargado por el 'downloader'.
+    user: "root"
     restart: always
     ports:
       - "${LLM_PORT:-8080}:8080"
     volumes:
-      - models_volume:/models # Usa el mismo volumen que el downloader
+      - models_volume:/models
     networks:
       - ai_platform_network
-    # CAMBIO: Comando simplificado, tomado del manifiesto de Kubernetes
     command: [
       "--host", "0.0.0.0",
       "--port", "8080",
@@ -71,18 +70,16 @@ services:
       "-n", "-1"
     ]
     depends_on:
-      # CAMBIO: Espera a que el contenedor de descarga termine con éxito ANTES de iniciar
       model-downloader:
         condition: service_completed_successfully
     healthcheck:
-      # CAMBIO: Healthcheck adaptado del readinessProbe de Kubernetes
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 180s
 
-  # === APLICACIONES ===
+  # === APLICACIONES (Sin cambios) ===
   textosql-api:
     build: 
       context: ./textoSql
@@ -106,7 +103,6 @@ services:
     networks:
       - ai_platform_network
     depends_on:
-      # CAMBIO: Ahora depende de que AMBOS servicios estén saludables
       postgres:
         condition: service_healthy
       llm-server:
@@ -138,8 +134,9 @@ services:
     networks:
       - ai_platform_network
     depends_on:
-      # CAMBIO: Ahora depende de que AMBOS servicios estén saludables
       postgres:
+        condition: service_healthy
+      llm-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -151,9 +148,10 @@ services:
 volumes:
   postgres_data:
   postgres_backups:
-  models_volume: # NUEVO: Volumen dedicado para los modelos de IA
+  models_volume:
 
 networks:
   ai_platform_network:
     driver: bridge
     name: ${COMPOSE_PROJECT_NAME:-platform_ai_lj}_network
+
