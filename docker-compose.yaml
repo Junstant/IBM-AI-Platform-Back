@@ -26,7 +26,7 @@ services:
 
   #? ======================== MODEL DOWNLOADER ========================
   model-downloader:
-    image: curlimages/curl:latest
+    image: alpine:latest
     container_name: model-downloader
     user: "root"
     volumes:
@@ -35,11 +35,14 @@ services:
       - TOKEN_HUGGHINGFACE=${TOKEN_HUGGHINGFACE}
     command: >
       sh -c '
+        # Instalar wget
+        apk add --no-cache wget
+
         # Gemma 2B
         GEMMA_PATH="/models/gemma-2-2b-it-Q4_K_S.gguf";
         if [ ! -f "$$GEMMA_PATH" ]; then
           echo "Modelo Gemma 2B no encontrado. Descargando...";
-          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_S.gguf" --output "$$GEMMA_PATH";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_S.gguf" -O "$$GEMMA_PATH";
           echo "✅ Modelo Gemma 2B descargado.";
         else
           echo "✅ Modelo Gemma 2B ya existe.";
@@ -49,7 +52,7 @@ services:
         GEMMA_PATH="/models/google_gemma-3-4b-it-Q4_K_S.gguf";
         if [ ! -f "$$GEMMA_PATH" ]; then
           echo "Modelo Gemma 4B no encontrado. Descargando...";
-          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_S.gguf" --output "$$GEMMA_PATH";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_S.gguf" -O "$$GEMMA_PATH";
           echo "✅ Modelo Gemma 4B descargado.";
         else
           echo "✅ Modelo Gemma 4B ya existe.";
@@ -59,7 +62,7 @@ services:
         GEMMA_PATH="/models/google_gemma-3-12b-it-Q4_K_S.gguf";
         if [ ! -f "$$GEMMA_PATH" ]; then
           echo "Modelo Gemma 12B no encontrado. Descargando...";
-          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/google_gemma-3-12b-it-GGUF/resolve/main/google_gemma-3-12b-it-Q4_K_S.gguf" --output "$$GEMMA_PATH";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/google_gemma-3-12b-it-GGUF/resolve/main/google_gemma-3-12b-it-Q4_K_S.gguf" -O "$$GEMMA_PATH";
           echo "✅ Modelo Gemma 12B descargado.";
         else
           echo "✅ Modelo Gemma 12B ya existe.";
@@ -69,7 +72,7 @@ services:
         MISTRAL_PATH="/models/Mistral-7B-Instruct-v0.3-Q4_K_S.gguf";
         if [ ! -f "$$MISTRAL_PATH" ]; then
           echo "Modelo Mistral 7B no encontrado. Descargando...";
-          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_S.gguf" --output "$$MISTRAL_PATH";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_S.gguf" -O "$$MISTRAL_PATH";
           echo "✅ Modelo Mistral 7B descargado.";
         else
           echo "✅ Modelo Mistral 7B ya existe.";
@@ -79,7 +82,7 @@ services:
         DEEPSEEK_PATH="/models/DeepSeek-R1-Distill-Qwen-7B-Q4_K_L.gguf";
         if [ ! -f "$$DEEPSEEK_PATH" ]; then
           echo "Modelo Deepseek 8B no encontrado. Descargando...";
-          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-7B-Q4_K_L.gguf" --output "$$DEEPSEEK_PATH";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-7B-Q4_K_L.gguf" -O "$$DEEPSEEK_PATH";
           echo "✅ Modelo Deepseek 8B descargado.";
         else
           echo "✅ Modelo Deepseek 8B ya existe.";
@@ -89,7 +92,7 @@ services:
         DEEPSEEK_PATH="/models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf";
         if [ ! -f "$$DEEPSEEK_PATH" ]; then
           echo "Modelo Deepseek 14B no encontrado. Descargando...";
-          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf" --output "$$DEEPSEEK_PATH";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf" -O "$$DEEPSEEK_PATH";
           echo "✅ Modelo Deepseek 14B descargado.";
         else
           echo "✅ Modelo Deepseek 14B ya existe.";
@@ -117,10 +120,10 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
+      interval: 90s
+      timeout: 30s
+      retries: 3
+      start_period: 600s
 
   #^ ======================== GEMMA 4B ========================
   gemma-4b:
@@ -140,10 +143,10 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
+      interval: 90s
+      timeout: 30s
+      retries: 3
+      start_period: 600s
 
   #^ ======================== GEMMA 12B ========================
   gemma-12b:
@@ -163,10 +166,10 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
+      interval: 90s
+      timeout: 30s
+      retries: 3
+      start_period: 600s
 
   #^ ======================== MISTRAL 7b ========================
   mistral-7b:
@@ -186,10 +189,10 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
+      interval: 90s
+      timeout: 30s
+      retries: 3
+      start_period: 600s
   
 
   #^ ======================== DEEPSEEK 8B ========================
@@ -210,10 +213,10 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
+      interval: 90s
+      timeout: 30s
+      retries: 3
+      start_period: 600s
 
   #^ ======================== DEEPSEEK 14B ========================
   deepseek-14b:
@@ -233,10 +236,10 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 180s
+      interval: 90s
+      timeout: 30s
+      retries: 3
+      start_period: 600s
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
