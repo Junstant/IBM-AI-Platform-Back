@@ -1,5 +1,5 @@
 services:
-  # === BASE DE DATOS (Funciona correctamente) ===
+  #? ======================== POSTGRES ========================
   postgres:
     image: postgres:15-alpine
     container_name: postgres_ai_platform
@@ -24,37 +24,47 @@ services:
       retries: 5
       start_period: 60s
 
-  # === DESCARGA DEL MODELO (Corregido con permisos) ===
+  # === DESCARGA DE MODELOS (Actualizado para 2 modelos) ===
   model-downloader:
     image: curlimages/curl:latest
     container_name: model-downloader
-    # CAMBIO: Se ejecuta el contenedor como usuario 'root' para tener permisos de escritura en el volumen.
     user: "root"
     volumes:
       - models_volume:/models
+    # CAMBIO: El script ahora verifica y descarga ambos modelos.
     command: >
       sh -c '
-        FILE_PATH="/models/google_gemma-3-4b-it-Q4_K_M.gguf";
-        if [ ! -f "$$FILE_PATH" ]; then
-          echo "Modelo no encontrado en $$FILE_PATH. Descargando...";
-          curl -L "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf" --output "$$FILE_PATH";
-          echo "✅ Modelo descargado.";
+        # Modelo 1: Gemma
+        GEMMA_PATH="/models/google_gemma-3-4b-it-Q4_K_M.gguf";
+        if [ ! -f "$$GEMMA_PATH" ]; then
+          echo "Modelo Gemma no encontrado. Descargando...";
+          curl -L "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf" --output "$$GEMMA_PATH";
+          echo "✅ Modelo Gemma descargado.";
         else
-          echo "✅ El modelo ya existe.";
+          echo "✅ Modelo Gemma ya existe.";
+        fi
+
+        # Modelo 2: Mistral
+        MISTRAL_PATH="/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf";
+        if [ ! -f "$$MISTRAL_PATH" ]; then
+          echo "Modelo Mistral no encontrado. Descargando...";
+          curl -L "https://huggingface.co/lmstudio-ai/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf" --output "$$MISTRAL_PATH";
+          echo "✅ Modelo Mistral descargado.";
+        else
+          echo "✅ Modelo Mistral ya existe.";
         fi
       '
     networks:
       - ai_platform_network
 
-  # === SERVIDOR LLM (Corregido con permisos) ===
-  llm-server:
+  #^ ======================== GEMMA 4B ========================
+  gemma-4b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
-    container_name: llm-server
-    # CAMBIO: Se ejecuta como 'root' para asegurar que pueda leer el modelo descargado por el 'downloader'.
+    container_name: gemma-4b
     user: "root"
     restart: always
     ports:
-      - "${LLM_PORT:-8080}:8080"
+      - "${LLM_GEMMA_PORT:-8080}:8080"
     volumes:
       - models_volume:/models
     networks:
@@ -79,7 +89,41 @@ services:
       retries: 5
       start_period: 180s
 
-  # === APLICACIONES (Sin cambios) ===
+  #^ ======================== MISTRAL 7b ========================
+  mistral-7b:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: mistral-7b
+    user: "root"
+    restart: always
+    # Expone el modelo en un puerto diferente (8081) para evitar conflictos.
+    ports:
+      - "${LLM_MISTRAL_PORT:-8081}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    # El comando ahora apunta al archivo del modelo Mistral.
+    command: [
+      "--host", "0.0.0.0",
+      "--port", "8080",
+      "-m", "/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf",
+      "--prio", "3",
+      "-c", "4096",
+      "-b", "32",
+      "-t", "32",
+      "-n", "-1"
+    ]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  #% ======================== TEXTOSQL API ========================
   textosql-api:
     build: 
       context: ./textoSql
@@ -96,7 +140,7 @@ services:
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - LLM_HOST=llm-server
+      - LLM_HOST=gemma-4b
       - LLM_PORT=8080
     volumes:
       - ./textoSql:/app
@@ -105,7 +149,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      llm-server:
+      gemma-4b:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -114,6 +158,7 @@ services:
       retries: 3
       start_period: 120s
 
+  #% ======================== FRAUDE API ========================
   fraude-api:
     build: 
       context: ./fraude
@@ -135,8 +180,6 @@ services:
       - ai_platform_network
     depends_on:
       postgres:
-        condition: service_healthy
-      llm-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
