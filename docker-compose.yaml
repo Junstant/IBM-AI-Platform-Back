@@ -24,38 +24,103 @@ services:
       retries: 5
       start_period: 60s
 
-  # === DESCARGA DE MODELOS (Actualizado para 2 modelos) ===
+  #? ======================== MODEL DOWNLOADER ========================
   model-downloader:
     image: curlimages/curl:latest
     container_name: model-downloader
     user: "root"
     volumes:
       - models_volume:/models
-    # CAMBIO: El script ahora verifica y descarga ambos modelos.
+    environment:
+      - TOKEN_HUGGHINGFACE=${TOKEN_HUGGHINGFACE}
     command: >
       sh -c '
-        # Modelo 1: Gemma
-        GEMMA_PATH="/models/google_gemma-3-4b-it-Q4_K_M.gguf";
+        # Gemma 2B
+        GEMMA_PATH="/models/google_gemma-2-2b-it-Q4_K_S.gguf";
         if [ ! -f "$$GEMMA_PATH" ]; then
-          echo "Modelo Gemma no encontrado. Descargando...";
-          curl -L "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf" --output "$$GEMMA_PATH";
-          echo "✅ Modelo Gemma descargado.";
+          echo "Modelo Gemma 2B no encontrado. Descargando...";
+          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/google_gemma-2-2b-it-GGUF/resolve/main/google_gemma-2-2b-it-Q4_K_S.gguf" --output "$$GEMMA_PATH";
+          echo "✅ Modelo Gemma 2B descargado.";
         else
-          echo "✅ Modelo Gemma ya existe.";
+          echo "✅ Modelo Gemma 2B ya existe.";
         fi
 
-        # Modelo 2: Mistral
+        # Gemma 4B
+        GEMMA_PATH="/models/gemma-4-4b-it-Q4_K_M.gguf";
+        if [ ! -f "$$GEMMA_PATH" ]; then
+          echo "Modelo Gemma 4B no encontrado. Descargando...";
+          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/google_gemma-4-4b-it-GGUF/resolve/main/google_gemma-4-4b-it-Q4_K_M.gguf" --output "$$GEMMA_PATH";
+          echo "✅ Modelo Gemma 4B descargado.";
+        else
+          echo "✅ Modelo Gemma 4B ya existe.";
+        fi
+
+        # Gemma 12B
+        GEMMA_PATH="/models/gemma-12-4b-it-Q4_K_M.gguf";
+        if [ ! -f "$$GEMMA_PATH" ]; then
+          echo "Modelo Gemma 12B no encontrado. Descargando...";
+          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/google_gemma-12-4b-it-GGUF/resolve/main/google_gemma-12-4b-it-Q4_K_M.gguf" --output "$$GEMMA_PATH";
+          echo "✅ Modelo Gemma 12B descargado.";
+        else
+          echo "✅ Modelo Gemma 12B ya existe.";
+        fi
+
+        # Mistral 7B
         MISTRAL_PATH="/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf";
         if [ ! -f "$$MISTRAL_PATH" ]; then
-          echo "Modelo Mistral no encontrado. Descargando...";
-          curl -L "https://huggingface.co/lmstudio-ai/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf" --output "$$MISTRAL_PATH";
-          echo "✅ Modelo Mistral descargado.";
+          echo "Modelo Mistral 7B no encontrado. Descargando...";
+          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/lmstudio-ai/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf" --output "$$MISTRAL_PATH";
+          echo "✅ Modelo Mistral 7B descargado.";
         else
-          echo "✅ Modelo Mistral ya existe.";
+          echo "✅ Modelo Mistral 7B ya existe.";
         fi
+
+        # Deepseek 8B
+        DEEPSEEK_PATH="/models/deepseek-8b-instruct-v0.3.Q4_K_M.gguf";
+        if [ ! -f "$$DEEPSEEK_PATH" ]; then
+          echo "Modelo Deepseek 8B no encontrado. Descargando...";
+          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_L.gguf" --output "$$DEEPSEEK_PATH";
+          echo "✅ Modelo Deepseek 8B descargado.";
+        else
+          echo "✅ Modelo Deepseek 8B ya existe.";
+        fi
+
+        # Deepseek 14B
+        DEEPSEEK_PATH="/models/deepseek-14b-instruct-v0.3.Q4_K_M.gguf";
+        if [ ! -f "$$DEEPSEEK_PATH" ]; then
+          echo "Modelo Deepseek 14B no encontrado. Descargando...";
+          curl -L --header "Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf" --output "$$DEEPSEEK_PATH";
+          echo "✅ Modelo Deepseek 14B descargado.";
+        else
+          echo "✅ Modelo Deepseek 14B ya existe.";
+        fi
+
       '
     networks:
       - ai_platform_network
+
+  #^ ======================== GEMMA 2B ========================
+  gemma-2b:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: gemma-2b
+    user: "root"
+    restart: always
+    ports:
+      - "${LLM_GEMMA_PORT:-8085}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/gemma-2-2b-it-Q4_K_S.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
 
   #^ ======================== GEMMA 4B ========================
   gemma-4b:
@@ -64,21 +129,35 @@ services:
     user: "root"
     restart: always
     ports:
-      - "${LLM_GEMMA_PORT:-8080}:8080"
+      - "${LLM_GEMMA_PORT:-8086}:8080"
     volumes:
       - models_volume:/models
     networks:
       - ai_platform_network
-    command: [
-      "--host", "0.0.0.0",
-      "--port", "8080",
-      "-m", "/models/google_gemma-3-4b-it-Q4_K_M.gguf",
-      "--prio", "3",
-      "-c", "4096",
-      "-b", "32",
-      "-t", "32",
-      "-n", "-1"
-    ]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-4b-it-Q4_K_M.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  #^ ======================== GEMMA 12B ========================
+  gemma-12b:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: gemma-12b
+    user: "root"
+    restart: always
+    ports:
+      - "${LLM_GEMMA_PORT:-8087}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-4b-it-Q4_K_M.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
@@ -95,24 +174,60 @@ services:
     container_name: mistral-7b
     user: "root"
     restart: always
-    # Expone el modelo en un puerto diferente (8081) para evitar conflictos.
     ports:
-      - "${LLM_MISTRAL_PORT:-8081}:8080"
+      - "${LLM_MISTRAL_PORT:-8088}:8080"
     volumes:
       - models_volume:/models
     networks:
       - ai_platform_network
-    # El comando ahora apunta al archivo del modelo Mistral.
-    command: [
-      "--host", "0.0.0.0",
-      "--port", "8080",
-      "-m", "/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf",
-      "--prio", "3",
-      "-c", "4096",
-      "-b", "32",
-      "-t", "32",
-      "-n", "-1"
-    ]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+  
+
+  #^ ======================== DEEPSEEK 8B ========================
+  deepseek-8b:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: deepseek-8b
+    user: "root"
+    restart: always
+    ports:
+      - "${LLM_DEEPSEEK_PORT:-8089}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/deepseek-8b-instruct-v0.3.Q4_K_M.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  #^ ======================== DEEPSEEK 14B ========================
+  deepseek-14b:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: deepseek-14b
+    user: "root"
+    restart: always
+    ports:
+      - "${LLM_DEEPSEEK_PORT:-8090}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/mistral-7b-instruct-v0.3.Q4_K_M.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
@@ -125,13 +240,13 @@ services:
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
-    build: 
+    build:
       context: ./textoSql
       dockerfile: Dockerfile
     container_name: textosql-api
     restart: always
     ports:
-      - "${TEXTOSQL_API_PORT:-8001}:8000"
+      - "${TEXTOSQL_API_PORT:-8000}:8000"
     env_file:
       - .env
     environment:
@@ -160,13 +275,13 @@ services:
 
   #% ======================== FRAUDE API ========================
   fraude-api:
-    build: 
+    build:
       context: ./fraude
       dockerfile: Dockerfile
     container_name: fraude-api
     restart: always
     ports:
-      - "${FRAUDE_API_PORT:-8000}:8000"
+      - "${FRAUDE_API_PORT:-8001}:8000"
     env_file:
       - .env
     environment:
@@ -197,4 +312,3 @@ networks:
   ai_platform_network:
     driver: bridge
     name: ${COMPOSE_PROJECT_NAME:-platform_ai_lj}_network
-
