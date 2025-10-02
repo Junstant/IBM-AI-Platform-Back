@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import pandas as pd
-from datetime import time, date
+from datetime import time, date, datetime
 
 # Importa las funciones y clases necesarias de tus otros archivos
 from behavioral_fraud_model import HybridFraudDetector
@@ -40,6 +40,21 @@ class Transaction(BaseModel):
     tipo_tarjeta: str
     horario_transaccion: str # Se usa un string para recibir la hora (ej: "14:30:00")
 
+# --- Endpoints de la API ---
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker health checks"""
+    try:
+        return {
+            "status": "healthy",
+            "service": "fraude-api",
+            "timestamp": datetime.now().isoformat(),
+            "modelo_entrenado": modelo_entrenado
+        }
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}, 503
+
 # --- Evento de inicio: entrena el modelo automáticamente ---
 @app.on_event("startup")
 def startup_event():
@@ -58,8 +73,6 @@ def startup_event():
     detector.train_model(processed_data)
     modelo_entrenado = True
     print("✅ Modelo entrenado y listo para usarse.")
-
-# --- Endpoints de la API ---
 
 @app.get("/")
 def root():
