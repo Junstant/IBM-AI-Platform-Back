@@ -30,7 +30,7 @@ services:
     container_name: nginx-server
     restart: always
     ports:
-      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_PORT:-2012}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
@@ -274,14 +274,15 @@ services:
     container_name: fraude-api
     restart: always
     ports:
-      - "${FRAUDE_API_PORT:-8000}:8000"
+      - "${FRAUDE_API_PORT:-8001}:8000"
     env_file:
       - .env
     environment:
-      - DB_HOST=postgres_ai_platform
+      - DB_HOST=postgres_db
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-root}
+      - DB_NAME=${DB2_NAME:-bank_transactions}
     volumes:
       - ./fraude:/app
     networks:
@@ -304,15 +305,15 @@ services:
     container_name: textosql-api
     restart: always
     ports:
-      - "${TEXTOSQL_API_PORT:-8001}:8000"
+      - "${TEXTOSQL_API_PORT:-8000}:8000"
     env_file:
       - .env
     environment:
-      - DB_NAME_TEXTOSQL=${DB_NAME_TEXTOSQL:-banco_global}
-      - DB_HOST=postgres_ai_platform
+      - DB_HOST=postgres_db
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-root}
+      - DB_NAME=${DB1_NAME:-banco_global}
       - LLM_HOST=gemma-4b
       - LLM_PORT=8080
     volumes:
