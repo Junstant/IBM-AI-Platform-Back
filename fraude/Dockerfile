@@ -2,12 +2,10 @@
 FROM python:3.10-slim
 
 # Establece el directorio de trabajo dentro del contenedor
-WORKDIR /fraude
+WORKDIR /app
 
-# Instalar curl para health checks de forma no interactiva
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl && \
-    rm -rf /var/lib/apt/lists/*
+# Instalar curl para health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copia el archivo de requisitos
 COPY requirements.txt .
