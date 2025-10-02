@@ -250,7 +250,7 @@ services:
     user: "root"
     restart: always
     ports:
-      - "${LLM_DEEPSEEK_PORT:-8090}:8080"
+      - "${DEEPSEEK_14B_PORT:-8090}:8080"
     volumes:
       - models_volume:/models
     networks:
