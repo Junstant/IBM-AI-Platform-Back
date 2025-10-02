@@ -2,7 +2,7 @@ services:
   #? ======================== POSTGRES ========================
   postgres:
     image: postgres:15-alpine
-    container_name: postgres_ai_platform
+    container_name: postgres_db
     restart: always
     ports:
       - "${DB_PORT:-8070}:5432"
@@ -23,6 +23,31 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  #? ======================== NGINX ========================
+  nginx:
+    image: nginx:latest
+    container_name: nginx-server
+    restart: always
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - ai_platform_network
+    depends_on:
+      fraude-api:
+        condition: service_healthy
+      textosql-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
 
   #? ======================== MODEL DOWNLOADER ========================
   model-downloader:
@@ -109,7 +134,7 @@ services:
     user: "root"
     restart: always
     ports:
-      - "${LLM_GEMMA_PORT:-8085}:8080"
+      - "${GEMMA_2B_PORT:-8085}:8080"
     volumes:
       - models_volume:/models
     networks:
@@ -132,7 +157,7 @@ services:
     user: "root"
     restart: always
     ports:
-      - "${LLM_GEMMA_PORT:-8086}:8080"
+      - "${GEMMA_4B_PORT:-8086}:8080"
     volumes:
       - models_volume:/models
     networks:
@@ -155,7 +180,7 @@ services:
     user: "root"
     restart: always
     ports:
-      - "${LLM_GEMMA_PORT:-8087}:8080"
+      - "${GEMMA_12B_PORT:-8087}:8080"
     volumes:
       - models_volume:/models
     networks:
@@ -178,7 +203,7 @@ services:
     user: "root"
     restart: always
     ports:
-      - "${LLM_MISTRAL_PORT:-8088}:8080"
+      - "${MISTRAL_PORT:-8088}:8080"
     volumes:
       - models_volume:/models
     networks:
@@ -202,7 +227,7 @@ services:
     user: "root"
     restart: always
     ports:
-      - "${LLM_DEEPSEEK_PORT:-8089}:8080"
+      - "${DEEPSEEK_8B_PORT:-8089}:8080"
     volumes:
       - models_volume:/models
     networks:
@@ -241,6 +266,36 @@ services:
       retries: 3
       start_period: 600s
 
+  #% ======================== FRAUDE API ========================
+  fraude-api:
+    build:
+      context: ./fraude
+      dockerfile: Dockerfile
+    container_name: fraude-api
+    restart: always
+    ports:
+      - "${FRAUDE_API_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres_ai_platform
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    volumes:
+      - ./fraude:/app
+    networks:
+      - ai_platform_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+
   #% ======================== TEXTOSQL API ========================
   textosql-api:
     build:
@@ -249,7 +304,7 @@ services:
     container_name: textosql-api
     restart: always
     ports:
-      - "${TEXTOSQL_API_PORT:-8000}:8000"
+      - "${TEXTOSQL_API_PORT:-8001}:8000"
     env_file:
       - .env
     environment:
@@ -268,36 +323,6 @@ services:
       postgres:
         condition: service_healthy
       gemma-4b:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 120s
-
-  #% ======================== FRAUDE API ========================
-  fraude-api:
-    build:
-      context: ./fraude
-      dockerfile: Dockerfile
-    container_name: fraude-api
-    restart: always
-    ports:
-      - "${FRAUDE_API_PORT:-8001}:8000"
-    env_file:
-      - .env
-    environment:
-      - DB_HOST=postgres_ai_platform
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-    volumes:
-      - ./fraude:/app
-    networks:
-      - ai_platform_network
-    depends_on:
-      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
