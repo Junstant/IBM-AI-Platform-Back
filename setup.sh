@@ -44,6 +44,10 @@ load_env_config() {
         exit 1
     fi
     
+    # Guardar la ruta absoluta del directorio original donde está el .env
+    ORIGINAL_DIR="$(pwd)"
+    ORIGINAL_ENV_PATH="$ORIGINAL_DIR/.env"
+    
     # Cargar variables del .env
     source .env
     
@@ -62,7 +66,7 @@ load_env_config() {
         exit 1
     fi
     
-    log "✅ Configuración .env cargada correctamente"
+    log "✅ Configuración .env cargada correctamente desde: $ORIGINAL_ENV_PATH"
     
     # Configurar variables derivadas
     COMPOSE_FILE="$PROJECT_DIR/docker-compose.yaml"
@@ -576,12 +580,19 @@ prepare_project() {
     mkdir -p {fraude,textoSql}/logs
     mkdir -p nginx/{conf.d,certs}
     
-    # Copiar .env desde el directorio original si no existe
-    if [ ! -f ".env" ] && [ -f "../.env" ]; then
-        cp "../.env" ".env"
-        log "✅ Archivo .env copiado al proyecto"
-    elif [ ! -f ".env" ]; then
-        warn "⚠️ Archivo .env no encontrado en el proyecto"
+    # Copiar .env desde el directorio original donde se ejecutó el script
+    if [ ! -f ".env" ] && [ -n "$ORIGINAL_ENV_PATH" ] && [ -f "$ORIGINAL_ENV_PATH" ]; then
+        log "📄 Copiando archivo .env desde directorio original..."
+        cp "$ORIGINAL_ENV_PATH" ".env"
+        log "✅ Archivo .env copiado exitosamente desde: $ORIGINAL_ENV_PATH"
+        log "📍 Archivo .env ahora disponible en: $(pwd)/.env"
+    elif [ -f ".env" ]; then
+        log "✅ Archivo .env ya existe en el proyecto"
+    else
+        warn "⚠️ No se pudo encontrar archivo .env para copiar"
+        if [ -n "$ORIGINAL_ENV_PATH" ]; then
+            warn "📍 Ruta original esperada: $ORIGINAL_ENV_PATH"
+        fi
         log "💡 Asegúrese de que el archivo .env esté disponible"
     fi
     
@@ -632,6 +643,34 @@ deploy_services() {
     log "🐳 Construyendo e iniciando servicios..."
     
     cd "$PROJECT_DIR"
+    
+    # Verificar que el archivo .env esté presente antes de continuar
+    if [ ! -f ".env" ]; then
+        error "❌ Archivo .env no encontrado en $PROJECT_DIR"
+        echo ""
+        echo "🔍 POSIBLES SOLUCIONES:"
+        echo "1. Verificar que el .env original esté en el directorio donde ejecutó el script"
+        echo "2. Ejecutar primero: sudo ./setup.sh prepare"
+        echo "3. Copiar manualmente el .env: cp /ruta/original/.env $PROJECT_DIR/.env"
+        echo ""
+        if [ -n "$ORIGINAL_ENV_PATH" ]; then
+            echo "📍 Archivo .env original esperado en: $ORIGINAL_ENV_PATH"
+            if [ -f "$ORIGINAL_ENV_PATH" ]; then
+                log "💡 Copiando archivo .env automáticamente..."
+                cp "$ORIGINAL_ENV_PATH" ".env"
+                log "✅ Archivo .env copiado exitosamente"
+            else
+                echo "❌ Archivo .env no encontrado en la ruta original"
+            fi
+        fi
+        
+        # Verificar nuevamente después del intento de copia
+        if [ ! -f ".env" ]; then
+            exit 1
+        fi
+    else
+        log "✅ Archivo .env encontrado en el proyecto"
+    fi
     
     # Determinar comando de docker-compose
     if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
