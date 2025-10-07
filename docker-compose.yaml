@@ -24,15 +24,17 @@ services:
       retries: 5
       start_period: 60s
 
- #? ======================== FRONTEND (NGINX) ========================
+#? ======================== FRONTEND (NGINX) ========================
   frontend:
     container_name: frontend
     restart: always
+    # Conecta el contenedor a la red del host.
     network_mode: "host"
     build:
-      context: ../FrontAI  # Ruta absoluta al directorio frontend
+      context: ../FrontAI
       dockerfile: Dockerfile
       args:
+        # Esto está perfecto, se mantiene igual.
         - VITE_API_HOST=${VITE_API_HOST}
         - VITE_GEMMA2b_PORT=${GEMMA_2B_PORT}
         - VITE_GEMMA4b_PORT=${GEMMA_4B_PORT}
@@ -42,24 +44,34 @@ services:
         - VITE_DEEPSEEK14b_PORT=${DEEPSEEK_14B_PORT}
         - VITE_FRAUD_DETECTION_PORT=${FRAUDE_API_PORT}
         - VITE_TEXTOSQL_API_PORT=${TEXTOSQL_API_PORT}
+    
+    # Esta sección se ignora pero no causa error, la podés dejar.
     ports:
       - "${NGINX_PORT:-2012}:80"
+
+    # La sección 'networks' debe estar comentada o eliminada.
     # networks:
     #   - ai_platform_network
+
+    # --- ESTE BLOQUE ES EL QUE HAY QUE CORREGIR ---
     environment:
-      # Variables para la plantilla de Nginx (comunicación interna)
-      - NGINX_PORT_INTERNAL=80
-      - FRAUDE_API_HOST=fraude-api
-      - FRAUDE_API_PORT=8000
-      - TEXTOSQL_API_HOST=textosql-api
-      - TEXTOSQL_API_PORT=8000
+      # Nginx ahora debe escuchar en el puerto público que definiste en .env
+      - NGINX_PORT_INTERNAL=${NGINX_PORT:-2012}
+      # Las APIs se acceden a través del localhost del host y sus puertos publicados
+      - FRAUDE_API_HOST=127.0.0.1
+      - FRAUDE_API_PORT=${FRAUDE_API_PORT:-8001}
+      - TEXTOSQL_API_HOST=127.0.0.1
+      - TEXTOSQL_API_PORT=${TEXTOSQL_API_PORT:-8000}
+    # -----------------------------------------------
+
     depends_on:
       fraude-api:
         condition: service_healthy
       textosql-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
+      # El healthcheck ahora debe apuntar al puerto público
+      test: ["CMD", "curl", "-f", "http://localhost:${NGINX_PORT:-2012}"]
       interval: 60s
       timeout: 30s
       retries: 3
