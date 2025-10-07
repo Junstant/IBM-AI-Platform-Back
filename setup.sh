@@ -559,13 +559,6 @@ download_repositories() {
         log "✅ Repositorio frontend descargado exitosamente"
         cd "$FRONT_DIR"
         log "📊 Commit actual frontend: $(git rev-parse --short HEAD)"
-        
-        # Copiar configuración de nginx si existe al directorio backend
-        if [ -f "$FRONT_DIR/nginx.conf" ]; then
-            mkdir -p "$BACK_DIR/nginx/conf.d"
-            cp "$FRONT_DIR/nginx.conf" "$BACK_DIR/nginx/"
-            log "✅ Configuración de nginx copiada desde frontend al backend"
-        fi
     else
         warn "No se pudo descargar el repositorio frontend (continuando sin él)"
     fi
@@ -624,18 +617,6 @@ prepare_project() {
             log "� Archivo .env frontend disponible en: $(pwd)/.env"
         elif [ -f ".env" ]; then
             log "✅ Archivo .env ya existe en el frontend"
-        fi
-        
-        # Si existe package.json, instalar dependencias
-        if [ -f "package.json" ]; then
-            log "📦 Instalando dependencias del frontend..."
-            if command -v npm &> /dev/null; then
-                npm install --silent &> /dev/null || warn "Error instalando dependencias npm"
-            elif command -v yarn &> /dev/null; then
-                yarn install --silent &> /dev/null || warn "Error instalando dependencias yarn"
-            else
-                warn "npm/yarn no encontrado, saltando instalación de dependencias frontend"
-            fi
         fi
     fi
     
@@ -718,20 +699,6 @@ deploy_services() {
         log "✅ Archivo .env encontrado en el directorio backend"
     fi
     
-    # Actualizar docker-compose.yaml para referenciar el frontend correctamente
-    if [ -f "docker-compose.yaml" ] && [ -d "$FRONT_DIR" ]; then
-        log "🔧 Actualizando referencias del frontend en docker-compose..."
-        
-        # Crear un backup del docker-compose original
-        cp docker-compose.yaml docker-compose.yaml.backup
-        
-        # Reemplazar rutas relativas del frontend con la ruta absoluta
-        sed -i.bak "s|./frontend|$FRONT_DIR|g" docker-compose.yaml
-        sed -i.bak "s|frontend/|$FRONT_DIR/|g" docker-compose.yaml
-        
-        log "✅ Referencias del frontend actualizadas en docker-compose"
-    fi
-    
     # Determinar comando de docker-compose
     if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
         DOCKER_COMPOSE="docker-compose"
@@ -767,11 +734,8 @@ deploy_services() {
     fi
     
     # Construir e iniciar servicios
-    log "🔨 Construyendo imágenes..."
-    $DOCKER_COMPOSE build --no-cache
-    
-    log "🚀 Iniciando servicios..."
-    $DOCKER_COMPOSE up -d
+    log "🚀 Construyendo y levantando servicios..."
+    $DOCKER_COMPOSE up --build -d
     
     log "✅ Servicios iniciados desde $BACK_DIR"
 }
