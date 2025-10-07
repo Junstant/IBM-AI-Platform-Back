@@ -37,7 +37,7 @@ services:
       - ai_platform_network
     environment:
       # Variables para la plantilla de Nginx (comunicación interna)
-      - NGINX_PORT=${NGINX_PORT:-2012}
+      - NGINX_PORT_INTERNAL=80
       - FRAUDE_API_HOST=fraude-api
       - FRAUDE_API_PORT=8000
       - TEXTOSQL_API_HOST=textosql-api
@@ -48,7 +48,7 @@ services:
       textosql-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 60s
       timeout: 30s
       retries: 3
