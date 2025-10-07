@@ -309,28 +309,24 @@ install_docker() {
     
     case "$PKG_MANAGER" in
         dnf|yum)
-            # Remover conflictos
+            log "🧼 Removiendo instalaciones conflictivas (docker, podman)..."
             $PKG_MANAGER remove -y docker docker-client docker-client-latest \
-                docker-common docker-latest docker-latest-logrotate \
-                docker-logrotate docker-engine podman runc &>/dev/null || true
+                    docker-common docker-latest docker-latest-logrotate \
+                    docker-logrotate docker-engine podman runc &>/dev/null || true
             
-            # Instalar dependencias
-            $PKG_MANAGER install -y dnf-plugins-core device-mapper-persistent-data lvm2
+            log "🔧 Instalando dependencias para Docker..."
+            $PKG_MANAGER install -y dnf-plugins-core
             
-            # Intentar instalar Docker CE desde repo oficial
-            if [[ "$ARCH_TYPE" != "ppc64le" ]]; then
-                $PKG_MANAGER config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo &>/dev/null || true
-                
-                if $PKG_MANAGER install -y docker-ce docker-ce-cli containerd.io \
-                    docker-buildx-plugin docker-compose-plugin &>/dev/null; then
-                    log "✅ Docker CE instalado desde repo oficial"
-                else
-                    warn "Docker CE no disponible, instalando Docker del sistema..."
-                    $PKG_MANAGER install -y docker
-                fi
+            log "➕ Agregando el repositorio oficial de Docker CE..."
+            $PKG_MANAGER config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            
+            log "📦 Instalando Docker CE (Community Edition)..."
+            if $PKG_MANAGER install -y docker-ce docker-ce-cli containerd.io \
+                    docker-buildx-plugin docker-compose-plugin; then
+                log "✅ Docker CE instalado exitosamente desde el repositorio oficial."
             else
-                log "🔧 Instalando Docker para Power PC..."
-                $PKG_MANAGER install -y docker
+                error "Falló la instalación de Docker CE. Abortando."
+                exit 1
             fi
             ;;
             
