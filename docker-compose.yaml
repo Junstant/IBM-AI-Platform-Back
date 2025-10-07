@@ -44,8 +44,8 @@ services:
         - VITE_TEXTOSQL_API_PORT=${TEXTOSQL_API_PORT}
     ports:
       - "${NGINX_PORT:-2012}:80"
-    networks:
-      - ai_platform_network
+    # networks:
+    #   - ai_platform_network
     environment:
       # Variables para la plantilla de Nginx (comunicación interna)
       - NGINX_PORT_INTERNAL=80
