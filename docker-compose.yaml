@@ -29,12 +29,18 @@ services:
     container_name: frontend-server
     restart: always
     build:
-      context: /root/FrontAI  # Ruta absoluta al directorio frontend
+      context: ../FrontAI  # Ruta absoluta al directorio frontend
       dockerfile: Dockerfile
     ports:
       - "${NGINX_PORT:-2012}:80"
     networks:
       - ai_platform_network
+    environment:
+      # Variables para la plantilla de Nginx (comunicación interna)
+      - FRAUDE_API_HOST=fraude-api
+      - FRAUDE_API_PORT=8000
+      - TEXTOSQL_API_HOST=textosql-api
+      - TEXTOSQL_API_PORT=8000
     depends_on:
       fraude-api:
         condition: service_healthy
