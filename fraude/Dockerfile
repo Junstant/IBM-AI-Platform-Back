@@ -1,5 +1,6 @@
 # Usa una imagen base de Python ligera
 FROM python:3.10-slim
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app

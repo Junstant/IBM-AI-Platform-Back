@@ -34,7 +34,7 @@ load_env_config() {
         echo "📋 PASOS PARA CONTINUAR:"
         echo "1. Debe existir un archivo .env con la configuración necesaria"
         echo "2. El archivo debe contener al menos:"
-        echo "   - PROJECT_DIR"
+        echo "   - FRONT_DIR y BACK_DIR"
         echo "   - DB_PASSWORD"
         echo "   - TOKEN_HUGGHINGFACE"
         echo "   - DEFAULT_PORTS"
@@ -53,7 +53,7 @@ load_env_config() {
     
     # Verificar variables críticas
     local missing_vars=()
-    local required_vars=("PROJECT_DIR" "DB_PASSWORD" "TOKEN_HUGGHINGFACE" "DEFAULT_PORTS")
+    local required_vars=("FRONT_DIR" "BACK_DIR" "DB_PASSWORD" "TOKEN_HUGGHINGFACE" "DEFAULT_PORTS")
     
     for var in "${required_vars[@]}"; do
         if [ -z "${!var}" ]; then
@@ -69,11 +69,15 @@ load_env_config() {
     log "✅ Configuración .env cargada correctamente desde: $ORIGINAL_ENV_PATH"
     
     # Configurar variables derivadas
-    COMPOSE_FILE="$PROJECT_DIR/docker-compose.yaml"
+    COMPOSE_FILE="$BACK_DIR/docker-compose.yaml"
     
     # Si REPO_BACK_URL y REPO_FRONT_URL no están definidas, usar valores por defecto
     REPO_BACK_URL=${REPO_BACK_URL:-"https://github.com/Junstant/IBM-AI-Platform-Back.git"}
     REPO_FRONT_URL=${REPO_FRONT_URL:-"https://github.com/Junstant/IBM-AI-Platform-Front.git"}
+    
+    log "📁 Directorios configurados:"
+    log "   Backend: $BACK_DIR"
+    log "   Frontend: $FRONT_DIR"
 }
 
 # ===== DETECTAR ARQUITECTURA Y SO =====
@@ -159,7 +163,7 @@ check_system_resources() {
     fi
     
     # Verificar espacio en disco
-    DISK_AVAIL_GB=$(df -BG "$(dirname "$PROJECT_DIR")" 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/G//' || echo "0")
+    DISK_AVAIL_GB=$(df -BG "$(dirname "$BACK_DIR")" 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/G//' || echo "0")
     if [ "$DISK_AVAIL_GB" -lt "${MIN_DISK_GB:-20}" ]; then
         warn "Solo ${DISK_AVAIL_GB}GB de espacio libre. Mínimo recomendado: ${MIN_DISK_GB:-20}GB"
         read -p "¿Desea continuar de todos modos? (y/N): " -n 1 -r
@@ -524,75 +528,120 @@ configure_firewall() {
 download_repositories() {
     log "📥 Descargando repositorios desde GitHub..."
     
-    # Crear directorio padre si no existe
-    mkdir -p "$(dirname "$PROJECT_DIR")"
+    # Crear directorios padre si no existen
+    mkdir -p "$(dirname "$BACK_DIR")"
+    mkdir -p "$(dirname "$FRONT_DIR")"
     
     # Descargar repositorio backend
-    log "📦 Descargando repositorio backend..."
-    if [ -d "$PROJECT_DIR" ]; then
-        log "📁 Directorio existente encontrado, creando backup..."
-        mv "$PROJECT_DIR" "${PROJECT_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
+    log "📦 Descargando repositorio backend a $BACK_DIR..."
+    if [ -d "$BACK_DIR" ]; then
+        log "📁 Directorio backend existente encontrado, creando backup..."
+        mv "$BACK_DIR" "${BACK_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
     fi
     
-    if git clone "$REPO_BACK_URL" "$PROJECT_DIR"; then
+    if git clone "$REPO_BACK_URL" "$BACK_DIR"; then
         log "✅ Repositorio backend descargado exitosamente"
-        cd "$PROJECT_DIR"
-        log "📊 Commit actual: $(git rev-parse --short HEAD)"
+        cd "$BACK_DIR"
+        log "📊 Commit actual backend: $(git rev-parse --short HEAD)"
     else
         error "Error al descargar el repositorio backend"
         exit 1
     fi
     
     # Descargar repositorio frontend
-    log "📦 Descargando repositorio frontend..."
-    FRONT_DIR="${PROJECT_DIR}/frontend"
+    log "📦 Descargando repositorio frontend a $FRONT_DIR..."
+    if [ -d "$FRONT_DIR" ]; then
+        log "📁 Directorio frontend existente encontrado, creando backup..."
+        mv "$FRONT_DIR" "${FRONT_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
+    fi
     
     if git clone "$REPO_FRONT_URL" "$FRONT_DIR"; then
         log "✅ Repositorio frontend descargado exitosamente"
+        cd "$FRONT_DIR"
+        log "📊 Commit actual frontend: $(git rev-parse --short HEAD)"
         
-        # Copiar configuración de nginx si existe
+        # Copiar configuración de nginx si existe al directorio backend
         if [ -f "$FRONT_DIR/nginx.conf" ]; then
-            mkdir -p "$PROJECT_DIR/nginx/conf.d"
-            cp "$FRONT_DIR/nginx.conf" "$PROJECT_DIR/nginx/"
-            log "✅ Configuración de nginx copiada desde frontend"
+            mkdir -p "$BACK_DIR/nginx/conf.d"
+            cp "$FRONT_DIR/nginx.conf" "$BACK_DIR/nginx/"
+            log "✅ Configuración de nginx copiada desde frontend al backend"
         fi
     else
         warn "No se pudo descargar el repositorio frontend (continuando sin él)"
     fi
+    
+    log "📍 Estructura final:"
+    log "   Backend: $BACK_DIR"
+    log "   Frontend: $FRONT_DIR"
 }
 
 # ===== PREPARAR PROYECTO =====
 prepare_project() {
     log "📁 Preparando estructura del proyecto..."
     
-    cd "$PROJECT_DIR"
+    # Preparar directorio backend
+    cd "$BACK_DIR"
+    log "🔧 Configurando directorio backend: $BACK_DIR"
     
-    # Hacer ejecutables los scripts
+    # Hacer ejecutables los scripts en backend
     find . -name "*.sh" -type f -exec chmod +x {} \;
     
-    # Crear directorios necesarios
+    # Crear directorios necesarios en backend
     mkdir -p {models,logs,backups,data}
     mkdir -p database/{data,backups}
     mkdir -p {fraude,textoSql}/logs
     mkdir -p nginx/{conf.d,certs}
     
-    # Copiar .env desde el directorio original donde se ejecutó el script
+    # Copiar .env desde el directorio original al backend
     if [ ! -f ".env" ] && [ -n "$ORIGINAL_ENV_PATH" ] && [ -f "$ORIGINAL_ENV_PATH" ]; then
-        log "📄 Copiando archivo .env desde directorio original..."
+        log "📄 Copiando archivo .env al directorio backend..."
         cp "$ORIGINAL_ENV_PATH" ".env"
-        log "✅ Archivo .env copiado exitosamente desde: $ORIGINAL_ENV_PATH"
-        log "📍 Archivo .env ahora disponible en: $(pwd)/.env"
+        log "✅ Archivo .env copiado exitosamente al backend desde: $ORIGINAL_ENV_PATH"
+        log "📍 Archivo .env backend disponible en: $(pwd)/.env"
     elif [ -f ".env" ]; then
-        log "✅ Archivo .env ya existe en el proyecto"
+        log "✅ Archivo .env ya existe en el backend"
     else
-        warn "⚠️ No se pudo encontrar archivo .env para copiar"
-        if [ -n "$ORIGINAL_ENV_PATH" ]; then
-            warn "📍 Ruta original esperada: $ORIGINAL_ENV_PATH"
-        fi
-        log "💡 Asegúrese de que el archivo .env esté disponible"
+        warn "⚠️ No se pudo encontrar archivo .env para copiar al backend"
     fi
     
-    log "✅ Proyecto preparado"
+    # Preparar directorio frontend si existe
+    if [ -d "$FRONT_DIR" ]; then
+        cd "$FRONT_DIR"
+        log "🔧 Configurando directorio frontend: $FRONT_DIR"
+        
+        # Hacer ejecutables los scripts en frontend
+        find . -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+        
+        # Crear directorios necesarios en frontend
+        mkdir -p {logs,dist,build}
+        mkdir -p public/assets
+        
+        # Copiar .env al frontend también (para variables específicas del frontend)
+        if [ ! -f ".env" ] && [ -n "$ORIGINAL_ENV_PATH" ] && [ -f "$ORIGINAL_ENV_PATH" ]; then
+            log "� Copiando archivo .env al directorio frontend..."
+            cp "$ORIGINAL_ENV_PATH" ".env"
+            log "✅ Archivo .env copiado exitosamente al frontend"
+            log "� Archivo .env frontend disponible en: $(pwd)/.env"
+        elif [ -f ".env" ]; then
+            log "✅ Archivo .env ya existe en el frontend"
+        fi
+        
+        # Si existe package.json, instalar dependencias
+        if [ -f "package.json" ]; then
+            log "📦 Instalando dependencias del frontend..."
+            if command -v npm &> /dev/null; then
+                npm install --silent &> /dev/null || warn "Error instalando dependencias npm"
+            elif command -v yarn &> /dev/null; then
+                yarn install --silent &> /dev/null || warn "Error instalando dependencias yarn"
+            else
+                warn "npm/yarn no encontrado, saltando instalación de dependencias frontend"
+            fi
+        fi
+    fi
+    
+    log "✅ Proyecto preparado con estructura separada"
+    log "📁 Backend: $BACK_DIR"
+    log "📁 Frontend: $FRONT_DIR"
 }
 
 # ===== INSTALAR DEPENDENCIAS PYTHON =====
@@ -638,23 +687,24 @@ EOF
 deploy_services() {
     log "🐳 Construyendo e iniciando servicios..."
     
-    cd "$PROJECT_DIR"
+    # Cambiar al directorio backend donde está el docker-compose
+    cd "$BACK_DIR"
     
-    # Verificar que el archivo .env esté presente antes de continuar
+    # Verificar que el archivo .env esté presente en el backend
     if [ ! -f ".env" ]; then
-        error "❌ Archivo .env no encontrado en $PROJECT_DIR"
+        error "❌ Archivo .env no encontrado en $BACK_DIR"
         echo ""
         echo "🔍 POSIBLES SOLUCIONES:"
         echo "1. Verificar que el .env original esté en el directorio donde ejecutó el script"
         echo "2. Ejecutar primero: sudo ./setup.sh prepare"
-        echo "3. Copiar manualmente el .env: cp /ruta/original/.env $PROJECT_DIR/.env"
+        echo "3. Copiar manualmente el .env: cp /ruta/original/.env $BACK_DIR/.env"
         echo ""
         if [ -n "$ORIGINAL_ENV_PATH" ]; then
             echo "📍 Archivo .env original esperado en: $ORIGINAL_ENV_PATH"
             if [ -f "$ORIGINAL_ENV_PATH" ]; then
-                log "💡 Copiando archivo .env automáticamente..."
+                log "💡 Copiando archivo .env automáticamente al backend..."
                 cp "$ORIGINAL_ENV_PATH" ".env"
-                log "✅ Archivo .env copiado exitosamente"
+                log "✅ Archivo .env copiado exitosamente al backend"
             else
                 echo "❌ Archivo .env no encontrado en la ruta original"
             fi
@@ -665,7 +715,21 @@ deploy_services() {
             exit 1
         fi
     else
-        log "✅ Archivo .env encontrado en el proyecto"
+        log "✅ Archivo .env encontrado en el directorio backend"
+    fi
+    
+    # Actualizar docker-compose.yaml para referenciar el frontend correctamente
+    if [ -f "docker-compose.yaml" ] && [ -d "$FRONT_DIR" ]; then
+        log "🔧 Actualizando referencias del frontend en docker-compose..."
+        
+        # Crear un backup del docker-compose original
+        cp docker-compose.yaml docker-compose.yaml.backup
+        
+        # Reemplazar rutas relativas del frontend con la ruta absoluta
+        sed -i.bak "s|./frontend|$FRONT_DIR|g" docker-compose.yaml
+        sed -i.bak "s|frontend/|$FRONT_DIR/|g" docker-compose.yaml
+        
+        log "✅ Referencias del frontend actualizadas en docker-compose"
     fi
     
     # Determinar comando de docker-compose
@@ -678,11 +742,11 @@ deploy_services() {
         exit 1
     fi
     
-    log "🔧 Usando comando: $DOCKER_COMPOSE"
+    log "🔧 Usando comando: $DOCKER_COMPOSE desde $BACK_DIR"
     
     # Verificar que docker-compose.yaml existe
     if [ ! -f "docker-compose.yaml" ] && [ ! -f "docker-compose.yml" ]; then
-        error "No se encontró docker-compose.yaml en $PROJECT_DIR"
+        error "No se encontró docker-compose.yaml en $BACK_DIR"
         exit 1
     fi
     
@@ -709,14 +773,14 @@ deploy_services() {
     log "🚀 Iniciando servicios..."
     $DOCKER_COMPOSE up -d
     
-    log "✅ Servicios iniciados"
+    log "✅ Servicios iniciados desde $BACK_DIR"
 }
 
 # ===== VERIFICAR SERVICIOS =====
 verify_deployment() {
     log "🔍 Verificando servicios..."
     
-    cd "$PROJECT_DIR"
+    cd "$BACK_DIR"
     
     # Determinar comando de docker-compose
     if command -v docker-compose &> /dev/null; then
@@ -739,8 +803,8 @@ verify_deployment() {
     
     local ENDPOINTS=(
         "http://localhost:${NGINX_PORT:-2012}:Nginx Frontend"
-        "http://localhost:${FRAUDE_API_PORT:-8000}/docs:API Fraude"
-        "http://localhost:${TEXTOSQL_API_PORT:-8001}/docs:API TextoSQL"
+        "http://localhost:${FRAUDE_API_PORT:-8001}/docs:API Fraude"
+        "http://localhost:${TEXTOSQL_API_PORT:-8000}/docs:API TextoSQL"
     )
     
     for endpoint_info in "${ENDPOINTS[@]}"; do
@@ -763,13 +827,17 @@ show_final_info() {
     log "🎉 ¡INSTALACIÓN COMPLETADA EXITOSAMENTE!"
     echo "======================================================"
     echo ""
+    echo "📁 ESTRUCTURA DE DIRECTORIOS:"
+    echo "   Backend: $BACK_DIR"
+    echo "   Frontend: $FRONT_DIR"
+    echo ""
     echo "🌐 ACCESO PRINCIPAL:"
     echo "   Frontend: http://$IP:${NGINX_PORT:-2012}"
     echo "   Health Check: http://$IP:${NGINX_PORT:-2012}/health"
     echo ""
     echo "🔌 APIs DISPONIBLES:"
-    echo "   Fraude API: http://$IP:${FRAUDE_API_PORT:-8000}/docs"
-    echo "   TextoSQL API: http://$IP:${TEXTOSQL_API_PORT:-8001}/docs"
+    echo "   TextoSQL API: http://$IP:${TEXTOSQL_API_PORT:-8000}/docs"
+    echo "   Fraude API: http://$IP:${FRAUDE_API_PORT:-8001}/docs"
     echo ""
     echo "🗄️ BASE DE DATOS:"
     echo "   PostgreSQL: $IP:${DB_PORT:-8070}"
@@ -783,17 +851,17 @@ show_final_info() {
     echo "   DeepSeek 8B: http://$IP:${DEEPSEEK_8B_PORT:-8089}"
     echo "   DeepSeek 14B: http://$IP:${DEEPSEEK_14B_PORT:-8090}"
     echo ""
-    echo "📁 UBICACIÓN DEL PROYECTO:"
-    echo "   $PROJECT_DIR"
-    echo ""
     echo "⚙️ CONFIGURACIÓN:"
-    echo "   ✅ Archivo .env configurado desde: $(pwd)/.env"
+    echo "   ✅ Backend configurado en: $BACK_DIR/.env"
+    echo "   ✅ Frontend configurado en: $FRONT_DIR/.env"
     echo ""
     echo "📝 COMANDOS ÚTILES:"
-    echo "   Ver logs: docker-compose logs -f [servicio]"
-    echo "   Reiniciar: docker-compose restart [servicio]"
-    echo "   Parar todo: docker-compose down"
-    echo "   Ver estado: docker-compose ps"
+    echo "   Ir al backend: cd $BACK_DIR"
+    echo "   Ir al frontend: cd $FRONT_DIR"
+    echo "   Ver logs: cd $BACK_DIR && docker-compose logs -f [servicio]"
+    echo "   Reiniciar: cd $BACK_DIR && docker-compose restart [servicio]"
+    echo "   Parar todo: cd $BACK_DIR && docker-compose down"
+    echo "   Ver estado: cd $BACK_DIR && docker-compose ps"
     echo ""
     echo "======================================================"
 }
