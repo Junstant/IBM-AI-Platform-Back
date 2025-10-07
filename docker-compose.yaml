@@ -26,7 +26,7 @@ services:
 
  #? ======================== FRONTEND (NGINX) ========================
   frontend:
-    container_name: frontend-server
+    container_name: frontend
     restart: always
     build:
       context: ../FrontAI  # Ruta absoluta al directorio frontend
@@ -37,6 +37,7 @@ services:
       - ai_platform_network
     environment:
       # Variables para la plantilla de Nginx (comunicación interna)
+      - NGINX_PORT=${NGINX_PORT:-2012}
       - FRAUDE_API_HOST=fraude-api
       - FRAUDE_API_PORT=8000
       - TEXTOSQL_API_HOST=textosql-api
