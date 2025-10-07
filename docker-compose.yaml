@@ -28,6 +28,7 @@ services:
   frontend:
     container_name: frontend
     restart: always
+    network_mode: "host"
     build:
       context: ../FrontAI  # Ruta absoluta al directorio frontend
       dockerfile: Dockerfile
