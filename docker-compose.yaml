@@ -12,8 +12,6 @@ services:
       - POSTGRES_DB=postgres
       - PGDATA=/var/lib/postgresql/data
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - postgres_backups:/backups
       - ./database/init-scripts:/docker-entrypoint-initdb.d
     networks:
       - ai_platform_network
@@ -355,8 +353,6 @@ services:
       start_period: 120s
 
 volumes:
-  postgres_data:
-  postgres_backups:
   models_volume:
 
 networks:
