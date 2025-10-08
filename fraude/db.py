@@ -1,5 +1,6 @@
 # db.py
 import psycopg2
+import pandas as pd
 import os
 from dotenv import load_dotenv
 
@@ -24,7 +25,7 @@ def get_db_connection():
 
 def fetch_transactions():
     """
-    Obtiene todas las transacciones de la base de datos con las columnas correctas.
+    Obtiene todas las transacciones de la base de datos como DataFrame.
     """
     conn = get_db_connection()
     if conn:
@@ -45,12 +46,19 @@ def fetch_transactions():
                 FROM transacciones;
             """)
             transactions = cur.fetchall()
+            
+            # Obtener nombres de columnas
+            columns = [desc[0] for desc in cur.description]
+            
+            # Convertir a DataFrame
+            df = pd.DataFrame(transactions, columns=columns)
+            
             cur.close()
-            return transactions
+            return df
         except psycopg2.DatabaseError as e:
             print(f"Error al obtener transacciones: {e}")
-            return []
+            return None
         finally:
             conn.close()
-    return []
+    return None
 

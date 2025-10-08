@@ -128,7 +128,7 @@ BEGIN
         mode() WITHIN GROUP (ORDER BY ubicacion),
         mode() WITHIN GROUP (ORDER BY comerciante),
         AVG(monto),
-        COUNT(*)::DECIMAL / GREATEST(EXTRACT(days FROM (MAX(fecha_transaccion) - MIN(fecha_transaccion)))::DECIMAL, 1),
+        COUNT(*)::DECIMAL / GREATEST((MAX(fecha_transaccion) - MIN(fecha_transaccion))::INTEGER, 1),
         AVG(CASE WHEN EXTRACT(DOW FROM fecha_transaccion) IN (0,6) THEN 1.0 ELSE 0.0 END),
         AVG(CASE WHEN horario_transaccion BETWEEN '22:00:00' AND '06:00:00' THEN 1.0 ELSE 0.0 END),
         MAX(daily_count),
