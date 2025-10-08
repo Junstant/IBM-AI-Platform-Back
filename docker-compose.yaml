@@ -66,8 +66,8 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"] # localhost dentro del contenedor es el puerto 80
-      interval: 60s
-      timeout: 30s
+      interval: 300s
+      timeout: 300s
       retries: 3
       start_period: 120s
 
@@ -167,8 +167,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 90s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 600s
 
@@ -190,8 +190,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 90s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 600s
 
@@ -213,8 +213,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 90s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 600s
 
@@ -236,8 +236,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 90s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 600s
   
@@ -260,8 +260,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 90s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 600s
 
@@ -283,8 +283,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 90s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 600s
 
@@ -314,8 +314,8 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 60s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 120s
 
@@ -349,8 +349,8 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 60s
-      timeout: 30s
+      interval: 120s
+      timeout: 120s
       retries: 3
       start_period: 120s
 

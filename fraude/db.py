@@ -11,11 +11,11 @@ def get_db_connection():
     """
     try:
         conn = psycopg2.connect(
-            dbname=os.getenv("DB_NAME_FRAUDE"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            host=os.getenv("DB_HOST"),  # Usar host desde .env
-            port=os.getenv("DB_PORT")
+            dbname="bank_transactions",  # Base de datos específica para fraude
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASSWORD", "root"),
+            host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "8070")
         )
         return conn
     except psycopg2.OperationalError as e:

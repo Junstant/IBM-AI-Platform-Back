@@ -23,20 +23,9 @@ CREATE DATABASE bank_transactions
     TABLESPACE = pg_default
     CONNECTION LIMIT = -1;
 
--- Crear base de datos de pruebas adicional
-CREATE DATABASE demo_retail
-    WITH 
-    OWNER = postgres
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.utf8'
-    LC_CTYPE = 'en_US.utf8'
-    TABLESPACE = pg_default
-    CONNECTION LIMIT = -1;
-
 -- Conceder todos los privilegios al usuario postgres
 GRANT ALL PRIVILEGES ON DATABASE banco_global TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE bank_transactions TO postgres;
-GRANT ALL PRIVILEGES ON DATABASE demo_retail TO postgres;
 
 \echo 'Bases de datos creadas exitosamente:'
 \echo '  - banco_global (para TextoSQL)'
