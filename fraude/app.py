@@ -62,17 +62,25 @@ def startup_event():
     Entrena el modelo al iniciar la API.
     """
     global modelo_entrenado
-    print("Cargando transacciones y entrenando modelo...")
-    transactions_data = fetch_transactions()
+    try:
+        print("🚀 Iniciando entrenamiento del modelo de detección de fraude...")
+        transactions_data = fetch_transactions()
 
-    if not transactions_data:
-        print("⚠ No se encontraron transacciones en la base de datos para entrenar.")
-        return
+        if not transactions_data:
+            print("⚠ No se encontraron transacciones en la base de datos para entrenar.")
+            print("📝 Nota: El modelo se puede entrenar cuando haya datos disponibles.")
+            return
 
-    processed_data = detector.prepare_data(transactions_data)
-    detector.train_model(processed_data)
-    modelo_entrenado = True
-    print("✅ Modelo entrenado y listo para usarse.")
+        print(f"📊 Encontradas {len(transactions_data)} transacciones para entrenar.")
+        processed_data = detector.prepare_data(transactions_data)
+        detector.train_model(processed_data)
+        modelo_entrenado = True
+        print("✅ Modelo entrenado exitosamente y listo para usar.")
+        
+    except Exception as e:
+        print(f"❌ Error durante el entrenamiento inicial: {e}")
+        print("🔧 El modelo se puede entrenar manualmente cuando sea necesario.")
+        modelo_entrenado = False
 
 @app.get("/")
 def root():
@@ -150,28 +158,36 @@ def predict_all_from_db():
     if not transactions_data:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
-    fraudulent_df = detector.predict_fraud(transactions_data)
-    
-    # Convertir el DataFrame a un formato más amigable con probabilidades redondeadas
+    # Procesar cada transacción individualmente
     results = []
-    for _, row in fraudulent_df.iterrows():
-        result = {
-            "id": int(row['id']),
-            "monto": float(row['monto']),
-            "comerciante": row['comerciante'],
-            "ubicacion": row['ubicacion'],
-            "tipo_tarjeta": row['tipo_tarjeta'],
-            "horario_transaccion": str(row['horario_transaccion']),
-            "fecha_transaccion": str(row['fecha_transaccion']),
-            "prediccion": "Fraude detectado",
-            "es_fraude": True,
-            "probabilidad_fraude": round(float(row['probabilidad_fraude']), 3),
-            "es_fraude_real": bool(row['es_fraude'])  # Para comparar con la realidad
-        }
-        results.append(result)
+    for transaction in transactions_data:
+        try:
+            # Crear lista con una sola transacción para el predictor
+            single_transaction = [transaction]
+            is_fraud, probability = detector.predict_single_transaction(single_transaction)
+            
+            if is_fraud:  # Solo incluir transacciones fraudulentas
+                result = {
+                    "id": int(transaction[0]),  # id
+                    "monto": float(transaction[3]),  # monto
+                    "comerciante": transaction[4],  # comerciante
+                    "ubicacion": transaction[5],  # ubicacion
+                    "tipo_tarjeta": transaction[6],  # tipo_tarjeta
+                    "horario_transaccion": str(transaction[7]),  # horario_transaccion
+                    "fecha_transaccion": str(transaction[8]),  # fecha_transaccion
+                    "prediccion": "Fraude detectado",
+                    "es_fraude": True,
+                    "probabilidad_fraude": round(float(probability), 3),
+                    "es_fraude_real": bool(transaction[9])  # es_fraude real para comparar
+                }
+                results.append(result)
+        except Exception as e:
+            print(f"Error procesando transacción {transaction[0]}: {e}")
+            continue
     
     return {
-        "transacciones_fraudulentas_encontradas": len(fraudulent_df),
+        "transacciones_fraudulentas_encontradas": len(results),
+        "total_transacciones_analizadas": len(transactions_data),
         "resultados": results
     }
 
@@ -188,49 +204,41 @@ def predict_all_transactions():
     if not transactions_data:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
-    # Crear DataFrame con todas las transacciones
-    columns = [
-        'id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'comerciante',
-        'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'fecha_transaccion', 'es_fraude'
-    ]
-    df = pd.DataFrame(transactions_data, columns=columns)
+    # Procesar cada transacción individualmente
+    all_results = []
+    fraud_count = 0
     
-    # Procesar datos para predicción
-    df_processed = detector._preprocess_data(df.copy())
-    df_processed = df_processed.reindex(columns=detector.train_columns, fill_value=0)
-    
-    # Obtener predicciones y probabilidades
-    predictions = detector.model.predict(df_processed)
-    probabilities = detector.model.predict_proba(df_processed)
-    
-    # Agregar resultados al DataFrame original
-    df['prediccion_fraude'] = predictions
-    df['probabilidad_fraude'] = probabilities[:, 1] if probabilities.shape[1] > 1 else probabilities[:, 0]
-    
-    # Convertir a formato de respuesta
-    results = []
-    for _, row in df.iterrows():
-        is_fraud_prediction = bool(row['prediccion_fraude'])
-        result = {
-            "id": int(row['id']),
-            "monto": float(row['monto']),
-            "comerciante": row['comerciante'],
-            "ubicacion": row['ubicacion'],
-            "tipo_tarjeta": row['tipo_tarjeta'],
-            "horario_transaccion": str(row['horario_transaccion']),
-            "fecha_transaccion": str(row['fecha_transaccion']),
-            "prediccion": "Fraude detectado" if is_fraud_prediction else "Normal",
-            "es_fraude": is_fraud_prediction,
-            "probabilidad_fraude": round(float(row['probabilidad_fraude']), 3),
-            "es_fraude_real": bool(row['es_fraude'])  # Para comparar con la realidad
-        }
-        results.append(result)
-    
-    fraudulent_count = sum(1 for r in results if r['es_fraude'])
+    for transaction in transactions_data:
+        try:
+            # Crear lista con una sola transacción para el predictor
+            single_transaction = [transaction]
+            is_fraud, probability = detector.predict_single_transaction(single_transaction)
+            
+            if is_fraud:
+                fraud_count += 1
+            
+            result = {
+                "id": int(transaction[0]),  # id
+                "monto": float(transaction[3]),  # monto
+                "comerciante": transaction[4],  # comerciante
+                "ubicacion": transaction[5],  # ubicacion
+                "tipo_tarjeta": transaction[6],  # tipo_tarjeta
+                "horario_transaccion": str(transaction[7]),  # horario_transaccion
+                "fecha_transaccion": str(transaction[8]),  # fecha_transaccion
+                "prediccion": "Fraude detectado" if is_fraud else "Transacción normal",
+                "es_fraude_predicho": is_fraud,
+                "probabilidad_fraude": round(float(probability), 3),
+                "es_fraude_real": bool(transaction[9])  # es_fraude real para comparar
+            }
+            all_results.append(result)
+        except Exception as e:
+            print(f"Error procesando transacción {transaction[0]}: {e}")
+            continue
     
     return {
-        "total_transacciones": len(results),
-        "transacciones_fraudulentas_detectadas": fraudulent_count,
-        "transacciones_normales": len(results) - fraudulent_count,
-        "resultados": results
+        "total_transacciones": len(all_results),
+        "transacciones_fraudulentas_detectadas": fraud_count,
+        "transacciones_normales": len(all_results) - fraud_count,
+        "tasa_fraude_detectada": round((fraud_count / len(all_results)) * 100, 2) if all_results else 0,
+        "resultados": all_results
     }
