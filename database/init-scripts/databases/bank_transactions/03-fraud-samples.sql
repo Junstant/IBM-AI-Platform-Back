@@ -244,9 +244,9 @@ UPDATE comerciantes SET
 
 -- ===== CREAR PERFILES DE USUARIO BÁSICOS =====
 \echo '👤 Creando perfiles de usuario básicos...';
-INSERT INTO perfiles_usuario (cuenta_id, ubicacion_frecuente, monto_promedio, frecuencia_transacciones, 
+INSERT INTO perfiles_usuario (cuenta_id, ubicacion_frecuente, monto_promedio, frecuencia_transaccional, 
                              horario_preferido_inicio, horario_preferido_fin, ratio_fin_semana, 
-                             ratio_horario_nocturno, max_transacciones_dia)
+                             ratio_noche, max_transacciones_diarias)
 SELECT 
     cuenta_origen_id,
     ubicacion,
@@ -262,7 +262,7 @@ GROUP BY cuenta_origen_id, ubicacion, es_fraude
 ON CONFLICT (cuenta_id) DO UPDATE SET
     ubicacion_frecuente = EXCLUDED.ubicacion_frecuente,
     monto_promedio = EXCLUDED.monto_promedio,
-    frecuencia_transacciones = EXCLUDED.frecuencia_transacciones;
+    frecuencia_transaccional = EXCLUDED.frecuencia_transaccional;
 
 -- ===== LIMPIAR FUNCIÓN AUXILIAR =====
 DROP FUNCTION IF EXISTS generate_unique_txn_number(INTEGER);
