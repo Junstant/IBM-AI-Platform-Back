@@ -329,41 +329,68 @@ class AdvancedFraudDetector:
         
         return optimal_threshold
     
-    def predict_single_transaction(self, new_transactions):
-        """🧠 Predicción inteligente con análisis avanzado para transacciones individuales"""
-        if not self.best_model or not self.train_columns:
+    def predict_batch(self, transactions_data):
+        """🧠 Predicción para múltiples transacciones aplicando todas las transformaciones"""
+        if not self.best_model or self.train_columns is None:
             print("❌ Error: el modelo de IA no ha sido entrenado.")
-            return False, 0.0
+            return [], []
 
         try:
-            print(f"🧠 Iniciando análisis con IA súper avanzada...")
+            print(f"🧠 Iniciando análisis batch con IA súper avanzada...")
             
-            # Usar el método prepare_data que ya maneja correctamente los DataFrames
-            processed_data = self.prepare_data(new_transactions)
+            # Preparar datos básicos
+            df = self.prepare_data(transactions_data)
             
-            if processed_data.empty:
-                print("❌ Error: No se pudieron procesar los datos de la transacción.")
-                return False, 0.0
+            if df.empty:
+                print("❌ Error: No se pudieron procesar los datos.")
+                return [], []
             
-            # Hacer predicción
-            prediction = self.best_model.predict(processed_data)[0]
-            probabilities = self.best_model.predict_proba(processed_data)[0]
-            fraud_probability = probabilities[1] if len(probabilities) > 1 else probabilities[0]
+            # Aplicar ingeniería de características (igual que en entrenamiento)
+            X = self._advanced_feature_engineering(df)
+            
+            # Aplicar selección de características (igual que en entrenamiento)
+            if hasattr(self, 'feature_selector') and self.feature_selector:
+                X_selected = self.feature_selector.transform(X)
+            else:
+                X_selected = X[self.train_columns] if self.train_columns is not None else X
+                
+            # Aplicar escalado (igual que en entrenamiento)
+            if hasattr(self, 'scaler') and self.scaler:
+                X_scaled = self.scaler.transform(X_selected)
+            else:
+                X_scaled = X_selected
+            
+            # Hacer predicciones
+            predictions = self.best_model.predict(X_scaled)
+            probabilities = self.best_model.predict_proba(X_scaled)
             
             # Aplicar umbral optimizado si está disponible
             if hasattr(self, 'optimal_threshold') and self.optimal_threshold:
-                prediction_final = fraud_probability >= self.optimal_threshold
+                fraud_probs = probabilities[:, 1] if probabilities.shape[1] > 1 else probabilities[:, 0]
+                final_predictions = fraud_probs >= self.optimal_threshold
             else:
-                prediction_final = bool(prediction)
+                final_predictions = predictions
+                
+            print(f"🎯 Procesadas {len(final_predictions)} transacciones")
             
-            print(f"🎯 Resultado: Fraude={prediction_final}, Probabilidad={fraud_probability:.3f}")
-            
-            return bool(prediction_final), float(fraud_probability)
+            return final_predictions.tolist(), probabilities.tolist()
             
         except Exception as e:
-            print(f"❌ Error en análisis: {e}")
+            print(f"❌ Error en análisis batch: {e}")
             import traceback
             traceback.print_exc()
+            return [], []
+
+    def predict_single_transaction(self, new_transactions):
+        """🧠 Predicción inteligente con análisis avanzado para transacciones individuales"""
+        try:
+            predictions, probabilities = self.predict_batch(new_transactions)
+            if predictions and probabilities:
+                fraud_prob = probabilities[0][1] if len(probabilities[0]) > 1 else probabilities[0][0]
+                return bool(predictions[0]), float(fraud_prob)
+            return False, 0.0
+        except Exception as e:
+            print(f"❌ Error en predicción individual: {e}")
             return False, 0.0
     
     def load_model(self, model_path='advanced_fraud_model.pkl'):

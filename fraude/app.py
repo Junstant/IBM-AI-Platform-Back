@@ -158,25 +158,21 @@ def predict_all_from_db():
     if not transactions_data:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
-    # Procesar todas las transacciones de una vez usando el método prepare_data
+    # Procesar todas las transacciones de una vez usando el método predict_batch
     try:
         print(f"🔍 Procesando {len(transactions_data)} transacciones...")
         
-        # Usar el método prepare_data que ya maneja DataFrames correctamente
-        processed_data = detector.prepare_data(transactions_data)
+        # Usar el método predict_batch que aplica todas las transformaciones correctamente
+        predictions, probabilities = detector.predict_batch(transactions_data)
         
-        # Hacer predicciones con el modelo entrenado
-        if not detector.best_model:
-            raise HTTPException(status_code=500, detail="Modelo no está disponible para predicciones.")
-        
-        predictions = detector.best_model.predict(processed_data)
-        probabilities = detector.best_model.predict_proba(processed_data)
+        if not predictions:
+            raise HTTPException(status_code=500, detail="Error procesando las transacciones.")
         
         # Procesar resultados
         results = []
         for i, transaction in enumerate(transactions_data):
             is_fraud = bool(predictions[i])
-            probability = float(probabilities[i][1]) if probabilities.shape[1] > 1 else float(probabilities[i][0])
+            probability = float(probabilities[i][1]) if len(probabilities[i]) > 1 else float(probabilities[i][0])
             
             if is_fraud:  # Solo incluir transacciones fraudulentas
                 result = {
@@ -222,15 +218,11 @@ def predict_all_transactions():
     try:
         print(f"🔍 Procesando {len(transactions_data)} transacciones...")
         
-        # Usar el método prepare_data que ya maneja DataFrames correctamente
-        processed_data = detector.prepare_data(transactions_data)
+        # Usar el método predict_batch que aplica todas las transformaciones correctamente
+        predictions, probabilities = detector.predict_batch(transactions_data)
         
-        # Hacer predicciones con el modelo entrenado
-        if not detector.best_model:
-            raise HTTPException(status_code=500, detail="Modelo no está disponible para predicciones.")
-        
-        predictions = detector.best_model.predict(processed_data)
-        probabilities = detector.best_model.predict_proba(processed_data)
+        if not predictions:
+            raise HTTPException(status_code=500, detail="Error procesando las transacciones.")
         
         # Procesar resultados
         all_results = []
@@ -238,7 +230,7 @@ def predict_all_transactions():
         
         for i, transaction in enumerate(transactions_data):
             is_fraud = bool(predictions[i])
-            probability = float(probabilities[i][1]) if probabilities.shape[1] > 1 else float(probabilities[i][0])
+            probability = float(probabilities[i][1]) if len(probabilities[i]) > 1 else float(probabilities[i][0])
             
             if is_fraud:
                 fraud_count += 1
