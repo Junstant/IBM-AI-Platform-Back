@@ -6,6 +6,7 @@ Combina reglas de negocio + aprendizaje comportamental + análisis histórico + 
 import pandas as pd
 import numpy as np
 import re
+from decimal import Decimal
 from datetime import datetime, timedelta
 from sklearn.ensemble import IsolationForest
 from advanced_fraud_model import AdvancedFraudDetector
@@ -52,12 +53,25 @@ class HybridFraudDetector(AdvancedFraudDetector):
         print("   ✅ Análisis histórico avanzado")
         print("   ✅ IA con múltiples algoritmos")
     
+    def _safe_float_conversion(self, value):
+        """Convierte valores de manera segura a float, manejando Decimal y otros tipos"""
+        try:
+            if isinstance(value, Decimal):
+                return float(value)
+            elif isinstance(value, (int, float)):
+                return float(value)
+            else:
+                return float(str(value))
+        except (ValueError, TypeError):
+            return 0.0
+    
     def _detect_obvious_fraud_patterns(self, transaction_data):
         """🚨 Detecta patrones de fraude evidentes y obvios"""
         fraud_indicators = []
         confidence_score = 0.0
         
-        amount = transaction_data['monto']
+        # Convertir monto a float para evitar problemas con Decimal
+        amount = self._safe_float_conversion(transaction_data['monto'])
         merchant = str(transaction_data['comerciante']).lower().strip()
         location = str(transaction_data['ubicacion']).lower().strip()
         time_str = str(transaction_data['horario_transaccion']).strip()
@@ -155,6 +169,10 @@ class HybridFraudDetector(AdvancedFraudDetector):
         """👤 Construye perfiles de comportamiento detallados por usuario"""
         print("👤 Construyendo perfiles de comportamiento por usuario...")
         
+        # Convertir montos a float para evitar problemas con Decimal
+        if 'monto' in df.columns:
+            df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
+        
         for user_id in df['cuenta_origen_id'].unique():
             user_data = df[df['cuenta_origen_id'] == user_id].copy()
             
@@ -169,13 +187,13 @@ class HybridFraudDetector(AdvancedFraudDetector):
                 'last_transaction': user_data['fecha_transaccion'].max(),
                 
                 # Patrones de monto
-                'avg_amount': user_data['monto'].mean(),
-                'std_amount': user_data['monto'].std(),
-                'min_amount': user_data['monto'].min(),
-                'max_amount': user_data['monto'].max(),
-                'percentile_90': user_data['monto'].quantile(0.9),
-                'percentile_95': user_data['monto'].quantile(0.95),
-                'percentile_99': user_data['monto'].quantile(0.99),
+                'avg_amount': float(user_data['monto'].mean()) if not pd.isna(user_data['monto'].mean()) else 0.0,
+                'std_amount': float(user_data['monto'].std()) if not pd.isna(user_data['monto'].std()) else 0.0,
+                'min_amount': float(user_data['monto'].min()) if not pd.isna(user_data['monto'].min()) else 0.0,
+                'max_amount': float(user_data['monto'].max()) if not pd.isna(user_data['monto'].max()) else 0.0,
+                'percentile_90': float(user_data['monto'].quantile(0.9)) if not pd.isna(user_data['monto'].quantile(0.9)) else 0.0,
+                'percentile_95': float(user_data['monto'].quantile(0.95)) if not pd.isna(user_data['monto'].quantile(0.95)) else 0.0,
+                'percentile_99': float(user_data['monto'].quantile(0.99)) if not pd.isna(user_data['monto'].quantile(0.99)) else 0.0,
                 
                 # Patrones temporales
                 'preferred_hours': self._get_user_preferred_hours(user_data),
@@ -248,8 +266,11 @@ class HybridFraudDetector(AdvancedFraudDetector):
         """Crea detector de anomalías específico para el usuario"""
         features = []
         for _, row in user_data.iterrows():
+            # Convertir monto a float para evitar problemas con Decimal
+            monto = self._safe_float_conversion(row['monto'])
+            
             feature_vector = [
-                row['monto'],
+                monto,
                 pd.to_datetime(row['horario_transaccion'], format='%H:%M:%S', errors='coerce').hour,
                 pd.to_datetime(row['fecha_transaccion']).dayofweek,
                 hash(row['comerciante']) % 1000,
@@ -280,8 +301,9 @@ class HybridFraudDetector(AdvancedFraudDetector):
         anomaly_reasons = []
         anomaly_score = 0.0
         
-        # Analizar monto
-        amount = transaction_data['monto']
+        # Analizar monto - convertir a float para evitar problemas con Decimal
+        amount = self._safe_float_conversion(transaction_data['monto'])
+        
         if amount > profile['percentile_99']:
             anomaly_reasons.append(f"Monto excede el 99% histórico del usuario (${profile['percentile_99']:.2f})")
             anomaly_score += 0.4

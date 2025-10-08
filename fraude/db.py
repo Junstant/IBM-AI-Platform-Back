@@ -2,6 +2,7 @@
 import psycopg2
 import pandas as pd
 import os
+from decimal import Decimal
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -52,6 +53,16 @@ def fetch_transactions():
             
             # Convertir a DataFrame
             df = pd.DataFrame(transactions, columns=columns)
+            
+            # Convertir tipos de datos problemáticos
+            if 'monto' in df.columns:
+                df['monto'] = df['monto'].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
+            
+            # Asegurar que las columnas numéricas sean float
+            numeric_columns = ['id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
             
             cur.close()
             return df
