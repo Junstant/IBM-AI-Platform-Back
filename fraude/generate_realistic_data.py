@@ -268,12 +268,14 @@ def clear_existing_data():
     
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM transacciones;")
+        # Limpiar también las secuencias para evitar conflictos
+        cur.execute("TRUNCATE TABLE transacciones RESTART IDENTITY CASCADE;")
         conn.commit()
-        print("🗑️ Datos existentes eliminados")
+        print("🗑️ Datos existentes eliminados completamente")
         return True
     except Exception as e:
         print(f"❌ Error al limpiar datos: {e}")
+        conn.rollback()
         return False
     finally:
         cur.close()
@@ -286,20 +288,47 @@ def insert_realistic_transactions(transactions):
         return False
 
     cur = conn.cursor()
+    
+    # Incluir todos los campos necesarios, dejar que numero_transaccion se auto-genere
     sql = """
         INSERT INTO transacciones (
             cuenta_origen_id, cuenta_destino_id, monto, comerciante, ubicacion,
-            tipo_tarjeta, horario_transaccion, fecha_transaccion, es_fraude
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+            tipo_tarjeta, horario_transaccion, fecha_transaccion, es_fraude,
+            canal, categoria_comerciante, ciudad, pais
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pos', 'general', 'Buenos Aires', 'Argentina');
     """
     
     try:
-        cur.executemany(sql, transactions)
-        conn.commit()
+        # Insertar por lotes para mejor rendimiento
+        batch_size = 1000
+        total_inserted = 0
+        
+        for i in range(0, len(transactions), batch_size):
+            batch = transactions[i:i+batch_size]
+            cur.executemany(sql, batch)
+            conn.commit()
+            total_inserted += len(batch)
+            if total_inserted % 2000 == 0 or total_inserted == len(transactions):
+                print(f"   ✓ Insertadas {total_inserted}/{len(transactions)} transacciones...")
+        
         print(f"✅ Se insertaron {len(transactions)} transacciones realistas exitosamente.")
         return True
+        
     except Exception as e:
         print(f"❌ Error al insertar transacciones: {e}")
+        print(f"   Tipo de error: {type(e).__name__}")
+        
+        # Si hay error de duplicado, intentar limpiar y reintentar una vez
+        if "duplicate key" in str(e).lower():
+            print("🔄 Detectado conflicto de claves, limpiando e intentando nuevamente...")
+            conn.rollback()
+            cur.close()
+            conn.close()
+            
+            # Limpiar datos y reintentar
+            clear_existing_data()
+            return insert_realistic_transactions(transactions)
+        
         conn.rollback()
         return False
     finally:

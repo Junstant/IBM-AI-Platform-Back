@@ -88,21 +88,26 @@ def startup_event():
                 # Limpiar datos existentes para evitar duplicados
                 if num_existing > 0:
                     print("   - Limpiando datos existentes...")
-                    clear_existing_data()
+                    if not clear_existing_data():
+                        print("❌ Error limpiando datos existentes")
+                        raise Exception("No se pudieron limpiar los datos existentes")
                 
                 # Insertar nuevas transacciones
                 print("   - Insertando transacciones realistas...")
-                insert_realistic_transactions(new_transactions)
+                if not insert_realistic_transactions(new_transactions):
+                    print("❌ Error insertando transacciones")
+                    raise Exception("No se pudieron insertar las transacciones")
                 
                 print("✅ Datos generados exitosamente!")
                 
                 # Obtener datos actualizados
                 transactions_data = fetch_transactions()
-                print(f"📊 Total de transacciones disponibles: {len(transactions_data)}")
+                print(f"📊 Total de transacciones disponibles: {len(transactions_data) if transactions_data else 0}")
                 
             except Exception as e:
                 print(f"❌ Error generando datos: {e}")
                 print("🔧 Continuando con datos existentes...")
+                transactions_data = fetch_transactions()  # Intentar obtener datos existentes
         
         # Entrenar el modelo con los datos disponibles
         if not transactions_data:
