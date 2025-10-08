@@ -357,120 +357,16 @@ class HybridFraudDetector(AdvancedFraudDetector):
         return super().train_model(data)
     
     def predict_single_transaction(self, new_transactions):
-        """🧠 Predicción híbrida súper completa que combina TODAS las técnicas"""
-        if not self.best_model or not self.train_columns:
-            print("❌ Error: el modelo de IA no ha sido entrenado.")
-            return False, 0.0
-
+        """🧠 Predicción híbrida simplificada"""
         try:
-            print(f"🧠 Iniciando análisis híbrido súper completo...")
+            print(f"🧠 Iniciando análisis híbrido...")
             
-            # Preparar datos
-            columns = [
-                'id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'comerciante',
-                'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'fecha_transaccion', 'es_fraude'
-            ]
-            df = pd.DataFrame(new_transactions, columns=columns)
+            # Usar el método base simplificado
+            is_fraud_base, probability_base = super().predict_single_transaction(new_transactions)
             
-            user_id = new_transactions[0][1]
-            transaction_data = {
-                'monto': new_transactions[0][3],
-                'comerciante': new_transactions[0][4],
-                'ubicacion': new_transactions[0][5],
-                'horario_transaccion': new_transactions[0][7],
-                'fecha_transaccion': new_transactions[0][8]
-            }
+            print(f"🎯 Resultado híbrido: Fraude={is_fraud_base}, Probabilidad={probability_base:.3f}")
             
-            # === FASE 1: DETECCIÓN DE PATRONES EVIDENTES ===
-            obvious_fraud = self._detect_obvious_fraud_patterns(transaction_data)
-            
-            # === FASE 2: ANÁLISIS COMPORTAMENTAL POR USUARIO ===
-            behavioral_analysis = self._analyze_user_behavior_anomalies(user_id, transaction_data)
-            
-            # === FASE 3: PREDICCIÓN BASE CON IA AVANZADA ===
-            is_fraud_base, fraud_probability_base = super().predict_single_transaction(new_transactions)
-            
-            # === FASE 4: COMBINACIÓN HÍBRIDA INTELIGENTE ===
-            
-            # Si hay patrones evidentes de fraude, dar máxima prioridad
-            if obvious_fraud['is_obvious_fraud'] and obvious_fraud['risk_level'] == 'OBVIOUS_FRAUD':
-                final_probability = max(0.95, obvious_fraud['confidence_score'])
-                final_prediction = True
-                detection_method = "PATRONES EVIDENTES"
-                confidence_level = "🚨 CRÍTICA - FRAUDE EVIDENTE"
-                
-            else:
-                # Combinar todos los análisis con pesos inteligentes
-                weights = {
-                    'obvious_fraud': 0.4,     # 40% a patrones evidentes
-                    'behavioral': 0.3,        # 30% a análisis comportamental
-                    'ai_model': 0.3          # 30% al modelo de IA
-                }
-                
-                # Calcular probabilidad combinada
-                obvious_score = obvious_fraud['confidence_score'] * weights['obvious_fraud']
-                behavioral_score = behavioral_analysis['anomaly_score'] * weights['behavioral']
-                ai_score = fraud_probability_base * weights['ai_model']
-                
-                final_probability = obvious_score + behavioral_score + ai_score
-                final_probability = min(final_probability, 1.0)
-                
-                final_prediction = final_probability >= self.optimal_threshold
-                
-                # Determinar método de detección principal
-                if obvious_score > behavioral_score and obvious_score > ai_score:
-                    detection_method = "PATRONES SOSPECHOSOS"
-                elif behavioral_score > ai_score:
-                    detection_method = "ANÁLISIS COMPORTAMENTAL"
-                else:
-                    detection_method = "MODELO DE IA"
-                
-                # Nivel de confianza híbrido
-                if final_probability >= 0.9:
-                    confidence_level = "� CRÍTICA"
-                elif final_probability >= 0.7:
-                    confidence_level = "🔴 ALTA"
-                elif final_probability >= 0.4:
-                    confidence_level = "🟡 MEDIA"
-                elif final_probability >= 0.1:
-                    confidence_level = "🟢 BAJA"
-                else:
-                    confidence_level = "✅ MUY BAJA"
-            
-            # === REPORTE HÍBRIDO COMPLETO ===
-            user_profile = self.user_profiles.get(user_id, {})
-            
-            print(f"🧠 ANÁLISIS HÍBRIDO SÚPER COMPLETO:")
-            print(f"   👤 Usuario ID: {user_id}")
-            print(f"   📊 Historial: {user_profile.get('total_transactions', 0)} transacciones")
-            print(f"   💰 Monto: ${transaction_data['monto']:,.2f}")
-            print(f"   🏪 Comerciante: {transaction_data['comerciante']}")
-            print(f"   📍 Ubicación: {transaction_data['ubicacion']}")
-            print(f"   ⏰ Horario: {transaction_data['horario_transaccion']}")
-            
-            print(f"\n🔍 ANÁLISIS POR CAPAS:")
-            print(f"   🚨 Patrones evidentes: {obvious_fraud['confidence_score']:.3f}")
-            print(f"   👤 Score comportamental: {behavioral_analysis['anomaly_score']:.3f}")
-            print(f"   🧠 Score modelo IA: {fraud_probability_base:.3f}")
-            print(f"   ⚖️ Probabilidad final: {final_probability:.3f}")
-            print(f"   🎯 Método principal: {detection_method}")
-            print(f"   🔒 Nivel de confianza: {confidence_level}")
-            
-            # Mostrar indicadores específicos
-            all_indicators = []
-            all_indicators.extend(obvious_fraud['fraud_indicators'])
-            all_indicators.extend(behavioral_analysis['anomaly_reasons'])
-            
-            if all_indicators:
-                print(f"   🚨 Indicadores detectados:")
-                for indicator in all_indicators:
-                    print(f"      • {indicator}")
-            else:
-                print(f"   ✅ No se detectaron indicadores de riesgo significativos")
-            
-            print(f"   🧠 Decisión final: {'🔴 FRAUDE DETECTADO' if final_prediction else '✅ TRANSACCIÓN LEGÍTIMA'}")
-            
-            return bool(final_prediction), float(final_probability)
+            return is_fraud_base, probability_base
             
         except Exception as e:
             print(f"❌ Error en análisis híbrido: {e}")

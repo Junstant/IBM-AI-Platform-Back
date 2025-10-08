@@ -158,13 +158,25 @@ def predict_all_from_db():
     if not transactions_data:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
-    # Procesar cada transacción individualmente
-    results = []
-    for transaction in transactions_data:
-        try:
-            # Crear lista con una sola transacción para el predictor
-            single_transaction = [transaction]
-            is_fraud, probability = detector.predict_single_transaction(single_transaction)
+    # Procesar todas las transacciones de una vez usando el método prepare_data
+    try:
+        print(f"🔍 Procesando {len(transactions_data)} transacciones...")
+        
+        # Usar el método prepare_data que ya maneja DataFrames correctamente
+        processed_data = detector.prepare_data(transactions_data)
+        
+        # Hacer predicciones con el modelo entrenado
+        if not detector.best_model:
+            raise HTTPException(status_code=500, detail="Modelo no está disponible para predicciones.")
+        
+        predictions = detector.best_model.predict(processed_data)
+        probabilities = detector.best_model.predict_proba(processed_data)
+        
+        # Procesar resultados
+        results = []
+        for i, transaction in enumerate(transactions_data):
+            is_fraud = bool(predictions[i])
+            probability = float(probabilities[i][1]) if probabilities.shape[1] > 1 else float(probabilities[i][0])
             
             if is_fraud:  # Solo incluir transacciones fraudulentas
                 result = {
@@ -177,19 +189,22 @@ def predict_all_from_db():
                     "fecha_transaccion": str(transaction[8]),  # fecha_transaccion
                     "prediccion": "Fraude detectado",
                     "es_fraude": True,
-                    "probabilidad_fraude": round(float(probability), 3),
+                    "probabilidad_fraude": round(probability, 3),
                     "es_fraude_real": bool(transaction[9])  # es_fraude real para comparar
                 }
                 results.append(result)
-        except Exception as e:
-            print(f"Error procesando transacción {transaction[0]}: {e}")
-            continue
-    
-    return {
-        "transacciones_fraudulentas_encontradas": len(results),
-        "total_transacciones_analizadas": len(transactions_data),
-        "resultados": results
-    }
+        
+        return {
+            "transacciones_fraudulentas_encontradas": len(results),
+            "total_transacciones_analizadas": len(transactions_data),
+            "resultados": results
+        }
+        
+    except Exception as e:
+        print(f"❌ Error procesando transacciones: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error procesando transacciones: {str(e)}")
 
 @app.get("/predict_all_transactions")
 def predict_all_transactions():
@@ -204,15 +219,26 @@ def predict_all_transactions():
     if not transactions_data:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
-    # Procesar cada transacción individualmente
-    all_results = []
-    fraud_count = 0
-    
-    for transaction in transactions_data:
-        try:
-            # Crear lista con una sola transacción para el predictor
-            single_transaction = [transaction]
-            is_fraud, probability = detector.predict_single_transaction(single_transaction)
+    try:
+        print(f"🔍 Procesando {len(transactions_data)} transacciones...")
+        
+        # Usar el método prepare_data que ya maneja DataFrames correctamente
+        processed_data = detector.prepare_data(transactions_data)
+        
+        # Hacer predicciones con el modelo entrenado
+        if not detector.best_model:
+            raise HTTPException(status_code=500, detail="Modelo no está disponible para predicciones.")
+        
+        predictions = detector.best_model.predict(processed_data)
+        probabilities = detector.best_model.predict_proba(processed_data)
+        
+        # Procesar resultados
+        all_results = []
+        fraud_count = 0
+        
+        for i, transaction in enumerate(transactions_data):
+            is_fraud = bool(predictions[i])
+            probability = float(probabilities[i][1]) if probabilities.shape[1] > 1 else float(probabilities[i][0])
             
             if is_fraud:
                 fraud_count += 1
@@ -227,18 +253,21 @@ def predict_all_transactions():
                 "fecha_transaccion": str(transaction[8]),  # fecha_transaccion
                 "prediccion": "Fraude detectado" if is_fraud else "Transacción normal",
                 "es_fraude_predicho": is_fraud,
-                "probabilidad_fraude": round(float(probability), 3),
+                "probabilidad_fraude": round(probability, 3),
                 "es_fraude_real": bool(transaction[9])  # es_fraude real para comparar
             }
             all_results.append(result)
-        except Exception as e:
-            print(f"Error procesando transacción {transaction[0]}: {e}")
-            continue
-    
-    return {
-        "total_transacciones": len(all_results),
-        "transacciones_fraudulentas_detectadas": fraud_count,
-        "transacciones_normales": len(all_results) - fraud_count,
-        "tasa_fraude_detectada": round((fraud_count / len(all_results)) * 100, 2) if all_results else 0,
-        "resultados": all_results
-    }
+        
+        return {
+            "total_transacciones": len(all_results),
+            "transacciones_fraudulentas_detectadas": fraud_count,
+            "transacciones_normales": len(all_results) - fraud_count,
+            "tasa_fraude_detectada": round((fraud_count / len(all_results)) * 100, 2) if all_results else 0,
+            "resultados": all_results
+        }
+        
+    except Exception as e:
+        print(f"❌ Error procesando transacciones: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error procesando transacciones: {str(e)}")

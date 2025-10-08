@@ -330,7 +330,7 @@ class AdvancedFraudDetector:
         return optimal_threshold
     
     def predict_single_transaction(self, new_transactions):
-        """🧠 Predicción inteligente con análisis avanzado"""
+        """🧠 Predicción inteligente con análisis avanzado para transacciones individuales"""
         if not self.best_model or not self.train_columns:
             print("❌ Error: el modelo de IA no ha sido entrenado.")
             return False, 0.0
@@ -338,93 +338,30 @@ class AdvancedFraudDetector:
         try:
             print(f"🧠 Iniciando análisis con IA súper avanzada...")
             
-            columns = [
-                'id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'comerciante',
-                'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'fecha_transaccion', 'es_fraude'
-            ]
-            df = pd.DataFrame(new_transactions, columns=columns)
-
-            # Preprocesamiento con IA
-            df_processed = self._advanced_feature_engineering(df.copy())
+            # Usar el método prepare_data que ya maneja correctamente los DataFrames
+            processed_data = self.prepare_data(new_transactions)
             
-            # Seleccionar características importantes
-            df_selected = self.feature_selector.transform(df_processed)
+            if processed_data.empty:
+                print("❌ Error: No se pudieron procesar los datos de la transacción.")
+                return False, 0.0
             
-            # Escalar características
-            df_scaled = self.scaler.transform(df_selected)
-            
-            # Predicción con IA
-            probabilities = self.best_model.predict_proba(df_scaled)[0]
+            # Hacer predicción
+            prediction = self.best_model.predict(processed_data)[0]
+            probabilities = self.best_model.predict_proba(processed_data)[0]
             fraud_probability = probabilities[1] if len(probabilities) > 1 else probabilities[0]
             
-            # Aplicar umbral optimizado
-            prediction_ai = fraud_probability >= self.optimal_threshold
-            
-            # Análisis de confianza inteligente
-            if fraud_probability >= self.confidence_levels['very_high']:
-                confidence_level = "🚨 MUY ALTA"
-                risk_assessment = "RIESGO CRÍTICO - Bloquear inmediatamente"
-            elif fraud_probability >= self.confidence_levels['high']:
-                confidence_level = "🔴 ALTA"
-                risk_assessment = "RIESGO ALTO - Requiere revisión manual"
-            elif fraud_probability >= self.confidence_levels['medium']:
-                confidence_level = "🟡 MEDIA"
-                risk_assessment = "RIESGO MODERADO - Monitorear de cerca"
-            elif fraud_probability >= self.confidence_levels['low']:
-                confidence_level = "🟢 BAJA"
-                risk_assessment = "RIESGO BAJO - Transacción probablemente legítima"
+            # Aplicar umbral optimizado si está disponible
+            if hasattr(self, 'optimal_threshold') and self.optimal_threshold:
+                prediction_final = fraud_probability >= self.optimal_threshold
             else:
-                confidence_level = "✅ MUY BAJA"
-                risk_assessment = "TRANSACCIÓN SEGURA"
+                prediction_final = bool(prediction)
             
-            # Análisis contextual avanzado
-            original_data = new_transactions[0]
-            monto = original_data[3]
-            comerciante = original_data[4]
-            ubicacion = original_data[5]
+            print(f"🎯 Resultado: Fraude={prediction_final}, Probabilidad={fraud_probability:.3f}")
             
-            # Factores de riesgo identificados por IA
-            risk_factors = []
-            
-            merchant_risk = self.merchant_risk_scores.get(comerciante, 0.1)
-            if merchant_risk > 0.3:
-                risk_factors.append(f"Comerciante con patrón sospechoso (riesgo: {merchant_risk:.3f})")
-                
-            location_risk = self.location_risk_scores.get(ubicacion, 0.1)
-            if location_risk > 0.3:
-                risk_factors.append(f"Ubicación con historial de fraude (riesgo: {location_risk:.3f})")
-                
-            if monto > 5000:
-                risk_factors.append(f"Monto inusualmente alto: ${monto:,.2f}")
-                
-            hour = int(original_data[7].split(':')[0]) if ':' in str(original_data[7]) else 12
-            if hour < 6 or hour > 22:
-                risk_factors.append(f"Horario sospechoso: {hour:02d}:XX")
-            
-            print(f"🧠 ANÁLISIS COMPLETO CON IA AVANZADA:")
-            print(f"   🏪 Comerciante: {comerciante}")
-            print(f"   📍 Ubicación: {ubicacion}")
-            print(f"   💰 Monto: ${monto:,.2f}")
-            print(f"   ⏰ Horario: {original_data[7]}")
-            print(f"   🧠 Modelo utilizado: {self.model_name.upper()}")
-            print(f"   📊 Probabilidad de fraude: {fraud_probability:.3f}")
-            print(f"   🎯 Umbral optimizado: {self.optimal_threshold:.3f}")
-            print(f"   🔒 Nivel de confianza: {confidence_level}")
-            print(f"   ⚖️ Evaluación de riesgo: {risk_assessment}")
-            
-            if risk_factors:
-                print(f"   🚨 Factores de riesgo detectados por IA:")
-                for factor in risk_factors:
-                    print(f"      • {factor}")
-            else:
-                print(f"   ✅ No se detectaron factores de riesgo significativos")
-            
-            print(f"   🧠 Decisión IA: {'🔴 FRAUDE DETECTADO' if prediction_ai else '✅ TRANSACCIÓN LEGÍTIMA'}")
-            
-            return bool(prediction_ai), float(fraud_probability)
+            return bool(prediction_final), float(fraud_probability)
             
         except Exception as e:
-            print(f"❌ Error en análisis de IA avanzada: {e}")
+            print(f"❌ Error en análisis: {e}")
             import traceback
             traceback.print_exc()
             return False, 0.0
@@ -440,8 +377,6 @@ class AdvancedFraudDetector:
             self.train_columns = model_data['train_columns']
             self.label_encoders = model_data['label_encoders']
             self.optimal_threshold = model_data['optimal_threshold']
-            self.merchant_risk_scores = model_data['merchant_risk_scores']
-            self.location_risk_scores = model_data['location_risk_scores']
             print("✅ Modelo avanzado cargado exitosamente")
             return True
         except Exception as e:
