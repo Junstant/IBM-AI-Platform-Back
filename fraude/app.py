@@ -107,7 +107,7 @@ def startup_event():
         print("🤖 Iniciando entrenamiento del modelo híbrido...")
         transactions_data = fetch_transactions()
         
-        if transactions_data and len(transactions_data) > 0:
+        if transactions_data is not None and not transactions_data.empty:
             detector.train_model(transactions_data)
             modelo_entrenado = True
             print("✅ Modelo híbrido entrenado exitosamente!")
@@ -142,7 +142,7 @@ def retrain_model():
         # Obtener datos de transacciones
         transactions_data = fetch_transactions()
         
-        if not transactions_data:
+        if transactions_data is None or transactions_data.empty:
             raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos")
         
         print(f"📊 Datos encontrados: {len(transactions_data)} transacciones")
@@ -238,7 +238,7 @@ def predict_all_from_db():
         raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado.")
 
     transactions_data = fetch_transactions()
-    if not transactions_data:
+    if transactions_data is None or transactions_data.empty:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
     # Procesar todas las transacciones de una vez usando el método predict_batch
@@ -295,7 +295,7 @@ def predict_all_transactions():
         raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado.")
 
     transactions_data = fetch_transactions()
-    if not transactions_data:
+    if transactions_data is None or transactions_data.empty:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
     try:

@@ -213,9 +213,11 @@ class AdvancedFraudDetector:
         print("\n🚀 INICIANDO ENTRENAMIENTO CON IA SÚPER AVANZADA...")
         print("=" * 60)
         
+        # Extraer target variable ANTES de feature engineering
+        y = data['es_fraude'].astype(int)
+        
         # Preparar características
         X = self._advanced_feature_engineering(data)
-        y = data['es_fraude'].astype(int)
         
         print(f"🎯 Entrenando con {len(X)} muestras y {len(X.columns)} características")
         
