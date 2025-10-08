@@ -249,16 +249,16 @@ INSERT INTO perfiles_usuario (cuenta_id, ubicacion_frecuente, monto_promedio, fr
                              ratio_noche, max_transacciones_diarias)
 SELECT 
     cuenta_origen_id,
-    ubicacion,
+    mode() WITHIN GROUP (ORDER BY ubicacion),
     AVG(monto),
     COUNT(*),
     TIME '08:00:00',
     TIME '20:00:00',
     0.2,
-    CASE WHEN es_fraude THEN 0.8 ELSE 0.1 END,
-    CASE WHEN es_fraude THEN 20 ELSE 5 END
+    AVG(CASE WHEN es_fraude THEN 0.8 ELSE 0.1 END),
+    MAX(CASE WHEN es_fraude THEN 20 ELSE 5 END)
 FROM transacciones 
-GROUP BY cuenta_origen_id, ubicacion, es_fraude
+GROUP BY cuenta_origen_id
 ON CONFLICT (cuenta_id) DO UPDATE SET
     ubicacion_frecuente = EXCLUDED.ubicacion_frecuente,
     monto_promedio = EXCLUDED.monto_promedio,
