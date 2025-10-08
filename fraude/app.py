@@ -85,24 +85,18 @@ def startup_event():
                 # Generar 10,000 transacciones realistas
                 new_transactions = generator.generate_realistic_transactions(10000)
                 
-                # Limpiar datos existentes para evitar duplicados
-                if num_existing > 0:
-                    print("   - Limpiando datos existentes...")
-                    if not clear_existing_data():
-                        print("❌ Error limpiando datos existentes")
-                        raise Exception("No se pudieron limpiar los datos existentes")
-                
-                # Insertar nuevas transacciones
+                # Insertar nuevas transacciones (la función maneja la limpieza internamente)
                 print("   - Insertando transacciones realistas...")
-                if not insert_realistic_transactions(new_transactions):
-                    print("❌ Error insertando transacciones")
-                    raise Exception("No se pudieron insertar las transacciones")
+                success = insert_realistic_transactions(new_transactions)
                 
-                print("✅ Datos generados exitosamente!")
-                
-                # Obtener datos actualizados
-                transactions_data = fetch_transactions()
-                print(f"📊 Total de transacciones disponibles: {len(transactions_data) if transactions_data else 0}")
+                if success:
+                    print("✅ Datos generados exitosamente!")
+                    # Obtener datos actualizados
+                    transactions_data = fetch_transactions()
+                    print(f"📊 Total de transacciones disponibles: {len(transactions_data) if transactions_data else 0}")
+                else:
+                    print("❌ Error insertando transacciones, continuando con datos existentes...")
+                    transactions_data = fetch_transactions()
                 
             except Exception as e:
                 print(f"❌ Error generando datos: {e}")

@@ -289,6 +289,14 @@ def insert_realistic_transactions(transactions):
 
     cur = conn.cursor()
     
+    # Primero limpiar completamente la tabla
+    try:
+        cur.execute("TRUNCATE TABLE transacciones RESTART IDENTITY CASCADE;")
+        conn.commit()
+        print("🗑️ Tabla limpiada completamente antes de insertar")
+    except Exception as e:
+        print(f"⚠ Error limpiando tabla: {e}")
+    
     # Incluir todos los campos necesarios, dejar que numero_transaccion se auto-genere
     sql = """
         INSERT INTO transacciones (
@@ -317,20 +325,9 @@ def insert_realistic_transactions(transactions):
     except Exception as e:
         print(f"❌ Error al insertar transacciones: {e}")
         print(f"   Tipo de error: {type(e).__name__}")
-        
-        # Si hay error de duplicado, intentar limpiar y reintentar una vez
-        if "duplicate key" in str(e).lower():
-            print("🔄 Detectado conflicto de claves, limpiando e intentando nuevamente...")
-            conn.rollback()
-            cur.close()
-            conn.close()
-            
-            # Limpiar datos y reintentar
-            clear_existing_data()
-            return insert_realistic_transactions(transactions)
-        
         conn.rollback()
         return False
+        
     finally:
         cur.close()
         conn.close()
