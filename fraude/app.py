@@ -9,6 +9,7 @@ from datetime import time, date, datetime
 # Importa las funciones y clases necesarias de tus otros archivos
 from behavioral_fraud_model import HybridFraudDetector
 from db import fetch_transactions
+from generate_realistic_data import RealisticFraudGenerator, get_db_connection, clear_existing_data, insert_realistic_transactions
 
 # --- Instancia y configuración de la API ---
 app = FastAPI(
@@ -59,32 +60,136 @@ async def health_check():
 @app.on_event("startup")
 def startup_event():
     """
-    Entrena el modelo al iniciar la API.
+    Genera datos automáticamente y entrena el modelo al iniciar la API.
     """
     global modelo_entrenado
     try:
-        print("🚀 Iniciando entrenamiento del modelo de detección de fraude...")
+        print("🚀 Iniciando sistema de detección de fraude...")
+        
+        # Verificar si hay datos existentes
         transactions_data = fetch_transactions()
-
+        num_existing = len(transactions_data) if transactions_data else 0
+        
+        print(f"📊 Transacciones existentes: {num_existing}")
+        
+        # Si hay menos de 1000 transacciones, generar datos automáticamente
+        if num_existing < 1000:
+            print("🔧 Generando datos automáticamente...")
+            print("   - Cantidad objetivo: 10,000 transacciones")
+            print("   - Incluyendo casos de fraude y transacciones normales")
+            
+            try:
+                # Crear generador
+                generator = RealisticFraudGenerator()
+                
+                # Generar 10,000 transacciones realistas
+                new_transactions = generator.generate_realistic_transactions(10000)
+                
+                # Limpiar datos existentes para evitar duplicados
+                if num_existing > 0:
+                    print("   - Limpiando datos existentes...")
+                    clear_existing_data()
+                
+                # Insertar nuevas transacciones
+                print("   - Insertando transacciones realistas...")
+                insert_realistic_transactions(new_transactions)
+                
+                print("✅ Datos generados exitosamente!")
+                
+                # Obtener datos actualizados
+                transactions_data = fetch_transactions()
+                print(f"📊 Total de transacciones disponibles: {len(transactions_data)}")
+                
+            except Exception as e:
+                print(f"❌ Error generando datos: {e}")
+                print("🔧 Continuando con datos existentes...")
+        
+        # Entrenar el modelo con los datos disponibles
+        if not transactions_data:
+            transactions_data = fetch_transactions()
+            
         if not transactions_data:
             print("⚠ No se encontraron transacciones en la base de datos para entrenar.")
             print("📝 Nota: El modelo se puede entrenar cuando haya datos disponibles.")
             return
 
-        print(f"📊 Encontradas {len(transactions_data)} transacciones para entrenar.")
+        print(f"🧠 Iniciando entrenamiento del modelo con {len(transactions_data)} transacciones...")
         processed_data = detector.prepare_data(transactions_data)
         detector.train_model(processed_data)
         modelo_entrenado = True
         print("✅ Modelo entrenado exitosamente y listo para usar.")
         
     except Exception as e:
-        print(f"❌ Error durante el entrenamiento inicial: {e}")
+        print(f"❌ Error durante la inicialización: {e}")
         print("🔧 El modelo se puede entrenar manualmente cuando sea necesario.")
         modelo_entrenado = False
 
 @app.get("/")
 def root():
     return {"message": "Bienvenido a la API de Detección de Fraude Híbrida con IA. Sistema con análisis comportamental y patrones evidentes listo para predecir."}
+
+@app.post("/generate_data")
+def generate_data(num_transactions: int = 10000):
+    """
+    Genera datos de transacciones manualmente.
+    """
+    try:
+        print(f"🔧 Generando {num_transactions} transacciones manualmente...")
+        
+        # Crear generador
+        generator = RealisticFraudGenerator()
+        
+        # Generar transacciones
+        new_transactions = generator.generate_realistic_transactions(num_transactions)
+        
+        # Limpiar datos existentes
+        print("   - Limpiando datos existentes...")
+        clear_existing_data()
+        
+        # Insertar nuevas transacciones
+        print("   - Insertando transacciones realistas...")
+        insert_realistic_transactions(new_transactions)
+        
+        # Obtener conteo actualizado
+        transactions_data = fetch_transactions()
+        
+        return {
+            "message": f"Datos generados exitosamente",
+            "transacciones_generadas": num_transactions,
+            "total_en_db": len(transactions_data),
+            "nota": "Reinicie la API o use /retrain para entrenar el modelo con los nuevos datos"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando datos: {str(e)}")
+
+@app.post("/retrain")
+def retrain_model():
+    """
+    Re-entrena el modelo con los datos actuales.
+    """
+    global modelo_entrenado
+    try:
+        print("🔧 Re-entrenando modelo...")
+        transactions_data = fetch_transactions()
+        
+        if not transactions_data:
+            raise HTTPException(status_code=400, detail="No hay datos para entrenar")
+        
+        print(f"📊 Entrenando con {len(transactions_data)} transacciones...")
+        processed_data = detector.prepare_data(transactions_data)
+        detector.train_model(processed_data)
+        modelo_entrenado = True
+        
+        return {
+            "message": "Modelo re-entrenado exitosamente",
+            "transacciones_usadas": len(transactions_data),
+            "estado": "listo"
+        }
+        
+    except Exception as e:
+        modelo_entrenado = False
+        raise HTTPException(status_code=500, detail=f"Error re-entrenando: {str(e)}")
 
 @app.post("/predict_single_transaction")
 def predict_single_transaction(transaction: Transaction):
