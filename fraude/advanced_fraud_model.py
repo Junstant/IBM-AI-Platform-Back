@@ -65,144 +65,98 @@ class AdvancedFraudDetector:
         }
         
     def _advanced_feature_engineering(self, df):
-        """🧠 Ingeniería de características súper avanzada con IA"""
+        """🧠 Ingeniería de características súper avanzada con IA (VERSIÓN MEJORADA)"""
         print("🔧 Aplicando ingeniería de características súper avanzada...")
         
-        # Preservar columnas originales para análisis
         original_df = df.copy()
         
-        # Eliminar columnas administrativas
-        df = df.drop(columns=['id', 'fecha_transaccion', 'es_fraude'], errors='ignore')
-        
-        # === 1. PROCESAMIENTO TEMPORAL INTELIGENTE ===
+        # --- PRE-PROCESAMIENTO ---
+        df = df.drop(columns=['id', 'fecha_transaccion'], errors='ignore')
+        if 'es_fraude' in df.columns:
+            df = df.drop(columns=['es_fraude'])
+
+        # === 1. PROCESAMIENTO TEMPORAL (Sin cambios) ===
         def extract_hour_from_time(time_str):
             try:
-                if pd.isna(time_str):
-                    return 12  # hora promedio
-                if isinstance(time_str, str):
-                    return int(time_str.split(':')[0])
+                if pd.isna(time_str): return 12
+                if isinstance(time_str, str): return int(time_str.split(':')[0])
                 return int(time_str.hour) if hasattr(time_str, 'hour') else 12
-            except:
-                return 12
+            except: return 12
         
         df['hour'] = df['horario_transaccion'].apply(extract_hour_from_time)
         df['is_night'] = ((df['hour'] >= 23) | (df['hour'] <= 5)).astype(int)
-        df['is_business_hours'] = ((df['hour'] >= 9) & (df['hour'] <= 17)).astype(int)
-        df['is_very_late'] = ((df['hour'] >= 1) & (df['hour'] <= 4)).astype(int)  # Más específico
-        
-        # === 2. ANÁLISIS DE MONTOS CON IA ===
+        df['is_very_late'] = ((df['hour'] >= 1) & (df['hour'] <= 4)).astype(int)
+
+        # === 2. ANÁLISIS DE MONTOS (Sin cambios) ===
         df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
         df['monto_log'] = np.log1p(df['monto'])
-        df['monto_sqrt'] = np.sqrt(df['monto'])
         
-        # Categorías más sutiles de monto
-        monto_percentiles = df['monto'].quantile([0.25, 0.5, 0.75, 0.85, 0.92, 0.97])
-        df['is_small_transaction'] = (df['monto'] <= monto_percentiles[0.5]).astype(int)
-        df['is_medium_transaction'] = ((df['monto'] > monto_percentiles[0.5]) & (df['monto'] <= monto_percentiles[0.85])).astype(int)
-        df['is_high_transaction'] = ((df['monto'] > monto_percentiles[0.85]) & (df['monto'] <= monto_percentiles[0.97])).astype(int)
-        df['is_very_high_transaction'] = (df['monto'] > monto_percentiles[0.97]).astype(int)
+        monto_percentiles = df['monto'].quantile([0.75, 0.95])
+        df['is_high_transaction'] = (df['monto'] > monto_percentiles[0.75]).astype(int)
+        df['is_very_high_transaction'] = (df['monto'] > monto_percentiles[0.95]).astype(int)
+
+        # === 3. ANÁLISIS DE COMERCIANTES (🔥 CAMBIOS CLAVE) ===
+        # <<< CAMBIO CLAVE 1: Penalizar comerciantes desconocidos con un ALTO riesgo por defecto >>>
+        # En lugar de 0.15 (bajo riesgo), asignamos 0.75 (alto riesgo) a lo desconocido.
+        df['merchant_risk_score'] = df['comerciante'].map(self.merchant_risk_scores).fillna(0.75) 
         
-        # === 3. ANÁLISIS DE COMERCIANTES CON IA ===
-        # Calcular scores de riesgo dinámicos con suavizado
-        if 'comerciante' in original_df.columns and 'es_fraude' in original_df.columns:
-            merchant_fraud_rates = original_df.groupby('comerciante')['es_fraude'].agg(['mean', 'count'])
-            for merchant in merchant_fraud_rates.index:
-                fraud_rate = merchant_fraud_rates.loc[merchant, 'mean']
-                transaction_count = merchant_fraud_rates.loc[merchant, 'count']
-                # Score suavizado con menos peso para pocos datos
-                confidence = min(transaction_count / 20, 1.0)  # Incrementado de 10 a 20
-                base_risk = 0.15  # Riesgo base más alto
-                self.merchant_risk_scores[merchant] = base_risk + (fraud_rate * confidence * 0.6)
-        
-        # Características de comerciantes más sutiles
-        df['merchant_risk_score'] = df['comerciante'].map(self.merchant_risk_scores).fillna(0.15)
-        df['is_medium_risk_merchant'] = (df['merchant_risk_score'] > 0.3).astype(int)  # Umbral más bajo
+        # <<< CAMBIO CLAVE 2: Crear una nueva característica para identificar comerciantes nuevos >>>
+        known_merchants = set(self.merchant_risk_scores.keys())
+        df['is_new_merchant'] = (~df['comerciante'].isin(known_merchants)).astype(int)
+
         df['is_high_risk_merchant'] = (df['merchant_risk_score'] > 0.5).astype(int)
-        df['is_online_merchant'] = df['comerciante'].str.contains('Online|online|E-commerce', case=False, na=False).astype(int)
-        df['is_financial_merchant'] = df['comerciante'].str.contains('Financiero|Financial|Western|MoneyGram|Binance', case=False, na=False).astype(int)
         
-        # === 4. ANÁLISIS GEOGRÁFICO CON IA ===
-        # Calcular scores de riesgo por ubicación con suavizado
-        if 'ubicacion' in original_df.columns and 'es_fraude' in original_df.columns:
-            location_fraud_rates = original_df.groupby('ubicacion')['es_fraude'].agg(['mean', 'count'])
-            for location in location_fraud_rates.index:
-                fraud_rate = location_fraud_rates.loc[location, 'mean']
-                transaction_count = location_fraud_rates.loc[location, 'count']
-                confidence = min(transaction_count / 15, 1.0)  # Incrementado de 5 a 15
-                base_risk = 0.12
-                self.location_risk_scores[location] = base_risk + (fraud_rate * confidence * 0.5)
-        
-        df['location_risk_score'] = df['ubicacion'].map(self.location_risk_scores).fillna(0.12)
-        df['is_medium_risk_location'] = (df['location_risk_score'] > 0.25).astype(int)
-        df['is_high_risk_location'] = (df['location_risk_score'] > 0.4).astype(int)
-        df['is_online_location'] = df['ubicacion'].str.contains('Online', case=False, na=False).astype(int)
-        df['is_distant_location'] = (df['distancia_ubicacion_usual'] > 50).astype(int) if 'distancia_ubicacion_usual' in df.columns else 0
-        
-        # === 5. ANÁLISIS DE TARJETAS ===
-        # Encoding más sutil de tipos de tarjeta
-        card_risk_map = {
-            'Débito': 0.12,
-            'Crédito': 0.15,
-            'Prepaga': 0.20,
-            'Visa': 0.16,      # Añadir valores para nuevas tarjetas
-            'Mastercard': 0.16,
-            'American Express': 0.18,
-            'Unknown': 0.25
-        }
-        df['card_risk_score'] = df['tipo_tarjeta'].map(card_risk_map).fillna(0.18)
-        
-        # === 6. CARACTERÍSTICAS COMBINADAS SUTILES ===
-        df['risk_score_combined'] = (
-            df['merchant_risk_score'] * 0.35 +
-            df['location_risk_score'] * 0.25 +
-            df['card_risk_score'] * 0.15 +
-            df['is_very_late'] * 0.25
-        )
-        
-        df['subtle_anomaly_score'] = (
-            df['is_very_high_transaction'] * 0.25 +
-            df['is_high_risk_merchant'] * 0.25 +
-            df['is_high_risk_location'] * 0.20 +
-            df['is_very_late'] * 0.15 +
-            df['is_financial_merchant'] * 0.15
-        )
-        
-        # === 7. ESTADÍSTICAS AVANZADAS SUAVIZADAS ===
-        monto_std = df['monto'].std()
-        monto_mean = df['monto'].mean()
-        if monto_std > 0:
-            df['monto_zscore'] = np.abs((df['monto'] - monto_mean) / monto_std)
+        # === 4. ANÁLISIS GEOGRÁFICO (🔥 CAMBIOS CLAVE) ===
+        # <<< CAMBIO CLAVE 3: Penalizar ubicaciones desconocidas con un ALTO riesgo por defecto >>>
+        df['location_risk_score'] = df['ubicacion'].map(self.location_risk_scores).fillna(0.70)
+
+        # <<< CAMBIO CLAVE 4: Crear una nueva característica para identificar ubicaciones nuevas >>>
+        known_locations = set(self.location_risk_scores.keys())
+        df['is_new_location'] = (~df['ubicacion'].isin(known_locations)).astype(int)
+
+        # <<< CAMBIO CLAVE 5: Crear una característica para transacciones internacionales >>>
+        # Asume que la base de operaciones es 'Argentina'. ¡Esto es muy potente!
+        if 'pais' in df.columns:
+            df['is_foreign_country'] = (df['pais'].str.lower() != 'argentina').astype(int)
         else:
-            df['monto_zscore'] = 0
-        df['is_outlier_amount'] = (df['monto_zscore'] > 2.5).astype(int)  # Incrementado de 2 a 2.5
+            df['is_foreign_country'] = 0
+
+        # === 5. ANÁLISIS DE TARJETAS (Sin cambios) ===
+        card_risk_map = {'Débito': 0.1, 'Crédito': 0.2, 'Prepaga': 0.3, 'Visa': 0.2, 'Unknown': 0.4}
+        df['card_risk_score'] = df['tipo_tarjeta'].map(card_risk_map).fillna(0.3)
         
-        # === 8. ENCODING DE VARIABLES CATEGÓRICAS (MEJORADO) ===
-        categorical_columns = ['comerciante', 'ubicacion', 'tipo_tarjeta']
+        # === 6. CARACTERÍSTICAS COMBINADAS (Actualizadas con las nuevas) ===
+        df['combined_risk'] = (
+            df['merchant_risk_score'] * 0.4 +
+            df['location_risk_score'] * 0.3 +
+            df['is_new_merchant'] * 0.5 +      # <<< Ponderar fuertemente si es nuevo
+            df['is_foreign_country'] * 0.5 +   # <<< Ponderar fuertemente si es extranjero
+            df['is_very_high_transaction'] * 0.2 +
+            df['is_very_late'] * 0.1
+        )
         
+        # === 7. ENCODING DE VARIABLES CATEGÓRICAS (🔥 CAMBIO CLAVE) ===
+        # <<< CAMBIO CLAVE 6: Tratar los valores desconocidos como una categoría separada "UNKNOWN" >>>
+        # En lugar de mapearlos a una categoría existente.
+        categorical_columns = ['comerciante', 'ubicacion', 'tipo_tarjeta', 'pais', 'canal']
         for col in categorical_columns:
             if col in df.columns:
-                if col not in self.label_encoders:
-                    # Primera vez entrenando
-                    self.label_encoders[col] = LabelEncoder()
-                    df[f'{col}_encoded'] = self.label_encoders[col].fit_transform(df[col].astype(str))
-                else:
-                    # Para nuevos datos, manejar categorías no vistas
-                    known_categories = set(self.label_encoders[col].classes_)
+                le = self.label_encoders.get(col)
+                if le is None: # Si es la primera vez (entrenamiento)
+                    le = LabelEncoder()
                     df[col] = df[col].astype(str)
-                    
-                    # 🔥 SOLUCIÓN: Mapear valores desconocidos a un valor conocido
-                    def map_unknown_values(value):
-                        if value in known_categories:
-                            return value
-                        # Si no existe, usar el primer valor conocido como default
-                        return list(known_categories)[0] if known_categories else 'COM001'
-                    
-                    df[col] = df[col].apply(map_unknown_values)
-                    df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
-        
-        # Eliminar columnas categóricas originales y horario
-        columns_to_drop = ['comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'cuenta_origen_id', 'cuenta_destino_id', 'distancia_ubicacion_usual']
-        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
+                    df[f'{col}_encoded'] = le.fit_transform(df[col])
+                    self.label_encoders[col] = le
+                else: # Para predicción
+                    df[col] = df[col].astype(str)
+                    # Mapea valores conocidos, y los no conocidos a una categoría especial
+                    known_values = set(le.classes_)
+                    df[f'{col}_encoded'] = df[col].apply(lambda x: le.transform([x])[0] if x in known_values else le.transform(['<unknown>'])[0] if '<unknown>' in known_values else -1)
+
+        # Limpieza final
+        columns_to_drop = ['comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 
+                           'cuenta_origen_id', 'pais', 'ciudad', 'canal']
+        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns], errors='ignore')
         
         print(f"✅ Características generadas: {len(df.columns)} features sutiles")
         

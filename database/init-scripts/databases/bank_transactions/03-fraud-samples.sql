@@ -2,7 +2,7 @@
 -- Generación masiva de transacciones SUTILES Y REALISTAS para detección de fraude
 
 \echo '🔍 Generando datos sutiles y realistas para detección de fraude...'
-\echo '   Target: 10,000 transacciones con distribución MUY realista';
+\echo '   Target: 10,000+ transacciones con distribución MUY realista';
 
 \c bank_transactions;
 
@@ -58,17 +58,14 @@ INSERT INTO reglas_fraude (nombre, descripcion, condicion, peso, activa) VALUES
 -- ===== GENERAR TRANSACCIONES NORMALES REALISTAS =====
 \echo '   📈 Generando 8,500 transacciones completamente normales...';
 INSERT INTO transacciones (
-    -- ✅ CAMBIO 1: Añadir la columna numero_transaccion a la lista
     numero_transaccion,
     cuenta_origen_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT
-    -- ✅ CAMBIO 2: Generar un ID único usando 'gs'
     'TXN-N-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
     1000 + (gs % 500),  -- 500 usuarios diferentes para evitar conflictos
-    -- Montos MUY realistas y variados
     CASE
         WHEN random() < 0.3 THEN 50 + (random() * 450)::NUMERIC(10,2)      -- Compras pequeñas: $50-500
         WHEN random() < 0.6 THEN 500 + (random() * 1500)::NUMERIC(10,2)    -- Compras medianas: $500-2000
@@ -76,7 +73,6 @@ SELECT
         WHEN random() < 0.95 THEN 5000 + (random() * 10000)::NUMERIC(10,2) -- Compras muy grandes: $5000-15000
         ELSE 15000 + (random() * 20000)::NUMERIC(10,2)                      -- Compras especiales: $15000-35000
     END,
-    -- Solo comerciantes completamente legítimos
     CASE (gs % 18)
         WHEN 0 THEN 'COM001' WHEN 1 THEN 'COM002' WHEN 2 THEN 'COM003' WHEN 3 THEN 'COM004'
         WHEN 4 THEN 'COM005' WHEN 5 THEN 'COM006' WHEN 6 THEN 'COM007' WHEN 7 THEN 'COM008'
@@ -88,7 +84,6 @@ SELECT
         WHEN 0 THEN 'Alimentación' WHEN 1 THEN 'Combustibles' WHEN 2 THEN 'Gastronomía'
         WHEN 3 THEN 'Salud' WHEN 4 THEN 'Tecnología' WHEN 5 THEN 'Entretenimiento' ELSE 'E-commerce'
     END,
-    -- Ubicaciones normales en Argentina
     CASE (gs % 12)
         WHEN 0 THEN 'Av. Corrientes 1500, CABA' WHEN 1 THEN 'Panamericana Km 25' WHEN 2 THEN 'Palermo, CABA'
         WHEN 3 THEN 'Florida 800, CABA' WHEN 4 THEN 'Av. 9 de Julio 1000' WHEN 5 THEN 'Recoleta Mall'
@@ -98,45 +93,40 @@ SELECT
     'Buenos Aires',
     'Argentina',
     CASE WHEN random() < 0.60 THEN 'Débito' WHEN random() < 0.85 THEN 'Crédito' ELSE 'Prepaga' END,
-    -- Horarios completamente normales (6AM - 11PM)
     TIME '06:00:00' + (random() * INTERVAL '17 hours'),
-    CURRENT_DATE - (random() * 90)::int,  -- Últimos 3 meses
-    FALSE,  -- ✅ EXPLÍCITAMENTE NORMALES
+    CURRENT_DATE - (random() * 90)::int,
+    FALSE,
     CASE WHEN random() < 0.65 THEN 'pos' WHEN random() < 0.85 THEN 'online' ELSE 'atm' END,
-    10000 + (random() * 90000)::NUMERIC(10,2),  -- Saldos realistas
-    (random() * 20)::NUMERIC(8,2)  -- Distancias cortas normales
+    10000 + (random() * 90000)::NUMERIC(10,2),
+    (random() * 20)::NUMERIC(8,2)
 FROM generate_series(1, 8500) gs;
 
 -- ===== GENERAR TRANSACCIONES FRAUDULENTAS SUTILES =====
 \echo '   🚨 Generando 1,500 transacciones fraudulentas SUTILES...';
 
--- Tipo 1: Fraudes sutiles con montos moderadamente altos (600 transacciones)
+-- Tipo 1: Fraudes sutiles con montos moderadamente altos
 INSERT INTO transacciones (
-    -- ✅ CAMBIO 1
     numero_transaccion,
     cuenta_origen_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT
-    -- ✅ CAMBIO 2
     'TXN-F1-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
-    1000 + (gs % 500),  -- Mismos usuarios
-    -- Montos fraudulentos SUTILES - no tan evidentes
+    1000 + (gs % 500),
     CASE
-        WHEN random() < 0.4 THEN 8000 + (random() * 12000)::NUMERIC(10,2)   -- $8K-20K (un poco alto pero no obvio)
-        WHEN random() < 0.7 THEN 20000 + (random() * 25000)::NUMERIC(10,2)  -- $20K-45K (alto pero creíble)
-        WHEN random() < 0.9 THEN 45000 + (random() * 30000)::NUMERIC(10,2)  -- $45K-75K (muy alto)
-        ELSE 75000 + (random() * 50000)::NUMERIC(10,2)                      -- $75K-125K (extremo pero no ridículo)
+        WHEN random() < 0.4 THEN 8000 + (random() * 12000)::NUMERIC(10,2)
+        WHEN random() < 0.7 THEN 20000 + (random() * 25000)::NUMERIC(10,2)
+        WHEN random() < 0.9 THEN 45000 + (random() * 30000)::NUMERIC(10,2)
+        ELSE 75000 + (random() * 50000)::NUMERIC(10,2)
     END,
-    -- Mix de comerciantes legítimos y medio riesgo
     CASE
-        WHEN random() < 0.3 THEN  -- 30% en comerciantes legítimos (fraude con tarjeta robada)
+        WHEN random() < 0.3 THEN
             CASE (gs % 8)
                 WHEN 0 THEN 'COM001' WHEN 1 THEN 'COM008' WHEN 2 THEN 'COM014' WHEN 3 THEN 'COM017'
                 WHEN 4 THEN 'COM019' WHEN 5 THEN 'COM021' WHEN 6 THEN 'COM024' ELSE 'COM016'
             END
-        ELSE  -- 70% en comerciantes de medio riesgo
+        ELSE
             CASE (gs % 7)
                 WHEN 0 THEN 'COM019' WHEN 1 THEN 'COM020' WHEN 2 THEN 'COM021' WHEN 3 THEN 'COM022'
                 WHEN 4 THEN 'COM023' WHEN 5 THEN 'COM024' ELSE 'COM025'
@@ -146,14 +136,13 @@ SELECT
         WHEN 0 THEN 'Tecnología' WHEN 1 THEN 'Financiero' WHEN 2 THEN 'E-commerce' WHEN 3 THEN 'Entretenimiento'
         WHEN 4 THEN 'Retail' WHEN 5 THEN 'Alimentación' WHEN 6 THEN 'Gastronomía' ELSE 'Bancario'
     END,
-    -- Mezcla de ubicaciones normales y algunas sospechosas
     CASE
-        WHEN random() < 0.6 THEN  -- 60% ubicaciones normales
+        WHEN random() < 0.6 THEN
             CASE (gs % 6)
                 WHEN 0 THEN 'Buenos Aires Centro' WHEN 1 THEN 'Palermo, CABA' WHEN 2 THEN 'Recoleta'
                 WHEN 3 THEN 'Puerto Madero' WHEN 4 THEN 'Villa Crespo' ELSE 'San Telmo'
             END
-        ELSE  -- 40% ubicaciones un poco sospechosas
+        ELSE
             CASE (gs % 5)
                 WHEN 0 THEN 'Online' WHEN 1 THEN 'Zona Norte GBA' WHEN 2 THEN 'La Plata'
                 WHEN 3 THEN 'Córdoba Capital' ELSE 'Rosario Centro'
@@ -165,50 +154,43 @@ SELECT
         WHEN random() < 0.95 THEN 'Córdoba'
         ELSE 'Santa Fe'
     END,
-    'Argentina',  -- Mantener todo en Argentina para ser más sutil
+    'Argentina',
     CASE WHEN random() < 0.75 THEN 'Crédito' ELSE 'Débito' END,
-    -- Horarios SUTILMENTE sospechosos
     CASE
-        WHEN random() < 0.7 THEN TIME '07:00:00' + (random() * INTERVAL '16 hours')  -- 70% horarios normales
-        WHEN random() < 0.85 THEN TIME '22:00:00' + (random() * INTERVAL '3 hours') -- 15% noche temprana
-        ELSE TIME '01:00:00' + (random() * INTERVAL '4 hours')                      -- 15% madrugada
+        WHEN random() < 0.7 THEN TIME '07:00:00' + (random() * INTERVAL '16 hours')
+        WHEN random() < 0.85 THEN TIME '22:00:00' + (random() * INTERVAL '3 hours')
+        ELSE TIME '01:00:00' + (random() * INTERVAL '4 hours')
     END,
-    CURRENT_DATE - (random() * 30)::int,  -- Último mes (más reciente = más sospechoso)
-    TRUE,  -- ✅ FRAUDE PERO SUTIL
+    CURRENT_DATE - (random() * 30)::int,
+    TRUE,
     CASE WHEN random() < 0.6 THEN 'online' WHEN random() < 0.8 THEN 'pos' ELSE 'atm' END,
-    -- Saldos que a veces son menores al monto (indicador sutil)
     CASE
-        WHEN random() < 0.3 THEN 1000 + (random() * 8000)::NUMERIC(10,2)   -- Saldo insuficiente
-        WHEN random() < 0.6 THEN 10000 + (random() * 30000)::NUMERIC(10,2) -- Saldo justo
-        ELSE 50000 + (random() * 100000)::NUMERIC(10,2)                     -- Saldo alto
+        WHEN random() < 0.3 THEN 1000 + (random() * 8000)::NUMERIC(10,2)
+        WHEN random() < 0.6 THEN 10000 + (random() * 30000)::NUMERIC(10,2)
+        ELSE 50000 + (random() * 100000)::NUMERIC(10,2)
     END,
-    -- Distancias SUTILMENTE sospechosas
     CASE
-        WHEN random() < 0.4 THEN (random() * 30)::NUMERIC(8,2)     -- Cerca de lo usual
-        WHEN random() < 0.7 THEN 30 + (random() * 100)::NUMERIC(8,2) -- Un poco lejos
-        ELSE 100 + (random() * 200)::NUMERIC(8,2)                    -- Lejos pero no ridículo
+        WHEN random() < 0.4 THEN (random() * 30)::NUMERIC(8,2)
+        WHEN random() < 0.7 THEN 30 + (random() * 100)::NUMERIC(8,2)
+        ELSE 100 + (random() * 200)::NUMERIC(8,2)
     END
 FROM generate_series(10001, 10900) gs;
 
--- Tipo 2: Fraudes de bajo monto para testeo de tarjetas (400 transacciones)
+-- Tipo 2: Fraudes de bajo monto para testeo de tarjetas
 INSERT INTO transacciones (
-    -- ✅ CAMBIO 1
     numero_transaccion,
     cuenta_origen_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT
-    -- ✅ CAMBIO 2
     'TXN-F2-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
     1000 + (gs % 500),
-    -- Montos PEQUEÑOS pero con patrones sospechosos
     CASE
-        WHEN random() < 0.5 THEN 200 + (random() * 800)::NUMERIC(10,2)    -- $200-1000 (testeo de tarjeta)
-        WHEN random() < 0.8 THEN 1000 + (random() * 2000)::NUMERIC(10,2)  -- $1000-3000 (fraude menor)
-        ELSE 3000 + (random() * 5000)::NUMERIC(10,2)                      -- $3000-8000 (fraude medio)
+        WHEN random() < 0.5 THEN 200 + (random() * 800)::NUMERIC(10,2)
+        WHEN random() < 0.8 THEN 1000 + (random() * 2000)::NUMERIC(10,2)
+        ELSE 3000 + (random() * 5000)::NUMERIC(10,2)
     END,
-    -- Comerciantes diversos
     CASE (gs % 12)
         WHEN 0 THEN 'COM019' WHEN 1 THEN 'COM020' WHEN 2 THEN 'COM021' WHEN 3 THEN 'COM022'
         WHEN 4 THEN 'COM001' WHEN 5 THEN 'COM008' WHEN 6 THEN 'COM017' WHEN 7 THEN 'COM023'
@@ -229,18 +211,46 @@ SELECT
     END,
     'Argentina',
     CASE WHEN random() < 0.65 THEN 'Débito' ELSE 'Crédito' END,
-    -- Horarios MÁS normales para ser sutiles
     CASE
-        WHEN random() < 0.8 THEN TIME '08:00:00' + (random() * INTERVAL '14 hours')  -- Horarios normales
-        WHEN random() < 0.9 THEN TIME '23:00:00' + (random() * INTERVAL '2 hours')  -- Noche
-        ELSE TIME '02:00:00' + (random() * INTERVAL '3 hours')                      -- Madrugada
+        WHEN random() < 0.8 THEN TIME '08:00:00' + (random() * INTERVAL '14 hours')
+        WHEN random() < 0.9 THEN TIME '23:00:00' + (random() * INTERVAL '2 hours')
+        ELSE TIME '02:00:00' + (random() * INTERVAL '3 hours')
     END,
     CURRENT_DATE - (random() * 60)::int,
-    TRUE,  -- ✅ FRAUDE PERO MUY SUTIL
+    TRUE,
     CASE WHEN random() < 0.7 THEN 'online' WHEN random() < 0.9 THEN 'pos' ELSE 'mobile' END,
-    5000 + (random() * 45000)::NUMERIC(10,2),  -- Saldos normales
-    (random() * 150)::NUMERIC(8,2)  -- Distancias variadas
+    5000 + (random() * 45000)::NUMERIC(10,2),
+    (random() * 150)::NUMERIC(8,2)
 FROM generate_series(20001, 20600) gs;
 
+-- ===== 🔥🔥 NUEVA SECCIÓN: FRAUDES EXTREMOS Y PATRONES INTERNACIONALES 🔥🔥 =====
+\echo '   🚨 Generando fraudes EXTREMOS y de patrones internacionales...';
+INSERT INTO transacciones (
+    numero_transaccion, cuenta_origen_id, monto, comerciante, categoria_comerciante,
+    ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
+    es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
+) VALUES
+-- Caso 1: Monto extremo, comerciante desconocido, país inusual (tu ejemplo)
+('TXN-EXT-001', 1001, 12345678.90, 'pepe-services-online', 'E-commerce',
+'Desconocida', 'Miami', 'USA', 'Crédito', '14:30:00', CURRENT_DATE - 1,
+TRUE, 'online', 50000.00, 7000.0),
+
+-- Caso 2: Múltiples compras pequeñas y rápidas desde un país de alto riesgo
+('TXN-EXT-002', 1002, 150.00, 'random-goods-store', 'Retail',
+'Desconocida', 'Lagos', 'Nigeria', 'Débito', '03:15:00', CURRENT_DATE - 2,
+TRUE, 'online', 2500.00, 9000.0),
+('TXN-EXT-003', 1002, 175.50, 'random-goods-store', 'Retail',
+'Desconocida', 'Lagos', 'Nigeria', 'Débito', '03:18:00', CURRENT_DATE - 2,
+TRUE, 'online', 2350.00, 9000.0),
+
+-- Caso 3: Compra en comerciante de cripto a altas horas de la noche desde un país sancionado
+('TXN-EXT-004', 1003, 25000.00, 'Crypto4U', 'Financiero',
+'Online', 'Online', 'Rusia', 'Crédito', '02:45:00', CURRENT_DATE - 5,
+TRUE, 'online', 30000.00, 12000.0),
+
+-- Caso 4: Monto muy alto en un casino online
+('TXN-EXT-005', 1010, 550000.00, 'online-casino-bet', 'Entretenimiento',
+'Online', 'Online', 'Malta', 'Crédito', '23:50:00', CURRENT_DATE - 3,
+TRUE, 'online', 600000.00, 11000.0);
 
 \echo '✅ Configuración completa finalizada exitosamente';
