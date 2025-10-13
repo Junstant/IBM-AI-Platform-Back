@@ -58,25 +58,29 @@ INSERT INTO reglas_fraude (nombre, descripcion, condicion, peso, activa) VALUES
 -- ===== GENERAR TRANSACCIONES NORMALES REALISTAS =====
 \echo '   📈 Generando 8,500 transacciones completamente normales...';
 INSERT INTO transacciones (
+    -- ✅ CAMBIO 1: Añadir la columna numero_transaccion a la lista
+    numero_transaccion,
     cuenta_origen_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
-SELECT 
+SELECT
+    -- ✅ CAMBIO 2: Generar un ID único usando 'gs'
+    'TXN-N-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
     1000 + (gs % 500),  -- 500 usuarios diferentes para evitar conflictos
     -- Montos MUY realistas y variados
-    CASE 
+    CASE
         WHEN random() < 0.3 THEN 50 + (random() * 450)::NUMERIC(10,2)      -- Compras pequeñas: $50-500
         WHEN random() < 0.6 THEN 500 + (random() * 1500)::NUMERIC(10,2)    -- Compras medianas: $500-2000
         WHEN random() < 0.85 THEN 2000 + (random() * 3000)::NUMERIC(10,2)  -- Compras grandes: $2000-5000
         WHEN random() < 0.95 THEN 5000 + (random() * 10000)::NUMERIC(10,2) -- Compras muy grandes: $5000-15000
-        ELSE 15000 + (random() * 20000)::NUMERIC(10,2)                     -- Compras especiales: $15000-35000
+        ELSE 15000 + (random() * 20000)::NUMERIC(10,2)                      -- Compras especiales: $15000-35000
     END,
     -- Solo comerciantes completamente legítimos
     CASE (gs % 18)
-        WHEN 0 THEN 'COM001' WHEN 1 THEN 'COM002' WHEN 2 THEN 'COM003' WHEN 3 THEN 'COM004' 
-        WHEN 4 THEN 'COM005' WHEN 5 THEN 'COM006' WHEN 6 THEN 'COM007' WHEN 7 THEN 'COM008' 
-        WHEN 8 THEN 'COM009' WHEN 9 THEN 'COM010' WHEN 10 THEN 'COM011' WHEN 11 THEN 'COM012' 
+        WHEN 0 THEN 'COM001' WHEN 1 THEN 'COM002' WHEN 2 THEN 'COM003' WHEN 3 THEN 'COM004'
+        WHEN 4 THEN 'COM005' WHEN 5 THEN 'COM006' WHEN 6 THEN 'COM007' WHEN 7 THEN 'COM008'
+        WHEN 8 THEN 'COM009' WHEN 9 THEN 'COM010' WHEN 10 THEN 'COM011' WHEN 11 THEN 'COM012'
         WHEN 12 THEN 'COM013' WHEN 13 THEN 'COM014' WHEN 14 THEN 'COM015' WHEN 15 THEN 'COM016'
         WHEN 16 THEN 'COM017' ELSE 'COM018'
     END,
@@ -101,28 +105,32 @@ SELECT
     CASE WHEN random() < 0.65 THEN 'pos' WHEN random() < 0.85 THEN 'online' ELSE 'atm' END,
     10000 + (random() * 90000)::NUMERIC(10,2),  -- Saldos realistas
     (random() * 20)::NUMERIC(8,2)  -- Distancias cortas normales
-FROM generate_series(1, 6000) gs;  -- Reducir a 6000 para evitar conflictos
+FROM generate_series(1, 8500) gs;
 
 -- ===== GENERAR TRANSACCIONES FRAUDULENTAS SUTILES =====
-\echo '   🚨 Generando 1,000 transacciones fraudulentas SUTILES...';
+\echo '   🚨 Generando 1,500 transacciones fraudulentas SUTILES...';
 
--- Tipo 1: Fraudes sutiles con montos moderadamente altos (60% del fraude)
+-- Tipo 1: Fraudes sutiles con montos moderadamente altos (600 transacciones)
 INSERT INTO transacciones (
+    -- ✅ CAMBIO 1
+    numero_transaccion,
     cuenta_origen_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
-SELECT 
+SELECT
+    -- ✅ CAMBIO 2
+    'TXN-F1-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
     1000 + (gs % 500),  -- Mismos usuarios
     -- Montos fraudulentos SUTILES - no tan evidentes
-    CASE 
+    CASE
         WHEN random() < 0.4 THEN 8000 + (random() * 12000)::NUMERIC(10,2)   -- $8K-20K (un poco alto pero no obvio)
         WHEN random() < 0.7 THEN 20000 + (random() * 25000)::NUMERIC(10,2)  -- $20K-45K (alto pero creíble)
         WHEN random() < 0.9 THEN 45000 + (random() * 30000)::NUMERIC(10,2)  -- $45K-75K (muy alto)
         ELSE 75000 + (random() * 50000)::NUMERIC(10,2)                      -- $75K-125K (extremo pero no ridículo)
-    END,  
+    END,
     -- Mix de comerciantes legítimos y medio riesgo
-    CASE 
+    CASE
         WHEN random() < 0.3 THEN  -- 30% en comerciantes legítimos (fraude con tarjeta robada)
             CASE (gs % 8)
                 WHEN 0 THEN 'COM001' WHEN 1 THEN 'COM008' WHEN 2 THEN 'COM014' WHEN 3 THEN 'COM017'
@@ -139,7 +147,7 @@ SELECT
         WHEN 4 THEN 'Retail' WHEN 5 THEN 'Alimentación' WHEN 6 THEN 'Gastronomía' ELSE 'Bancario'
     END,
     -- Mezcla de ubicaciones normales y algunas sospechosas
-    CASE 
+    CASE
         WHEN random() < 0.6 THEN  -- 60% ubicaciones normales
             CASE (gs % 6)
                 WHEN 0 THEN 'Buenos Aires Centro' WHEN 1 THEN 'Palermo, CABA' WHEN 2 THEN 'Recoleta'
@@ -151,7 +159,7 @@ SELECT
                 WHEN 3 THEN 'Córdoba Capital' ELSE 'Rosario Centro'
             END
     END,
-    CASE 
+    CASE
         WHEN random() < 0.7 THEN 'Buenos Aires'
         WHEN random() < 0.85 THEN 'Buenos Aires'
         WHEN random() < 0.95 THEN 'Córdoba'
@@ -160,7 +168,7 @@ SELECT
     'Argentina',  -- Mantener todo en Argentina para ser más sutil
     CASE WHEN random() < 0.75 THEN 'Crédito' ELSE 'Débito' END,
     -- Horarios SUTILMENTE sospechosos
-    CASE 
+    CASE
         WHEN random() < 0.7 THEN TIME '07:00:00' + (random() * INTERVAL '16 hours')  -- 70% horarios normales
         WHEN random() < 0.85 THEN TIME '22:00:00' + (random() * INTERVAL '3 hours') -- 15% noche temprana
         ELSE TIME '01:00:00' + (random() * INTERVAL '4 hours')                      -- 15% madrugada
@@ -169,29 +177,33 @@ SELECT
     TRUE,  -- ✅ FRAUDE PERO SUTIL
     CASE WHEN random() < 0.6 THEN 'online' WHEN random() < 0.8 THEN 'pos' ELSE 'atm' END,
     -- Saldos que a veces son menores al monto (indicador sutil)
-    CASE 
+    CASE
         WHEN random() < 0.3 THEN 1000 + (random() * 8000)::NUMERIC(10,2)   -- Saldo insuficiente
         WHEN random() < 0.6 THEN 10000 + (random() * 30000)::NUMERIC(10,2) -- Saldo justo
-        ELSE 50000 + (random() * 100000)::NUMERIC(10,2)                    -- Saldo alto
+        ELSE 50000 + (random() * 100000)::NUMERIC(10,2)                     -- Saldo alto
     END,
     -- Distancias SUTILMENTE sospechosas
-    CASE 
-        WHEN random() < 0.4 THEN (random() * 30)::NUMERIC(8,2)      -- Cerca de lo usual
+    CASE
+        WHEN random() < 0.4 THEN (random() * 30)::NUMERIC(8,2)     -- Cerca de lo usual
         WHEN random() < 0.7 THEN 30 + (random() * 100)::NUMERIC(8,2) -- Un poco lejos
-        ELSE 100 + (random() * 200)::NUMERIC(8,2)                   -- Lejos pero no ridículo
+        ELSE 100 + (random() * 200)::NUMERIC(8,2)                    -- Lejos pero no ridículo
     END
-FROM generate_series(10001, 10600) gs;  -- Usar rango diferente para evitar conflictos
+FROM generate_series(10001, 10900) gs;
 
--- Tipo 2: Fraudes de pequeños montos pero patrones sospechosos (40% del fraude)
+-- Tipo 2: Fraudes de bajo monto para testeo de tarjetas (400 transacciones)
 INSERT INTO transacciones (
+    -- ✅ CAMBIO 1
+    numero_transaccion,
     cuenta_origen_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
-SELECT 
+SELECT
+    -- ✅ CAMBIO 2
+    'TXN-F2-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
     1000 + (gs % 500),
     -- Montos PEQUEÑOS pero con patrones sospechosos
-    CASE 
+    CASE
         WHEN random() < 0.5 THEN 200 + (random() * 800)::NUMERIC(10,2)    -- $200-1000 (testeo de tarjeta)
         WHEN random() < 0.8 THEN 1000 + (random() * 2000)::NUMERIC(10,2)  -- $1000-3000 (fraude menor)
         ELSE 3000 + (random() * 5000)::NUMERIC(10,2)                      -- $3000-8000 (fraude medio)
@@ -218,7 +230,7 @@ SELECT
     'Argentina',
     CASE WHEN random() < 0.65 THEN 'Débito' ELSE 'Crédito' END,
     -- Horarios MÁS normales para ser sutiles
-    CASE 
+    CASE
         WHEN random() < 0.8 THEN TIME '08:00:00' + (random() * INTERVAL '14 hours')  -- Horarios normales
         WHEN random() < 0.9 THEN TIME '23:00:00' + (random() * INTERVAL '2 hours')  -- Noche
         ELSE TIME '02:00:00' + (random() * INTERVAL '3 hours')                      -- Madrugada
@@ -228,98 +240,7 @@ SELECT
     CASE WHEN random() < 0.7 THEN 'online' WHEN random() < 0.9 THEN 'pos' ELSE 'mobile' END,
     5000 + (random() * 45000)::NUMERIC(10,2),  -- Saldos normales
     (random() * 150)::NUMERIC(8,2)  -- Distancias variadas
-FROM generate_series(20001, 20400) gs;  -- Usar otro rango diferente
+FROM generate_series(20001, 20600) gs;
 
--- ===== VERIFICAR DISTRIBUCIÓN REALISTA =====
-\echo '🔍 Verificando distribución realista de datos...';
 
--- Mostrar estadísticas detalladas (SIN ROUND - usar CAST)
-WITH stats AS (
-    SELECT 
-        es_fraude,
-        COUNT(*) as cantidad,
-        CAST(AVG(monto) AS NUMERIC(10,2)) as monto_promedio,
-        CAST(MIN(monto) AS NUMERIC(10,2)) as monto_minimo,
-        CAST(MAX(monto) AS NUMERIC(10,2)) as monto_maximo,
-        CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY monto) AS NUMERIC(10,2)) as monto_mediana
-    FROM transacciones
-    GROUP BY es_fraude
-)
-SELECT 
-    CASE WHEN es_fraude THEN 'FRAUDULENTAS' ELSE 'NORMALES' END as tipo,
-    cantidad,
-    CAST((cantidad * 100.0 / (SELECT COUNT(*) FROM transacciones)) AS NUMERIC(5,2)) as porcentaje,
-    monto_promedio,
-    monto_minimo,
-    monto_maximo,
-    monto_mediana
-FROM stats
-ORDER BY es_fraude;
-
--- ===== GENERAR ALERTAS SUTILES =====
-\echo '🚨 Generando alertas sutiles y realistas...';
-INSERT INTO alertas_fraude (transaccion_id, tipo_alerta, nivel_riesgo, puntuacion_riesgo, descripcion)
-SELECT
-    t.id,
-    CASE
-        WHEN t.monto > 100000 THEN 'Monto Muy Alto'
-        WHEN t.monto > 50000 THEN 'Monto Alto Inusual'
-        WHEN EXTRACT(HOUR FROM t.horario_transaccion) BETWEEN 1 AND 4 THEN 'Horario Inusual'
-        WHEN t.distancia_ubicacion_usual > 100 THEN 'Ubicación Distante'
-        ELSE 'Patrón Sospechoso General'
-    END,
-    CASE
-        WHEN t.monto > 100000 AND EXTRACT(HOUR FROM t.horario_transaccion) BETWEEN 1 AND 4 THEN 'crítico'
-        WHEN t.monto > 75000 THEN 'alto'
-        WHEN t.monto > 40000 OR EXTRACT(HOUR FROM t.horario_transaccion) BETWEEN 1 AND 4 THEN 'medio'
-        ELSE 'bajo'
-    END,
-    -- Puntuaciones MÁS REALISTAS (no siempre 95+)
-    CASE
-        WHEN t.monto > 100000 AND EXTRACT(HOUR FROM t.horario_transaccion) BETWEEN 1 AND 4 THEN 85.0 + (random() * 10)
-        WHEN t.monto > 75000 THEN 70.0 + (random() * 15)
-        WHEN t.monto > 40000 THEN 60.0 + (random() * 15)
-        WHEN EXTRACT(HOUR FROM t.horario_transaccion) BETWEEN 1 AND 4 THEN 55.0 + (random() * 20)
-        ELSE 45.0 + (random() * 25)
-    END,
-    'Alerta generada por patrón de comportamiento inusual'
-FROM transacciones t
-WHERE t.es_fraude = TRUE
-AND random() < 0.7;  -- Solo 70% de los fraudes generan alertas
-
--- ===== ACTUALIZAR ESTADÍSTICAS DE COMERCIANTES =====
-\echo '📊 Actualizando estadísticas de comerciantes...';
-UPDATE comerciantes SET
-    total_transacciones = (
-        SELECT COUNT(*) FROM transacciones
-        WHERE comerciante = comerciantes.codigo_comerciante
-    ),
-    transacciones_fraudulentas = (
-        SELECT COUNT(*) FROM transacciones
-        WHERE comerciante = comerciantes.codigo_comerciante AND es_fraude = TRUE
-    );
-
-UPDATE comerciantes SET
-    tasa_fraude = CASE 
-        WHEN total_transacciones > 0 THEN 
-            transacciones_fraudulentas::NUMERIC / total_transacciones::NUMERIC
-        ELSE 0
-    END;
-
--- Mostrar tasas de fraude por comerciante (SIN ROUND)
-\echo '📊 Tasas de fraude por comerciante:';
-SELECT 
-    codigo_comerciante,
-    nombre,
-    total_transacciones,
-    transacciones_fraudulentas,
-    CAST(tasa_fraude * 100 AS NUMERIC(5,2)) as tasa_fraude_porcentaje
-FROM comerciantes 
-WHERE total_transacciones > 0
-ORDER BY tasa_fraude DESC;
-
-\echo '✅ Datos SUTILES y REALISTAS insertados exitosamente';
-\echo '   📊 7,000 transacciones generadas (6,000 normales + 1,000 fraudulentas)';
-\echo '   🎯 Fraudes sutiles con patrones realistas';
-\echo '   💡 Montos y horarios menos evidentes';
-\echo '   🔍 Distribución optimizada para ML realista';
+\echo '✅ Configuración completa finalizada exitosamente';
