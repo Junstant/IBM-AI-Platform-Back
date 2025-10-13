@@ -178,38 +178,38 @@ def predict_single_transaction(transaction: Transaction):
         raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado. Intente más tarde.")
 
     try:
-        # Convertir el Pydantic model a una lista de tuplas con los campos requeridos
-        # Usamos valores placeholder para los campos que no se envían
-        # Deben coincidir con el orden en fetch_transactions
-        transaction_list = [(
-            0, # id (placeholder)
-            1, # cuenta_origen_id (placeholder)
-            2, # cuenta_destino_id (placeholder)
-            transaction.monto,
-            transaction.comerciante,
-            transaction.ubicacion,
-            transaction.tipo_tarjeta,
-            transaction.horario_transaccion,
-            str(date.today()), # fecha_transaccion (placeholder)
-            False # es_fraude (placeholder)
-        )]
+        # Crear un DataFrame con la transacción individual
+        transaction_data = pd.DataFrame([{
+            'id': 0,  # placeholder
+            'cuenta_origen_id': 1,  # placeholder
+            'cuenta_destino_id': None,
+            'monto': transaction.monto,
+            'comerciante': transaction.comerciante,
+            'ubicacion': transaction.ubicacion,
+            'tipo_tarjeta': transaction.tipo_tarjeta,
+            'horario_transaccion': transaction.horario_transaccion,
+            'fecha_transaccion': str(date.today()),
+            'es_fraude': False  # placeholder
+        }])
 
         print(f"🔍 Procesando transacción: {transaction}")
         
-        # Usar el modelo para hacer la predicción individual
-        is_fraud, fraud_probability = detector.predict_single_transaction(transaction_list)
+        # Usar el método predict_batch con el DataFrame
+        predictions, probabilities = detector.predict_batch(transaction_data.values.tolist())
+        
+        if not predictions or not probabilities:
+            raise HTTPException(status_code=500, detail="Error procesando la transacción")
+        
+        is_fraud = bool(predictions[0])
+        fraud_probability = float(probabilities[0][1]) if len(probabilities[0]) > 1 else float(probabilities[0][0])
         
         print(f"📊 Resultado: is_fraud={is_fraud}, fraud_probability={fraud_probability}")
         
-        # Asegurar que fraud_probability sea un número válido
-        if fraud_probability is None or not isinstance(fraud_probability, (int, float)):
-            print(f"⚠️ fraud_probability inválido: {fraud_probability}, usando 0.0")
-            fraud_probability = 0.0
-        
         response_data = {
-            "prediccion": "Fraude detectado" if is_fraud else "Normal",
-            "es_fraude": bool(is_fraud),
-            "probabilidad_fraude": round(float(fraud_probability), 3),
+            "prediccion": "Fraude detectado" if is_fraud else "Transacción normal",
+            "es_fraude": is_fraud,
+            "probabilidad_fraude": round(fraud_probability, 3),
+            "nivel_confianza": "Alta" if fraud_probability > 0.8 else "Media" if fraud_probability > 0.5 else "Baja",
             "transaccion_enviada": transaction.dict()
         }
         

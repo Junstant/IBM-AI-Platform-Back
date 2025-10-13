@@ -1,225 +1,243 @@
 -- databases/bank_transactions/03-fraud-samples.sql
--- Generación masiva de transacciones para detección de fraude - VERSIÓN CONSOLIDADA
+-- Generación masiva de transacciones REALISTAS para detección de fraude
 
 \echo '🔍 Generando datos masivos para detección de fraude...'
 \echo '   Target: 10,000 transacciones con distribución realista';
 
 \c bank_transactions;
 
--- ===== LIMPIAR DATOS EXISTENTES =====
-\echo '🗑️ Limpiando datos existentes...';
-TRUNCATE TABLE alertas_fraude RESTART IDENTITY CASCADE;
-TRUNCATE TABLE transacciones RESTART IDENTITY CASCADE;
-DELETE FROM comerciantes WHERE codigo_comerciante LIKE 'COM%' OR codigo_comerciante LIKE 'MERC%';
-DELETE FROM reglas_fraude WHERE nombre IN ('Monto Muy Alto', 'Horario Nocturno', 'País de Alto Riesgo');
-
 -- ===== INSERTAR COMERCIANTES REALISTAS =====
 \echo '🏪 Configurando comerciantes realistas...';
 INSERT INTO comerciantes (codigo_comerciante, nombre, categoria, subcategoria, ubicacion, ciudad, pais, nivel_riesgo) VALUES
 -- Comerciantes legítimos (bajo riesgo)
-('COM001', 'Supermercado Central', 'Alimentación', 'Supermercados', 'Av. Corrientes 1500, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM001', 'Supermercado Disco', 'Alimentación', 'Supermercados', 'Av. Corrientes 1500, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
 ('COM002', 'Shell Estación Norte', 'Combustibles', 'Estaciones de Servicio', 'Panamericana Km 25', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM003', 'Restaurant El Buen Sabor', 'Gastronomía', 'Restaurantes', 'Palermo, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM004', 'Farmacia del Centro', 'Salud', 'Farmacias', 'Florida 800, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM005', 'McDonald''s Plaza', 'Gastronomía', 'Comida Rápida', 'Av. Santa Fe 2100', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM003', 'Restaurant Don Julio', 'Gastronomía', 'Restaurantes', 'Palermo, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM004', 'Farmacity Centro', 'Salud', 'Farmacias', 'Florida 800, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM005', 'McDonald''s Obelisco', 'Gastronomía', 'Comida Rápida', 'Av. 9 de Julio 1000', 'Buenos Aires', 'Argentina', 'bajo'),
 ('COM006', 'Starbucks Recoleta', 'Gastronomía', 'Cafeterías', 'Recoleta Mall', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM007', 'ATM Banco Nación', 'Bancario', 'Cajeros Automáticos', 'Microcentro, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM008', 'Apple Store Unicenter', 'Tecnología', 'Electrónicos', 'Unicenter Shopping', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM009', 'Cine Hoyts', 'Entretenimiento', 'Cines', 'Shopping Abasto', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM010', 'YPF Estación', 'Combustibles', 'Estaciones de Servicio', 'Av. 9 de Julio', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM011', 'Walmart Express', 'Alimentación', 'Supermercados', 'Palermo Soho', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM012', 'Subway Microcentro', 'Gastronomía', 'Comida Rápida', 'Florida 500', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM013', 'Farmacity 24hs', 'Salud', 'Farmacias', 'Av. Cabildo 2000', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM014', 'Garbarino Electro', 'Tecnología', 'Electrodomésticos', 'Av. Rivadavia 5000', 'Buenos Aires', 'Argentina', 'bajo'),
-('COM015', 'Havanna Café', 'Gastronomía', 'Confiterías', 'Puerto Madero', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM007', 'ATM Banco Galicia', 'Bancario', 'Cajeros Automáticos', 'Microcentro, CABA', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM008', 'Garbarino Unicenter', 'Tecnología', 'Electrónicos', 'Unicenter Shopping', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM009', 'Cine Hoyts Abasto', 'Entretenimiento', 'Cines', 'Shopping Abasto', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM010', 'YPF Panamericana', 'Combustibles', 'Estaciones de Servicio', 'Panamericana Km 30', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM011', 'Walmart Palermo', 'Alimentación', 'Supermercados', 'Palermo Soho', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM012', 'Subway Florida', 'Gastronomía', 'Comida Rápida', 'Florida 500', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM013', 'Dr. Ahorro Farmacia', 'Salud', 'Farmacias', 'Av. Cabildo 2000', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM014', 'Frávega Electro', 'Tecnología', 'Electrodomésticos', 'Av. Rivadavia 5000', 'Buenos Aires', 'Argentina', 'bajo'),
+('COM015', 'Havanna Puerto Madero', 'Gastronomía', 'Confiterías', 'Puerto Madero', 'Buenos Aires', 'Argentina', 'bajo'),
 
--- Comerciantes sospechosos (medio-alto riesgo)
-('FRAUD001', 'E-Shop Sospechoso', 'E-commerce', 'Venta Online', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'alto'),
-('FRAUD002', 'Casino Internacional', 'Entretenimiento', 'Casinos', 'Las Vegas Strip', 'Las Vegas', 'Estados Unidos', 'alto'),
-('FRAUD003', 'Western Union Miami', 'Financiero', 'Remesas', 'Online Transfer', 'Miami', 'Estados Unidos', 'medio'),
-('FRAUD004', 'Crypto Exchange Anon', 'Financiero', 'Criptomonedas', 'Servidor Anónimo', 'Desconocida', 'Desconocido', 'alto'),
-('FRAUD005', 'Kiosco Villa 31', 'Telecomunicaciones', 'Recargas', 'Villa 31, CABA', 'Buenos Aires', 'Argentina', 'medio'),
-('FRAUD006', 'Online Store Offshore', 'E-commerce', 'Electrónicos', 'Servidor Internacional', 'Unknown', 'Unknown', 'alto'),
-('FRAUD007', 'Transfer Service USA', 'Financiero', 'Transferencias', 'New York', 'New York', 'Estados Unidos', 'medio'),
-('FRAUD008', 'Gaming Site Anon', 'Entretenimiento', 'Juegos Online', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'alto'),
-('FRAUD009', 'ATM Machine Unverified', 'Bancario', 'Cajeros No Verificados', 'Ubicación Variable', 'Desconocida', 'Desconocido', 'alto'),
-('FRAUD010', 'Suspicious Merchant XYZ', 'Varios', 'Servicios Varios', 'IP Anónima', 'Desconocida', 'Desconocido', 'alto')
+-- Comerciantes con riesgo medio-alto (más sutiles)
+('COM016', 'TechStore Online', 'E-commerce', 'Electrónicos', 'Zona Norte', 'Buenos Aires', 'Argentina', 'medio'),
+('COM017', 'Casino Buenos Aires', 'Entretenimiento', 'Casinos', 'Puerto Madero', 'Buenos Aires', 'Argentina', 'medio'),
+('COM018', 'Western Union Retiro', 'Financiero', 'Remesas', 'Retiro', 'Buenos Aires', 'Argentina', 'medio'),
+('COM019', 'BitCoin Exchange', 'Financiero', 'Criptomonedas', 'Microcentro', 'Buenos Aires', 'Argentina', 'alto'),
+('COM020', 'Kiosco 24hs Terminal', 'Retail', 'Kioscos', 'Retiro Terminal', 'Buenos Aires', 'Argentina', 'medio'),
+('COM021', 'Amazon Marketplace', 'E-commerce', 'Marketplace', 'Online', 'São Paulo', 'Brasil', 'medio'),
+('COM022', 'MoneyGram Flores', 'Financiero', 'Transferencias', 'Flores', 'Buenos Aires', 'Argentina', 'medio'),
+('COM023', 'Bet365 Gaming', 'Entretenimiento', 'Apuestas Online', 'Online', 'Londres', 'Reino Unido', 'alto'),
+('COM024', 'ATM Genérico', 'Bancario', 'Cajeros Independientes', 'Villa Crespo', 'Buenos Aires', 'Argentina', 'medio'),
+('COM025', 'MercadoLibre Pago', 'E-commerce', 'Marketplace', 'Online', 'Buenos Aires', 'Argentina', 'bajo')
 ON CONFLICT (codigo_comerciante) DO NOTHING;
 
--- ===== INSERTAR REGLAS DE FRAUDE =====
+-- ===== INSERTAR REGLAS DE FRAUDE REALISTAS =====
 \echo '📋 Configurando reglas de detección...';
 INSERT INTO reglas_fraude (nombre, descripcion, condicion, peso, activa) VALUES
-('Monto Muy Alto', 'Transacción superior a $50,000', '{"monto_minimo": 50000}', 0.85, TRUE),
-('Horario Nocturno', 'Transacciones entre 23:00 y 06:00', '{"horario_inicio": "23:00", "horario_fin": "06:00"}', 0.60, TRUE),
-('País de Alto Riesgo', 'Transacciones desde países no confiables', '{"paises_riesgo": ["Desconocido", "Unknown"]}', 0.80, TRUE),
-('Comerciante Alto Riesgo', 'Transacciones en comerciantes categorizados como alto riesgo', '{"nivel_riesgo_comerciante": "alto"}', 0.75, TRUE),
-('Múltiples Transacciones', 'Más de 10 transacciones en una hora', '{"max_transacciones_hora": 10}', 0.70, TRUE),
-('Distancia Inusual', 'Transacción a más de 100km de ubicación habitual', '{"distancia_maxima": 100}', 0.65, TRUE),
-('Monto Internacional', 'Transferencias internacionales altas', '{"monto_internacional": 25000}', 0.70, TRUE),
-('Horario Laboral Offshore', 'Compras offshore en horario laboral', '{"offshore_horario": "laboral"}', 0.65, TRUE)
+('Monto Alto Inusual', 'Transacción superior a $150,000', '{"monto_minimo": 150000}', 0.75, TRUE),
+('Horario Nocturno Sospechoso', 'Transacciones entre 02:00 y 05:00', '{"horario_inicio": "02:00", "horario_fin": "05:00"}', 0.45, TRUE),
+('Múltiples Intentos Rápidos', 'Más de 5 transacciones en 10 minutos', '{"max_transacciones_10min": 5}', 0.80, TRUE),
+('Comerciante Alto Riesgo', 'Transacciones en comerciantes con alta tasa de fraude', '{"nivel_riesgo_comerciante": "alto"}', 0.60, TRUE),
+('Distancia Geográfica Extrema', 'Transacción a más de 200km de ubicación habitual', '{"distancia_maxima": 200}', 0.50, TRUE),
+('Monto Internacional Alto', 'Transferencias internacionales superiores a $50,000', '{"monto_internacional": 50000}', 0.65, TRUE),
+('Patrón Velocidad Inusual', 'Transacciones muy rápidas en secuencia', '{"velocidad_transacciones": "alta"}', 0.55, TRUE),
+('Canal de Riesgo', 'Transacciones online en horarios inusuales', '{"canal_horario_riesgo": "online_nocturno"}', 0.40, TRUE)
 ON CONFLICT (nombre) DO NOTHING;
 
--- ===== GENERAR TRANSACCIONES MASIVAS =====
+-- ===== GENERAR TRANSACCIONES REALISTAS =====
 \echo '💳 Generando 10,000 transacciones realistas...';
 
 -- Función auxiliar para generar números de transacción únicos
-CREATE OR REPLACE FUNCTION generate_unique_txn_number(counter INTEGER)
+CREATE OR REPLACE FUNCTION generate_realistic_txn_number(counter INTEGER)
 RETURNS VARCHAR(50) AS $$
 BEGIN
-    RETURN 'TXN-' || EXTRACT(epoch FROM CURRENT_TIMESTAMP)::bigint || '-' || LPAD(counter::text, 6, '0');
+    RETURN 'BA' || TO_CHAR(CURRENT_DATE, 'YYMMDD') || LPAD(counter::text, 6, '0');
 END;
 $$ LANGUAGE plpgsql;
 
--- Insertar transacciones NORMALES (80% del total = 8,000 transacciones)
-\echo '   📈 Generando 8,000 transacciones normales...';
+-- Insertar transacciones NORMALES (85% del total = 8,500 transacciones)
+\echo '   📈 Generando 8,500 transacciones normales...';
 INSERT INTO transacciones (
     numero_transaccion, cuenta_origen_id, cuenta_destino_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT 
-    generate_unique_txn_number(i),
+    generate_realistic_txn_number(i),
     -- Cuentas distribuidas entre 1000-2000 (1000 usuarios simulados)
     1000 + (i % 1000),
     NULL,
-    -- Montos realistas para transacciones normales (100-15000)
+    -- Montos realistas para transacciones normales
     CASE 
-        WHEN random() < 0.4 THEN 100 + (random() * 900)::decimal(10,2)     -- 40%: compras pequeñas (100-1000)
-        WHEN random() < 0.7 THEN 1000 + (random() * 4000)::decimal(10,2)   -- 30%: compras medianas (1000-5000)
-        WHEN random() < 0.9 THEN 5000 + (random() * 5000)::decimal(10,2)   -- 20%: compras grandes (5000-10000)
-        ELSE 10000 + (random() * 5000)::decimal(10,2)                      -- 10%: compras muy grandes (10000-15000)
+        WHEN random() < 0.5 THEN 150 + (random() * 1850)::decimal(10,2)     -- 50%: compras pequeñas (150-2000)
+        WHEN random() < 0.8 THEN 2000 + (random() * 8000)::decimal(10,2)    -- 30%: compras medianas (2000-10000)
+        WHEN random() < 0.95 THEN 10000 + (random() * 15000)::decimal(10,2) -- 15%: compras grandes (10000-25000)
+        ELSE 25000 + (random() * 25000)::decimal(10,2)                      -- 5%: compras muy grandes (25000-50000)
     END,
-    -- Comerciantes legítimos (COM001-COM015)
-    CASE (i % 15)
+    -- Comerciantes legítimos con distribución realista
+    CASE (i % 25)
         WHEN 0 THEN 'COM001' WHEN 1 THEN 'COM002' WHEN 2 THEN 'COM003' WHEN 3 THEN 'COM004' WHEN 4 THEN 'COM005'
         WHEN 5 THEN 'COM006' WHEN 6 THEN 'COM007' WHEN 7 THEN 'COM008' WHEN 8 THEN 'COM009' WHEN 9 THEN 'COM010'
-        WHEN 10 THEN 'COM011' WHEN 11 THEN 'COM012' WHEN 12 THEN 'COM013' WHEN 13 THEN 'COM014' ELSE 'COM015'
+        WHEN 10 THEN 'COM011' WHEN 11 THEN 'COM012' WHEN 12 THEN 'COM013' WHEN 13 THEN 'COM014' WHEN 14 THEN 'COM015'
+        WHEN 15 THEN 'COM016' WHEN 16 THEN 'COM017' WHEN 17 THEN 'COM018' WHEN 18 THEN 'COM020' WHEN 19 THEN 'COM021'
+        WHEN 20 THEN 'COM022' WHEN 21 THEN 'COM024' WHEN 22 THEN 'COM025' WHEN 23 THEN 'COM001' ELSE 'COM002'
     END,
-    CASE (i % 6)
-        WHEN 0 THEN 'Alimentación' WHEN 1 THEN 'Combustibles' WHEN 2 THEN 'Gastronomía'
-        WHEN 3 THEN 'Salud' WHEN 4 THEN 'Tecnología' ELSE 'Entretenimiento'
+    CASE (i % 8)
+        WHEN 0 THEN 'Alimentación' WHEN 1 THEN 'Combustibles' WHEN 2 THEN 'Gastronomía' WHEN 3 THEN 'Salud'
+        WHEN 4 THEN 'Tecnología' WHEN 5 THEN 'Entretenimiento' WHEN 6 THEN 'Bancario' ELSE 'E-commerce'
     END,
-    CASE (i % 10)
-        WHEN 0 THEN 'Av. Corrientes 1500, CABA' WHEN 1 THEN 'Panamericana Km 25'
-        WHEN 2 THEN 'Palermo, CABA' WHEN 3 THEN 'Florida 800, CABA' WHEN 4 THEN 'Av. Santa Fe 2100'
-        WHEN 5 THEN 'Recoleta Mall' WHEN 6 THEN 'Microcentro, CABA' WHEN 7 THEN 'Unicenter Shopping'
-        WHEN 8 THEN 'Shopping Abasto' ELSE 'Puerto Madero'
+    CASE (i % 15)
+        WHEN 0 THEN 'Av. Corrientes 1500, CABA' WHEN 1 THEN 'Panamericana Km 25' WHEN 2 THEN 'Palermo, CABA'
+        WHEN 3 THEN 'Florida 800, CABA' WHEN 4 THEN 'Av. 9 de Julio 1000' WHEN 5 THEN 'Recoleta Mall'
+        WHEN 6 THEN 'Unicenter Shopping' WHEN 7 THEN 'Shopping Abasto' WHEN 8 THEN 'Microcentro, CABA'
+        WHEN 9 THEN 'Puerto Madero' WHEN 10 THEN 'Retiro' WHEN 11 THEN 'Zona Norte' WHEN 12 THEN 'Flores'
+        WHEN 13 THEN 'Villa Crespo' ELSE 'Belgrano'
     END,
     'Buenos Aires',
     'Argentina',
-    CASE WHEN random() < 0.6 THEN 'Débito' ELSE 'Crédito' END,
-    -- Horarios normales (7:00-22:00)
-    TIME '07:00:00' + (random() * INTERVAL '15 hours'),
-    -- Fechas en los últimos 30 días
-    CURRENT_DATE - (random() * 30)::int,
+    CASE WHEN random() < 0.65 THEN 'Débito' WHEN random() < 0.9 THEN 'Crédito' ELSE 'Prepaga' END,
+    -- Horarios normales con distribución realista (6:00-23:00)
+    TIME '06:00:00' + (random() * INTERVAL '17 hours'),
+    -- Fechas en los últimos 60 días
+    CURRENT_DATE - (random() * 60)::int,
     FALSE, -- No es fraude
-    CASE WHEN random() < 0.7 THEN 'pos' WHEN random() < 0.9 THEN 'online' ELSE 'atm' END,
-    -- Saldo de cuenta simulado (5000-50000)
-    5000 + (random() * 45000)::decimal(10,2),
-    -- Distancia normal (0-20km)
-    (random() * 20)::decimal(5,2)
-FROM generate_series(1, 8000) i;
+    CASE 
+        WHEN random() < 0.6 THEN 'pos' 
+        WHEN random() < 0.85 THEN 'online' 
+        WHEN random() < 0.95 THEN 'atm' 
+        ELSE 'mobile' 
+    END,
+    -- Saldo de cuenta simulado realista
+    5000 + (random() * 95000)::decimal(10,2),
+    -- Distancia normal (0-50km)
+    (random() * 50)::decimal(5,2)
+FROM generate_series(1, 8500) i;
 
--- Insertar transacciones FRAUDULENTAS (20% del total = 2,000 transacciones)
-\echo '   🚨 Generando 2,000 transacciones fraudulentas...';
+-- Insertar transacciones FRAUDULENTAS SUTILES (15% del total = 1,500 transacciones)
+\echo '   🚨 Generando 1,500 transacciones fraudulentas sutiles...';
 INSERT INTO transacciones (
     numero_transaccion, cuenta_origen_id, cuenta_destino_id, monto, comerciante, categoria_comerciante,
     ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT 
-    generate_unique_txn_number(8000 + i),
-    -- Mismas cuentas que las normales
+    generate_realistic_txn_number(8500 + i),
+    -- Mismas cuentas que las normales (para hacer más difícil la detección)
     1000 + (i % 1000),
     NULL,
-    -- Montos sospechosos para fraude
+    -- Montos fraudulentos MÁS SUTILES
     CASE 
-        WHEN random() < 0.3 THEN 25000 + (random() * 25000)::decimal(10,2)   -- 30%: montos muy altos (25k-50k)
-        WHEN random() < 0.6 THEN 50000 + (random() * 50000)::decimal(10,2)   -- 30%: montos extremos (50k-100k)
-        WHEN random() < 0.8 THEN 5000 + (random() * 20000)::decimal(10,2)    -- 20%: montos medianos sospechosos
-        ELSE 100000 + (random() * 100000)::decimal(10,2)                     -- 20%: montos astronómicos (100k+)
+        WHEN random() < 0.4 THEN 15000 + (random() * 35000)::decimal(10,2)   -- 40%: montos altos pero no extremos (15k-50k)
+        WHEN random() < 0.7 THEN 50000 + (random() * 50000)::decimal(10,2)   -- 30%: montos muy altos (50k-100k)
+        WHEN random() < 0.85 THEN 8000 + (random() * 17000)::decimal(10,2)   -- 15%: montos medianos (8k-25k)
+        ELSE 100000 + (random() * 100000)::decimal(10,2)                     -- 15%: montos extremos (100k+)
     END,
-    -- Comerciantes sospechosos (FRAUD001-FRAUD010)
-    CASE (i % 10)
-        WHEN 0 THEN 'FRAUD001' WHEN 1 THEN 'FRAUD002' WHEN 2 THEN 'FRAUD003' WHEN 3 THEN 'FRAUD004' WHEN 4 THEN 'FRAUD005'
-        WHEN 5 THEN 'FRAUD006' WHEN 6 THEN 'FRAUD007' WHEN 7 THEN 'FRAUD008' WHEN 8 THEN 'FRAUD009' ELSE 'FRAUD010'
-    END,
-    CASE (i % 5)
-        WHEN 0 THEN 'E-commerce' WHEN 1 THEN 'Entretenimiento' WHEN 2 THEN 'Financiero'
-        WHEN 3 THEN 'Criptomonedas' ELSE 'Servicios Varios'
+    -- Mezcla de comerciantes legítimos Y sospechosos (más realista)
+    CASE (i % 20)
+        WHEN 0 THEN 'COM019' WHEN 1 THEN 'COM023' WHEN 2 THEN 'COM017'  -- Alto riesgo
+        WHEN 3 THEN 'COM016' WHEN 4 THEN 'COM018' WHEN 5 THEN 'COM020' WHEN 6 THEN 'COM022' WHEN 7 THEN 'COM024' -- Medio riesgo
+        WHEN 8 THEN 'COM021' WHEN 9 THEN 'COM025' -- E-commerce
+        -- Comerciantes normales usados fraudulentamente
+        WHEN 10 THEN 'COM007' WHEN 11 THEN 'COM008' WHEN 12 THEN 'COM001' WHEN 13 THEN 'COM002'
+        WHEN 14 THEN 'COM003' WHEN 15 THEN 'COM005' WHEN 16 THEN 'COM006' WHEN 17 THEN 'COM009'
+        ELSE 'COM010'
     END,
     CASE (i % 8)
-        WHEN 0 THEN 'Servidor Offshore' WHEN 1 THEN 'Las Vegas Strip' WHEN 2 THEN 'Online Transfer'
-        WHEN 3 THEN 'Servidor Anónimo' WHEN 4 THEN 'Villa 31, CABA' WHEN 5 THEN 'Servidor Internacional'
-        WHEN 6 THEN 'New York' ELSE 'IP Anónima'
+        WHEN 0 THEN 'Financiero' WHEN 1 THEN 'E-commerce' WHEN 2 THEN 'Entretenimiento' WHEN 3 THEN 'Bancario'
+        WHEN 4 THEN 'Tecnología' WHEN 5 THEN 'Gastronomía' WHEN 6 THEN 'Retail' ELSE 'Apuestas Online'
     END,
-    CASE (i % 6)
-        WHEN 0 THEN 'Desconocida' WHEN 1 THEN 'Las Vegas' WHEN 2 THEN 'Miami'
-        WHEN 3 THEN 'Unknown' WHEN 4 THEN 'Buenos Aires' ELSE 'New York'
+    CASE (i % 12)
+        WHEN 0 THEN 'Online' WHEN 1 THEN 'Microcentro' WHEN 2 THEN 'Puerto Madero' WHEN 3 THEN 'Retiro'
+        WHEN 4 THEN 'Londres' WHEN 5 THEN 'São Paulo' WHEN 6 THEN 'Villa Crespo' WHEN 7 THEN 'Zona Norte'
+        WHEN 8 THEN 'Miami' WHEN 9 THEN 'Madrid' WHEN 10 THEN 'Palermo, CABA' ELSE 'Flores'
     END,
-    CASE (i % 4)
-        WHEN 0 THEN 'Desconocido' WHEN 1 THEN 'Estados Unidos' WHEN 2 THEN 'Unknown' ELSE 'Argentina'
+    CASE (i % 10)
+        WHEN 0 THEN 'Buenos Aires' WHEN 1 THEN 'Buenos Aires' WHEN 2 THEN 'Buenos Aires' WHEN 3 THEN 'Buenos Aires'
+        WHEN 4 THEN 'São Paulo' WHEN 5 THEN 'Londres' WHEN 6 THEN 'Miami' WHEN 7 THEN 'Madrid'
+        WHEN 8 THEN 'Buenos Aires' ELSE 'Buenos Aires'
     END,
-    'Crédito', -- Fraudes típicamente con crédito
-    -- Horarios sospechosos (23:00-06:00 + algunos diurnos)
+    CASE (i % 8)
+        WHEN 0 THEN 'Argentina' WHEN 1 THEN 'Argentina' WHEN 2 THEN 'Argentina' WHEN 3 THEN 'Argentina'
+        WHEN 4 THEN 'Brasil' WHEN 5 THEN 'Reino Unido' WHEN 6 THEN 'Estados Unidos' ELSE 'España'
+    END,
+    CASE WHEN random() < 0.8 THEN 'Crédito' ELSE 'Débito' END, -- Fraudes más comunes con crédito
+    -- Horarios MÁS REALISTAS para fraude (no solo nocturno)
     CASE 
-        WHEN random() < 0.6 THEN TIME '23:00:00' + (random() * INTERVAL '7 hours') -- 60% nocturno
-        ELSE TIME '01:00:00' + (random() * INTERVAL '22 hours') -- 40% cualquier hora
+        WHEN random() < 0.3 THEN TIME '00:00:00' + (random() * INTERVAL '6 hours')   -- 30% nocturno temprano
+        WHEN random() < 0.4 THEN TIME '22:00:00' + (random() * INTERVAL '2 hours')   -- 10% nocturno tardío
+        WHEN random() < 0.6 THEN TIME '10:00:00' + (random() * INTERVAL '8 hours')   -- 20% horario laboral
+        ELSE TIME '06:00:00' + (random() * INTERVAL '18 hours')                      -- 40% cualquier hora
     END,
-    -- Fechas recientes (últimos 7 días para mayor sospecha)
-    CURRENT_DATE - (random() * 7)::int,
+    -- Fechas más recientes para fraudes (últimos 14 días)
+    CURRENT_DATE - (random() * 14)::int,
     TRUE, -- Es fraude
-    'online', -- Fraudes típicamente online
-    -- Saldos que pueden quedar negativos después del fraude
     CASE 
-        WHEN random() < 0.3 THEN 1000 + (random() * 4000)::decimal(10,2)     -- Cuentas con poco saldo
-        WHEN random() < 0.6 THEN 5000 + (random() * 15000)::decimal(10,2)    -- Cuentas normales
-        ELSE 20000 + (random() * 30000)::decimal(10,2)                       -- Cuentas con buen saldo
+        WHEN random() < 0.7 THEN 'online' 
+        WHEN random() < 0.85 THEN 'atm'
+        WHEN random() < 0.95 THEN 'mobile'
+        ELSE 'pos'
     END,
-    -- Distancias sospechosas (muy lejos o desconocidas)
+    -- Saldos más variados (algunos con poco dinero, otros con mucho)
     CASE 
-        WHEN random() < 0.4 THEN 500 + (random() * 1000)::decimal(5,2)       -- Muy lejos (500-1500km)
-        WHEN random() < 0.7 THEN 100 + (random() * 400)::decimal(5,2)        -- Lejos (100-500km)
-        ELSE 50 + (random() * 50)::decimal(5,2)                              -- Cerca pero sospechoso
+        WHEN random() < 0.3 THEN 500 + (random() * 4500)::decimal(10,2)      -- Cuentas con poco saldo
+        WHEN random() < 0.6 THEN 5000 + (random() * 20000)::decimal(10,2)    -- Cuentas normales
+        ELSE 25000 + (random() * 75000)::decimal(10,2)                       -- Cuentas con buen saldo
+    END,
+    -- Distancias más realistas (no siempre extremas)
+    CASE 
+        WHEN random() < 0.3 THEN 100 + (random() * 400)::decimal(5,2)        -- Distancias largas pero posibles
+        WHEN random() < 0.5 THEN 50 + (random() * 100)::decimal(5,2)         -- Distancias medianas
+        WHEN random() < 0.7 THEN 5 + (random() * 45)::decimal(5,2)           -- Distancias normales
+        ELSE 500 + (random() * 1500)::decimal(5,2)                           -- Distancias extremas
     END
-FROM generate_series(1, 2000) i;
+FROM generate_series(1, 1500) i;
 
--- ===== GENERAR ALERTAS AUTOMÁTICAS =====
+-- ===== GENERAR ALERTAS MÁS SUTILES =====
 \echo '🚨 Generando alertas para transacciones fraudulentas...';
 INSERT INTO alertas_fraude (transaccion_id, tipo_alerta, nivel_riesgo, puntuacion_riesgo, descripcion)
 SELECT
     t.id,
     CASE
-        WHEN t.monto > 100000 THEN 'Transacción de Monto Extremo'
-        WHEN t.monto > 50000 AND t.pais != 'Argentina' THEN 'Transacción Internacional de Alto Monto'
-        WHEN t.horario_transaccion BETWEEN '23:00:00' AND '06:00:00' THEN 'Transacción en Horario Nocturno'
-        WHEN t.distancia_ubicacion_usual > 500 THEN 'Transacción en Ubicación Muy Distante'
-        WHEN t.comerciante LIKE 'FRAUD%' THEN 'Comerciante de Alto Riesgo'
-        WHEN t.pais IN ('Desconocido', 'Unknown') THEN 'País No Identificado'
-        ELSE 'Patrón Sospechoso Múltiple'
+        WHEN t.monto > 150000 THEN 'Transacción de Monto Extremo'
+        WHEN t.monto > 75000 AND t.pais != 'Argentina' THEN 'Transacción Internacional de Alto Monto'
+        WHEN t.monto > 100000 THEN 'Monto Inusualmente Alto'
+        WHEN t.horario_transaccion BETWEEN '00:00:00' AND '05:00:00' THEN 'Transacción en Horario de Madrugada'
+        WHEN t.distancia_ubicacion_usual > 300 THEN 'Transacción en Ubicación Muy Distante'
+        WHEN t.comerciante IN ('COM019', 'COM023') THEN 'Comerciante de Alto Riesgo'
+        WHEN t.pais != 'Argentina' AND t.monto > 25000 THEN 'Transacción Internacional Significativa'
+        WHEN t.canal = 'online' AND t.horario_transaccion BETWEEN '02:00:00' AND '05:00:00' THEN 'Compra Online Nocturna'
+        ELSE 'Patrón de Riesgo Múltiple'
     END,
     CASE
-        WHEN t.monto > 100000 OR t.pais IN ('Desconocido', 'Unknown') THEN 'crítico'
-        WHEN t.monto > 50000 OR t.distancia_ubicacion_usual > 500 THEN 'alto'
-        WHEN t.monto > 25000 OR t.horario_transaccion BETWEEN '23:00:00' AND '06:00:00' THEN 'medio'
+        WHEN t.monto > 150000 OR (t.comerciante IN ('COM019', 'COM023') AND t.monto > 50000) THEN 'crítico'
+        WHEN t.monto > 100000 OR t.distancia_ubicacion_usual > 300 THEN 'alto'
+        WHEN t.monto > 50000 OR t.horario_transaccion BETWEEN '00:00:00' AND '05:00:00' THEN 'medio'
         ELSE 'bajo'
     END,
     CASE
-        WHEN t.monto > 100000 THEN 98.0
-        WHEN t.monto > 75000 THEN 95.0
-        WHEN t.monto > 50000 THEN 85.0
-        WHEN t.pais IN ('Desconocido', 'Unknown') THEN 90.0
-        WHEN t.distancia_ubicacion_usual > 500 THEN 80.0
-        WHEN t.horario_transaccion BETWEEN '23:00:00' AND '06:00:00' THEN 70.0
-        WHEN t.comerciante LIKE 'FRAUD%' THEN 75.0
-        ELSE 60.0
+        WHEN t.monto > 150000 THEN 92.0
+        WHEN t.monto > 100000 THEN 85.0
+        WHEN t.comerciante IN ('COM019', 'COM023') THEN 78.0
+        WHEN t.pais != 'Argentina' AND t.monto > 50000 THEN 75.0
+        WHEN t.distancia_ubicacion_usual > 300 THEN 70.0
+        WHEN t.horario_transaccion BETWEEN '00:00:00' AND '05:00:00' THEN 65.0
+        WHEN t.monto > 75000 THEN 68.0
+        ELSE 55.0
     END,
-    CONCAT('Sistema detectó: ', 
-        CASE WHEN t.monto > 50000 THEN 'Monto alto ' ELSE '' END,
-        CASE WHEN t.pais != 'Argentina' THEN 'País extranjero ' ELSE '' END,
-        CASE WHEN t.horario_transaccion BETWEEN '23:00:00' AND '06:00:00' THEN 'Horario nocturno ' ELSE '' END,
-        CASE WHEN t.comerciante LIKE 'FRAUD%' THEN 'Comerciante riesgo ' ELSE '' END,
-        '- Requiere revisión inmediata')
+    CONCAT('Alerta automática: ', 
+        CASE WHEN t.monto > 100000 THEN 'Monto elevado ' ELSE '' END,
+        CASE WHEN t.pais != 'Argentina' THEN 'Origen internacional ' ELSE '' END,
+        CASE WHEN t.horario_transaccion BETWEEN '00:00:00' AND '05:00:00' THEN 'Horario inusual ' ELSE '' END,
+        CASE WHEN t.comerciante IN ('COM019', 'COM023') THEN 'Comerciante riesgo ' ELSE '' END,
+        '- Revisar operación')
 FROM transacciones t
 WHERE t.es_fraude = TRUE;
 
@@ -242,8 +260,8 @@ UPDATE comerciantes SET
         ELSE 0
     END;
 
--- ===== CREAR PERFILES DE USUARIO BÁSICOS =====
-\echo '👤 Creando perfiles de usuario básicos...';
+-- ===== CREAR PERFILES DE USUARIO REALISTAS =====
+\echo '👤 Creando perfiles de usuario realistas...';
 INSERT INTO perfiles_usuario (cuenta_id, ubicacion_frecuente, monto_promedio, frecuencia_transaccional, 
                              horario_preferido_inicio, horario_preferido_fin, ratio_fin_semana, 
                              ratio_noche, max_transacciones_diarias)
@@ -254,9 +272,9 @@ SELECT
     COUNT(*),
     TIME '08:00:00',
     TIME '20:00:00',
-    0.2,
-    AVG(CASE WHEN es_fraude THEN 0.8 ELSE 0.1 END),
-    MAX(CASE WHEN es_fraude THEN 20 ELSE 5 END)
+    0.25,
+    AVG(CASE WHEN horario_transaccion BETWEEN '22:00:00' AND '06:00:00' THEN 1.0 ELSE 0.0 END),
+    GREATEST(COUNT(*) / GREATEST((MAX(fecha_transaccion) - MIN(fecha_transaccion))::INTEGER, 1), 1)
 FROM transacciones 
 GROUP BY cuenta_origen_id
 ON CONFLICT (cuenta_id) DO UPDATE SET
@@ -265,7 +283,7 @@ ON CONFLICT (cuenta_id) DO UPDATE SET
     frecuencia_transaccional = EXCLUDED.frecuencia_transaccional;
 
 -- ===== LIMPIAR FUNCIÓN AUXILIAR =====
-DROP FUNCTION IF EXISTS generate_unique_txn_number(INTEGER);
+DROP FUNCTION IF EXISTS generate_realistic_txn_number(INTEGER);
 
 -- ===== ESTADÍSTICAS FINALES =====
 \echo '';
@@ -310,120 +328,13 @@ FROM perfiles_usuario;
 
 \echo '';
 \echo '✅ Generación masiva completada exitosamente!';
-\echo '   🎯 10,000 transacciones generadas (8,000 normales + 2,000 fraudulentas)';
-\echo '   🏪 25 comerciantes configurados (15 legítimos + 10 sospechosos)';
-\echo '   🚨 ~2,000 alertas de fraude generadas automáticamente';
+\echo '   🎯 10,000 transacciones generadas (8,500 normales + 1,500 fraudulentas)';
+\echo '   🏪 25 comerciantes configurados (15 legítimos + 10 riesgo medio/alto)';
+\echo '   🚨 ~1,500 alertas de fraude generadas automáticamente';
 \echo '   👤 ~1,000 perfiles de usuario creados';
 \echo '';
-\echo '🚀 Sistema listo para entrenamiento de IA!';
+\echo '🚀 Sistema listo para entrenamiento de IA con datos realistas!';
 
--- ===== INSERTAR TRANSACCIONES DE MUESTRA =====
--- Primero transacciones NORMALES
-INSERT INTO transacciones (
-    numero_transaccion, cuenta_origen_id, cuenta_destino_id, monto, comerciante, categoria_comerciante,
-    ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
-    es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
-) VALUES
--- === TRANSACCIONES NORMALES ===
-('TXN-NORMAL-001', 1001, NULL, 850.50, 'COM001', 'Alimentación', 'Av. Corrientes 1500, CABA', 'Buenos Aires', 'Argentina', 'Débito', '14:30:00', CURRENT_DATE - 1, FALSE, 'pos', 15000.00, 2.5),
-('TXN-NORMAL-002', 1001, NULL, 3200.00, 'COM002', 'Combustibles', 'Panamericana Km 25', 'Buenos Aires', 'Argentina', 'Crédito', '08:15:00', CURRENT_DATE - 1, FALSE, 'pos', 14149.50, 15.0),
-('TXN-NORMAL-003', 1001, NULL, 4500.00, 'COM003', 'Gastronomía', 'Palermo, CABA', 'Buenos Aires', 'Argentina', 'Débito', '20:45:00', CURRENT_DATE - 2, FALSE, 'pos', 10949.50, 5.0),
-('TXN-NORMAL-004', 1001, NULL, 280.00, 'COM004', 'Salud', 'Florida 800, CABA', 'Buenos Aires', 'Argentina', 'Débito', '11:20:00', CURRENT_DATE - 2, FALSE, 'pos', 6449.50, 1.0),
-('TXN-NORMAL-005', 1002, NULL, 1200.00, 'COM001', 'Alimentación', 'Av. Corrientes 1500, CABA', 'Buenos Aires', 'Argentina', 'Crédito', '16:00:00', CURRENT_DATE - 3, FALSE, 'pos', 25000.00, 3.0),
-('TXN-NORMAL-006', 1002, NULL, 15000.00, 'COM009', 'Tecnología', 'Unicenter Shopping', 'Buenos Aires', 'Argentina', 'Crédito', '19:30:00', CURRENT_DATE - 3, FALSE, 'pos', 23800.00, 10.0),
-('TXN-NORMAL-007', 1002, NULL, 500.00, 'COM007', 'Bancario', 'Microcentro, CABA', 'Buenos Aires', 'Argentina', 'Débito', '12:00:00', CURRENT_DATE - 4, FALSE, 'atm', 8800.00, 2.0),
-('TXN-NORMAL-008', 1003, NULL, 650.00, 'COM002', 'Combustibles', 'Panamericana Km 25', 'Buenos Aires', 'Argentina', 'Débito', '07:45:00', CURRENT_DATE - 4, FALSE, 'pos', 18000.00, 12.0),
-('TXN-NORMAL-009', 1003, NULL, 2200.00, 'COM003', 'Gastronomía', 'Palermo, CABA', 'Buenos Aires', 'Argentina', 'Crédito', '21:15:00', CURRENT_DATE - 5, FALSE, 'pos', 17350.00, 8.0),
-('TXN-NORMAL-010', 1004, NULL, 320.00, 'COM004', 'Salud', 'Florida 800, CABA', 'Buenos Aires', 'Argentina', 'Débito', '15:30:00', CURRENT_DATE - 5, FALSE, 'pos', 12000.00, 1.5),
-
--- === TRANSACCIONES FRAUDULENTAS ===
-('TXN-FRAUD-001', 1001, NULL, 75000.00, 'COM005', 'E-commerce', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'Crédito', '02:30:00', CURRENT_DATE, TRUE, 'online', 6169.50, 500.0),
-('TXN-FRAUD-002', 1002, NULL, 95000.00, 'COM006', 'Entretenimiento', 'Las Vegas Strip', 'Las Vegas', 'Estados Unidos', 'Crédito', '03:45:00', CURRENT_DATE, TRUE, 'online', 8300.00, 10000.0),
-('TXN-FRAUD-003', 1003, NULL, 45000.00, 'COM010', 'Financiero', 'Online Transfer', 'Miami', 'Estados Unidos', 'Crédito', '01:15:00', CURRENT_DATE, TRUE, 'online', 15150.00, 8000.0),
-('TXN-FRAUD-004', 1001, NULL, 25000.00, 'COM008', 'Telecomunicaciones', 'Villa 31, CABA', 'Buenos Aires', 'Argentina', 'Débito', '23:45:00', CURRENT_DATE, TRUE, 'pos', 1169.50, 25.0),
-('TXN-FRAUD-005', 1002, NULL, 8000.00, 'COM005', 'E-commerce', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'Crédito', '14:00:00', CURRENT_DATE, TRUE, 'online', 3300.00, 500.0),
-('TXN-FRAUD-006', 1002, NULL, 7500.00, 'COM005', 'E-commerce', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'Crédito', '14:05:00', CURRENT_DATE, TRUE, 'online', -4700.00, 500.0),
-('TXN-FRAUD-007', 1002, NULL, 5000.00, 'COM005', 'E-commerce', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'Crédito', '14:07:00', CURRENT_DATE, TRUE, 'online', -12200.00, 500.0),
-('TXN-FRAUD-008', 1004, NULL, 55000.00, 'COM006', 'Entretenimiento', 'Las Vegas Strip', 'Las Vegas', 'Estados Unidos', 'Crédito', '04:22:00', CURRENT_DATE, TRUE, 'online', 12000.00, 10000.0),
-('TXN-FRAUD-009', 1003, NULL, 35000.00, 'COM010', 'Financiero', 'Online Transfer', 'Miami', 'Estados Unidos', 'Crédito', '02:10:00', CURRENT_DATE, TRUE, 'online', 17350.00, 8000.0),
-('TXN-FRAUD-010', 1001, NULL, 12000.00, 'COM005', 'E-commerce', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'Crédito', '01:30:00', CURRENT_DATE, TRUE, 'online', 6169.50, 500.0)
-ON CONFLICT (numero_transaccion) DO NOTHING;
-
--- ===== ACTUALIZAR PERFILES DE USUARIO =====
-SELECT actualizar_perfil_usuario(1001);
-SELECT actualizar_perfil_usuario(1002);
-SELECT actualizar_perfil_usuario(1003);
-SELECT actualizar_perfil_usuario(1004);
-
--- ===== GENERAR ALERTAS PARA TRANSACCIONES FRAUDULENTAS =====
-INSERT INTO alertas_fraude (transaccion_id, tipo_alerta, nivel_riesgo, puntuacion_riesgo, descripcion)
-SELECT
-    t.id,
-    CASE
-        WHEN t.monto > 50000 AND t.pais != 'Argentina' THEN 'Transacción Internacional de Alto Monto'
-        WHEN t.horario_transaccion BETWEEN '23:00:00' AND '06:00:00' THEN 'Transacción en Horario Nocturno'
-        WHEN t.distancia_ubicacion_usual > 100 THEN 'Transacción en Ubicación Distante'
-        WHEN t.comerciante LIKE 'COM005' OR t.comerciante LIKE 'COM006' THEN 'Comerciante de Alto Riesgo'
-        ELSE 'Patrón Sospechoso Detectado'
-    END,
-    CASE
-        WHEN t.monto > 70000 OR t.pais = 'Desconocido' THEN 'crítico'
-        WHEN t.monto > 40000 OR t.pais != 'Argentina' THEN 'alto'
-        WHEN t.monto > 20000 OR t.horario_transaccion BETWEEN '23:00:00' AND '06:00:00' THEN 'medio'
-        ELSE 'bajo'
-    END,
-    CASE
-        WHEN t.monto > 70000 THEN 95.0
-        WHEN t.monto > 50000 THEN 85.0
-        WHEN t.pais != 'Argentina' THEN 80.0
-        WHEN t.horario_transaccion BETWEEN '23:00:00' AND '06:00:00' THEN 70.0
-        WHEN t.distancia_ubicacion_usual > 100 THEN 75.0
-        ELSE 60.0
-    END,
-    'Transacción automáticamente clasificada como fraudulenta por el sistema de detección'
-FROM transacciones t
-WHERE t.es_fraude = TRUE
-ON CONFLICT DO NOTHING;
-
--- ===== INSERTAR MÁS TRANSACCIONES PARA ENTRENAMIENTO =====
--- Insertar transacciones adicionales para tener un dataset más robusto
-INSERT INTO transacciones (
-    numero_transaccion, cuenta_origen_id, monto, comerciante, categoria_comerciante,
-    ubicacion, ciudad, pais, tipo_tarjeta, horario_transaccion, fecha_transaccion,
-    es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
-) VALUES
--- Más transacciones normales
-('TXN-BULK-001', 1001, 450.00, 'COM001', 'Alimentación', 'Av. Corrientes 1500, CABA', 'Buenos Aires', 'Argentina', 'Débito', '12:00:00', CURRENT_DATE - 6, FALSE, 'pos', 15000.00, 2.5),
-('TXN-BULK-002', 1001, 1200.00, 'COM002', 'Combustibles', 'Panamericana Km 25', 'Buenos Aires', 'Argentina', 'Crédito', '18:30:00', CURRENT_DATE - 7, FALSE, 'pos', 15000.00, 15.0),
-('TXN-BULK-003', 1002, 780.00, 'COM003', 'Gastronomía', 'Palermo, CABA', 'Buenos Aires', 'Argentina', 'Débito', '19:45:00', CURRENT_DATE - 8, FALSE, 'pos', 25000.00, 5.0),
-('TXN-BULK-004', 1003, 350.00, 'COM004', 'Salud', 'Florida 800, CABA', 'Buenos Aires', 'Argentina', 'Débito', '10:15:00', CURRENT_DATE - 9, FALSE, 'pos', 18000.00, 1.0),
-('TXN-BULK-005', 1004, 2500.00, 'COM009', 'Tecnología', 'Unicenter Shopping', 'Buenos Aires', 'Argentina', 'Crédito', '16:20:00', CURRENT_DATE - 10, FALSE, 'pos', 12000.00, 10.0),
-
--- Más transacciones fraudulentas para balancear el dataset
-('TXN-FRAUD-011', 1001, 85000.00, 'COM006', 'Entretenimiento', 'Las Vegas Strip', 'Las Vegas', 'Estados Unidos', 'Crédito', '03:30:00', CURRENT_DATE - 1, TRUE, 'online', 15000.00, 10000.0),
-('TXN-FRAUD-012', 1004, 60000.00, 'COM005', 'E-commerce', 'Servidor Offshore', 'Desconocida', 'Desconocido', 'Crédito', '02:45:00', CURRENT_DATE - 2, TRUE, 'online', 12000.00, 500.0),
-('TXN-FRAUD-013', 1003, 40000.00, 'COM010', 'Financiero', 'Online Transfer', 'Miami', 'Estados Unidos', 'Crédito', '01:00:00', CURRENT_DATE - 3, TRUE, 'online', 18000.00, 8000.0)
-ON CONFLICT (numero_transaccion) DO NOTHING;
-
--- ===== ACTUALIZAR ESTADÍSTICAS DE COMERCIANTES =====
-UPDATE comerciantes SET
-    total_transacciones = (
-        SELECT COUNT(*) FROM transacciones
-        WHERE comerciante = comerciantes.codigo_comerciante
-    ),
-    transacciones_fraudulentas = (
-        SELECT COUNT(*) FROM transacciones
-        WHERE comerciante = comerciantes.codigo_comerciante AND es_fraude = TRUE
-    );
-
-UPDATE comerciantes SET
-    tasa_fraude = CASE 
-        WHEN total_transacciones > 0 THEN 
-            transacciones_fraudulentas::DECIMAL / total_transacciones::DECIMAL
-        ELSE 0
-    END;
-
--- ===== VERIFICACIÓN FINAL =====
 \echo '📊 Estadísticas finales de las transacciones insertadas:';
 
 SELECT 
@@ -451,4 +362,4 @@ SELECT
     COUNT(*) as cantidad
 FROM alertas_fraude;
 
-\echo '✅ Muestras de fraude insertadas exitosamente en bank_transactions';
+\echo '✅ Datos realistas insertados exitosamente en bank_transactions';
