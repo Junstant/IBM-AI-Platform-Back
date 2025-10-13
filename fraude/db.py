@@ -19,7 +19,7 @@ def get_db_connection(max_retries=5, retry_delay=2):
                 dbname=os.getenv("DB2_NAME", "bank_transactions"),  # Base de datos específica para fraude
                 user=os.getenv("DB_USER", "postgres"),
                 password=os.getenv("DB_PASSWORD", "root"),
-                host=os.getenv("DB_HOST", "postgres_db"),  # Nombre del servicio Docker
+                host=os.getenv("DB_HOST", "postgres"),  # Nombre del servicio Docker
                 port=os.getenv("DB_INTERNAL_PORT", "5432")  # ✅ Puerto interno del contenedor
             )
             print(f"✅ Conexión a base de datos establecida exitosamente")
