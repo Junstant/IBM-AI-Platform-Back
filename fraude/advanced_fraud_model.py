@@ -21,21 +21,25 @@ class AdvancedFraudDetector:
     def __init__(self):
         print("🧠 Inicializando IA Súper Avanzada para Detección de Fraude...")
         
-        # Múltiples modelos de IA
+        # Múltiples modelos de IA con parámetros más sutiles
         self.models = {
             'random_forest': RandomForestClassifier(
-                n_estimators=200,
-                max_depth=15,
-                min_samples_split=5,
-                min_samples_leaf=2,
+                n_estimators=150,  # Reducido para menos overfitting
+                max_depth=10,      # Reducido para predicciones más sutiles
+                min_samples_split=10,  # Incrementado para más generalización
+                min_samples_leaf=5,    # Incrementado para suavizar predicciones
                 class_weight='balanced',
-                random_state=42
+                random_state=42,
+                max_features='sqrt'  # Añadido para reducir overfitting
             ),
             'gradient_boosting': GradientBoostingClassifier(
-                n_estimators=100,
-                learning_rate=0.1,
-                max_depth=8,
-                random_state=42
+                n_estimators=80,   # Reducido
+                learning_rate=0.05, # Reducido para aprendizaje más suave
+                max_depth=6,       # Reducido
+                min_samples_split=10,  # Incrementado
+                min_samples_leaf=5,    # Incrementado
+                random_state=42,
+                subsample=0.8      # Añadido para regularización
             )
         }
         
@@ -44,20 +48,20 @@ class AdvancedFraudDetector:
         self.train_columns = None
         self.label_encoders = {}
         self.scaler = StandardScaler()
-        self.feature_selector = SelectKBest(f_classif, k=25)
+        self.feature_selector = SelectKBest(f_classif, k=20)  # Reducido de 25 a 20
         
         # Mapas de riesgo dinámicos
         self.merchant_risk_scores = {}
         self.location_risk_scores = {}
         self.time_risk_patterns = {}
         
-        # Umbrales inteligentes
-        self.optimal_threshold = 0.5
+        # Umbrales más realistas
+        self.optimal_threshold = 0.4  # Reducido de 0.5 a 0.4
         self.confidence_levels = {
-            'very_high': 0.9,
-            'high': 0.7,
-            'medium': 0.5,
-            'low': 0.3
+            'very_high': 0.85,  # Reducido de 0.9
+            'high': 0.65,       # Reducido de 0.7
+            'medium': 0.45,     # Reducido de 0.5
+            'low': 0.25         # Reducido de 0.3
         }
         
     def _advanced_feature_engineering(self, df):
@@ -84,83 +88,90 @@ class AdvancedFraudDetector:
         df['hour'] = df['horario_transaccion'].apply(extract_hour_from_time)
         df['is_night'] = ((df['hour'] >= 23) | (df['hour'] <= 5)).astype(int)
         df['is_business_hours'] = ((df['hour'] >= 9) & (df['hour'] <= 17)).astype(int)
-        df['is_weekend_hours'] = ((df['hour'] >= 18) | (df['hour'] <= 8)).astype(int)
+        df['is_very_late'] = ((df['hour'] >= 1) & (df['hour'] <= 4)).astype(int)  # Más específico
         
         # === 2. ANÁLISIS DE MONTOS CON IA ===
         df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
         df['monto_log'] = np.log1p(df['monto'])
         df['monto_sqrt'] = np.sqrt(df['monto'])
         
-        # Categorías inteligentes de monto
-        monto_percentiles = df['monto'].quantile([0.25, 0.5, 0.75, 0.9, 0.95, 0.99])
-        df['is_micro_transaction'] = (df['monto'] <= 10).astype(int)
-        df['is_small_transaction'] = ((df['monto'] > 10) & (df['monto'] <= monto_percentiles[0.5])).astype(int)
-        df['is_medium_transaction'] = ((df['monto'] > monto_percentiles[0.5]) & (df['monto'] <= monto_percentiles[0.9])).astype(int)
-        df['is_large_transaction'] = ((df['monto'] > monto_percentiles[0.9]) & (df['monto'] <= monto_percentiles[0.99])).astype(int)
-        df['is_huge_transaction'] = (df['monto'] > monto_percentiles[0.99]).astype(int)
+        # Categorías más sutiles de monto
+        monto_percentiles = df['monto'].quantile([0.25, 0.5, 0.75, 0.85, 0.92, 0.97])
+        df['is_small_transaction'] = (df['monto'] <= monto_percentiles[0.5]).astype(int)
+        df['is_medium_transaction'] = ((df['monto'] > monto_percentiles[0.5]) & (df['monto'] <= monto_percentiles[0.85])).astype(int)
+        df['is_high_transaction'] = ((df['monto'] > monto_percentiles[0.85]) & (df['monto'] <= monto_percentiles[0.97])).astype(int)
+        df['is_very_high_transaction'] = (df['monto'] > monto_percentiles[0.97]).astype(int)
         
         # === 3. ANÁLISIS DE COMERCIANTES CON IA ===
-        # Calcular scores de riesgo dinámicos
-        if 'cuenta_origen_id' in original_df.columns and 'es_fraude' in original_df.columns:
+        # Calcular scores de riesgo dinámicos con suavizado
+        if 'comerciante' in original_df.columns and 'es_fraude' in original_df.columns:
             merchant_fraud_rates = original_df.groupby('comerciante')['es_fraude'].agg(['mean', 'count'])
             for merchant in merchant_fraud_rates.index:
                 fraud_rate = merchant_fraud_rates.loc[merchant, 'mean']
                 transaction_count = merchant_fraud_rates.loc[merchant, 'count']
-                # Score ponderado por cantidad de transacciones
-                confidence = min(transaction_count / 10, 1.0)  # máximo confidence = 1
-                self.merchant_risk_scores[merchant] = fraud_rate * confidence
+                # Score suavizado con menos peso para pocos datos
+                confidence = min(transaction_count / 20, 1.0)  # Incrementado de 10 a 20
+                base_risk = 0.15  # Riesgo base más alto
+                self.merchant_risk_scores[merchant] = base_risk + (fraud_rate * confidence * 0.6)
         
-        # Características de comerciantes
-        df['merchant_risk_score'] = df['comerciante'].map(self.merchant_risk_scores).fillna(0.1)
+        # Características de comerciantes más sutiles
+        df['merchant_risk_score'] = df['comerciante'].map(self.merchant_risk_scores).fillna(0.15)
+        df['is_medium_risk_merchant'] = (df['merchant_risk_score'] > 0.3).astype(int)  # Umbral más bajo
         df['is_high_risk_merchant'] = (df['merchant_risk_score'] > 0.5).astype(int)
-        df['is_unknown_merchant'] = df['comerciante'].str.contains('Unknown|unknown|desconocido|Desconocido', case=False, na=False).astype(int)
-        df['is_cash_merchant'] = df['comerciante'].str.contains('Cash|ATM|crypto|casino', case=False, na=False).astype(int)
-        df['is_international_merchant'] = df['comerciante'].str.contains('International|Foreign|Overseas', case=False, na=False).astype(int)
+        df['is_online_merchant'] = df['comerciante'].str.contains('Online|online|E-commerce', case=False, na=False).astype(int)
+        df['is_financial_merchant'] = df['comerciante'].str.contains('Financiero|Financial|Western|MoneyGram|Binance', case=False, na=False).astype(int)
         
         # === 4. ANÁLISIS GEOGRÁFICO CON IA ===
-        # Calcular scores de riesgo por ubicación
+        # Calcular scores de riesgo por ubicación con suavizado
         if 'ubicacion' in original_df.columns and 'es_fraude' in original_df.columns:
             location_fraud_rates = original_df.groupby('ubicacion')['es_fraude'].agg(['mean', 'count'])
             for location in location_fraud_rates.index:
                 fraud_rate = location_fraud_rates.loc[location, 'mean']
                 transaction_count = location_fraud_rates.loc[location, 'count']
-                confidence = min(transaction_count / 5, 1.0)
-                self.location_risk_scores[location] = fraud_rate * confidence
+                confidence = min(transaction_count / 15, 1.0)  # Incrementado de 5 a 15
+                base_risk = 0.12
+                self.location_risk_scores[location] = base_risk + (fraud_rate * confidence * 0.5)
         
-        df['location_risk_score'] = df['ubicacion'].map(self.location_risk_scores).fillna(0.1)
-        df['is_high_risk_location'] = (df['location_risk_score'] > 0.5).astype(int)
-        df['is_foreign_location'] = df['ubicacion'].str.contains('Nigeria|Russia|China|Unknown|Offshore|VPN|Tor', case=False, na=False).astype(int)
-        df['is_domestic_location'] = df['ubicacion'].str.contains('NY|CA|TX|FL|IL|PA|OH|GA|NC|MI', case=False, na=False).astype(int)
+        df['location_risk_score'] = df['ubicacion'].map(self.location_risk_scores).fillna(0.12)
+        df['is_medium_risk_location'] = (df['location_risk_score'] > 0.25).astype(int)
+        df['is_high_risk_location'] = (df['location_risk_score'] > 0.4).astype(int)
+        df['is_online_location'] = df['ubicacion'].str.contains('Online', case=False, na=False).astype(int)
+        df['is_distant_location'] = (df['distancia_ubicacion_usual'] > 50).astype(int) if 'distancia_ubicacion_usual' in df.columns else 0
         
         # === 5. ANÁLISIS DE TARJETAS ===
-        # Encoding inteligente de tipos de tarjeta
+        # Encoding más sutil de tipos de tarjeta
         card_risk_map = {
-            'Visa': 0.1,
-            'Mastercard': 0.1,
-            'American Express': 0.15,
-            'Discover': 0.2,
-            'Unknown': 0.8
+            'Débito': 0.12,
+            'Crédito': 0.15,
+            'Prepaga': 0.20,
+            'Unknown': 0.25
         }
-        df['card_risk_score'] = df['tipo_tarjeta'].map(card_risk_map).fillna(0.5)
+        df['card_risk_score'] = df['tipo_tarjeta'].map(card_risk_map).fillna(0.18)
         
-        # === 6. CARACTERÍSTICAS COMBINADAS CON IA ===
+        # === 6. CARACTERÍSTICAS COMBINADAS SUTILES ===
         df['risk_score_combined'] = (
-            df['merchant_risk_score'] * 0.4 +
-            df['location_risk_score'] * 0.3 +
-            df['card_risk_score'] * 0.1 +
-            df['is_night'] * 0.2
+            df['merchant_risk_score'] * 0.35 +
+            df['location_risk_score'] * 0.25 +
+            df['card_risk_score'] * 0.15 +
+            df['is_very_late'] * 0.25
         )
         
-        df['anomaly_score'] = (
-            df['is_huge_transaction'] * 0.3 +
-            df['is_high_risk_merchant'] * 0.3 +
-            df['is_foreign_location'] * 0.2 +
-            df['is_night'] * 0.2
+        df['subtle_anomaly_score'] = (
+            df['is_very_high_transaction'] * 0.25 +
+            df['is_high_risk_merchant'] * 0.25 +
+            df['is_high_risk_location'] * 0.20 +
+            df['is_very_late'] * 0.15 +
+            df['is_financial_merchant'] * 0.15
         )
         
-        # === 7. ESTADÍSTICAS AVANZADAS ===
-        df['monto_zscore'] = np.abs((df['monto'] - df['monto'].mean()) / df['monto'].std())
-        df['is_outlier_amount'] = (df['monto_zscore'] > 2).astype(int)
+        # === 7. ESTADÍSTICAS AVANZADAS SUAVIZADAS ===
+        monto_std = df['monto'].std()
+        monto_mean = df['monto'].mean()
+        if monto_std > 0:
+            df['monto_zscore'] = np.abs((df['monto'] - monto_mean) / monto_std)
+        else:
+            df['monto_zscore'] = 0
+        df['is_outlier_amount'] = (df['monto_zscore'] > 2.5).astype(int)  # Incrementado de 2 a 2.5
         
         # === 8. ENCODING DE VARIABLES CATEGÓRICAS ===
         categorical_columns = ['comerciante', 'ubicacion', 'tipo_tarjeta']
@@ -178,10 +189,10 @@ class AdvancedFraudDetector:
                     df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
         
         # Eliminar columnas categóricas originales y horario
-        columns_to_drop = ['comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'cuenta_origen_id', 'cuenta_destino_id']
+        columns_to_drop = ['comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'cuenta_origen_id', 'cuenta_destino_id', 'distancia_ubicacion_usual']
         df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
         
-        print(f"✅ Características generadas: {len(df.columns)} features avanzadas")
+        print(f"✅ Características generadas: {len(df.columns)} features sutiles")
         
         return df
     
@@ -224,7 +235,7 @@ class AdvancedFraudDetector:
             print("❌ ERROR CRÍTICO: No hay transacciones fraudulentas en los datos")
             print("💡 El modelo necesita ejemplos de fraude para entrenar")
             print("🔧 Verifica que el script SQL 03-fraud-samples.sql se ejecute correctamente")
-            return 0.0, 0.5
+            return 0.0, 0.4
         
         if fraud_count < 10:
             print(f"⚠️  ADVERTENCIA: Muy pocos fraudes para entrenar ({fraud_count} de {total_count})")
@@ -272,7 +283,7 @@ class AdvancedFraudDetector:
             
             # Métricas
             auc_score = roc_auc_score(y_test, y_proba)
-            cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='roc_auc')
+            cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=3, scoring='roc_auc')  # Reducido de 5 a 3
             
             results[name] = {
                 'model': model,
@@ -339,17 +350,23 @@ class AdvancedFraudDetector:
         from sklearn.metrics import precision_recall_curve
         
         precision, recall, thresholds = precision_recall_curve(y_true, y_proba)
+        
+        # Calcular F1-score para cada umbral
         f1_scores = 2 * (precision * recall) / (precision + recall + 1e-8)
         
         # Encontrar umbral que maximiza F1-score
         optimal_idx = np.argmax(f1_scores)
-        optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+        optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.4
         
-        # TEMPORAL: Forzar un umbral más bajo para debugging
-        if optimal_threshold > 0.8:
-            optimal_threshold = 0.5
-            print(f"🔧 DEBUGGING: Forzando umbral a 0.5 en lugar de {thresholds[optimal_idx] if optimal_idx < len(thresholds) else 'N/A'}")
+        # Ajustar umbral para ser más realista
+        if optimal_threshold > 0.7:
+            optimal_threshold = 0.6
+            print(f"🔧 Ajustando umbral alto a 0.6 para predicciones más realistas")
+        elif optimal_threshold < 0.2:
+            optimal_threshold = 0.3
+            print(f"🔧 Ajustando umbral bajo a 0.3 para evitar demasiados falsos positivos")
         
+        print(f"🎯 Umbral optimizado: {optimal_threshold:.3f}")
         return optimal_threshold
     
     def predict_batch(self, transactions_data):
