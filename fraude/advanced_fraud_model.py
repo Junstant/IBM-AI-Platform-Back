@@ -216,6 +216,22 @@ class AdvancedFraudDetector:
         # Extraer target variable ANTES de feature engineering
         y = data['es_fraude'].astype(int)
         
+        # ✅ VERIFICAR SI HAY FRAUDES EN LOS DATOS
+        fraud_count = y.sum()
+        total_count = len(y)
+        
+        if fraud_count == 0:
+            print("❌ ERROR CRÍTICO: No hay transacciones fraudulentas en los datos")
+            print("💡 El modelo necesita ejemplos de fraude para entrenar")
+            print("🔧 Verifica que el script SQL 03-fraud-samples.sql se ejecute correctamente")
+            return 0.0, 0.5
+        
+        if fraud_count < 10:
+            print(f"⚠️  ADVERTENCIA: Muy pocos fraudes para entrenar ({fraud_count} de {total_count})")
+            print("🎯 Se recomienda al menos 50 ejemplos de fraude")
+        
+        print(f"📊 Balance de clases: {fraud_count} fraudes ({fraud_count/total_count*100:.1f}%) de {total_count} total")
+        
         # Preparar características
         X = self._advanced_feature_engineering(data)
         
