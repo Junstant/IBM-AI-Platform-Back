@@ -9,8 +9,9 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, precision_recall_curve
 from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.impute import SimpleImputer
 import joblib
 import warnings
 warnings.filterwarnings('ignore')
@@ -49,6 +50,7 @@ class AdvancedFraudDetector:
         self.label_encoders = {}
         self.scaler = StandardScaler()
         self.feature_selector = SelectKBest(f_classif, k=20)  # Reducido de 25 a 20
+        self.imputer = SimpleImputer(strategy='median')  # Añadido para manejar NaN
         
         # Mapas de riesgo dinámicos
         self.merchant_risk_scores = {}
@@ -65,100 +67,511 @@ class AdvancedFraudDetector:
         }
         
     def _advanced_feature_engineering(self, df):
-        """🧠 Ingeniería de características súper avanzada con IA (VERSIÓN MEJORADA)"""
+        """🧠 Ingeniería de características súper avanzada - VERSIÓN COMPLETA"""
         print("🔧 Aplicando ingeniería de características súper avanzada...")
         
         original_df = df.copy()
-        
-        # --- PRE-PROCESAMIENTO ---
         df = df.drop(columns=['id', 'fecha_transaccion'], errors='ignore')
         if 'es_fraude' in df.columns:
             df = df.drop(columns=['es_fraude'])
 
-        # === 1. PROCESAMIENTO TEMPORAL (Sin cambios) ===
+        # === 1. PROCESAMIENTO TEMPORAL COMPLETO ===
         def extract_hour_from_time(time_str):
             try:
-                if pd.isna(time_str): return 12
-                if isinstance(time_str, str): return int(time_str.split(':')[0])
+                if pd.isna(time_str): 
+                    return 12
+                if isinstance(time_str, str): 
+                    return int(time_str.split(':')[0])
                 return int(time_str.hour) if hasattr(time_str, 'hour') else 12
-            except: return 12
+            except: 
+                return 12
         
         df['hour'] = df['horario_transaccion'].apply(extract_hour_from_time)
         df['is_night'] = ((df['hour'] >= 23) | (df['hour'] <= 5)).astype(int)
         df['is_very_late'] = ((df['hour'] >= 1) & (df['hour'] <= 4)).astype(int)
 
-        # === 2. ANÁLISIS DE MONTOS (Sin cambios) ===
+        # === 2. ANÁLISIS DE MONTOS COMPLETO ===
         df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
-        df['monto_log'] = np.log1p(df['monto'])
         
-        monto_percentiles = df['monto'].quantile([0.75, 0.95])
-        df['is_high_transaction'] = (df['monto'] > monto_percentiles[0.75]).astype(int)
-        df['is_very_high_transaction'] = (df['monto'] > monto_percentiles[0.95]).astype(int)
+        valid_amounts = df['monto'][df['monto'] > 0]
+        if len(valid_amounts) > 5:
+            try:
+                df['monto_log'] = np.log1p(df['monto'].clip(lower=0))
+                percentiles = valid_amounts.quantile([0.75, 0.95])
+                if not percentiles.isna().any():
+                    df['is_high_transaction'] = (df['monto'] > percentiles[0.75]).astype(int)
+                    df['is_very_high_transaction'] = (df['monto'] > percentiles[0.95]).astype(int)
+                else:
+                    df['is_high_transaction'] = (df['monto'] > 10000).astype(int)
+                    df['is_very_high_transaction'] = (df['monto'] > 50000).astype(int)
+            except Exception as e:
+                print(f"⚠️ Error en análisis de montos: {e}")
+                df['monto_log'] = np.log1p(df['monto'].clip(lower=0))
+                df['is_high_transaction'] = (df['monto'] > 10000).astype(int)
+                df['is_very_high_transaction'] = (df['monto'] > 50000).astype(int)
+        else:
+            df['monto_log'] = np.log1p(df['monto'].clip(lower=0))
+            df['is_high_transaction'] = (df['monto'] > 10000).astype(int)
+            df['is_very_high_transaction'] = (df['monto'] > 50000).astype(int)
 
-        # === 3. ANÁLISIS DE COMERCIANTES (🔥 CAMBIOS CLAVE) ===
-        # <<< CAMBIO CLAVE 1: Penalizar comerciantes desconocidos con un ALTO riesgo por defecto >>>
-        # En lugar de 0.15 (bajo riesgo), asignamos 0.75 (alto riesgo) a lo desconocido.
-        df['merchant_risk_score'] = df['comerciante'].map(self.merchant_risk_scores).fillna(0.75) 
+        # === 3. ANÁLISIS DE CATEGORÍAS DE COMERCIANTES ===
+        if 'categoria_comerciante' in df.columns:
+            category_risk_map = {
+                'Alimentación': 0.05, 'Combustibles': 0.08, 'Gastronomía': 0.10,
+                'Salud': 0.06, 'Tecnología': 0.25, 'Entretenimiento': 0.20,
+                'E-commerce': 0.30, 'Financiero': 0.45, 'Retail': 0.18,
+                'Bancario': 0.35, 'Unknown': 0.15, 'unknown': 0.15
+            }
+            df['category_risk_score'] = df['categoria_comerciante'].astype(str).map(category_risk_map).fillna(0.15)
+            df['is_high_risk_category'] = (df['category_risk_score'] > 0.3).astype(int)
+            df['is_financial_category'] = (df['categoria_comerciante'].astype(str) == 'Financiero').astype(int)
+            df['is_tech_category'] = (df['categoria_comerciante'].astype(str) == 'Tecnología').astype(int)
+            df['is_ecommerce_category'] = (df['categoria_comerciante'].astype(str) == 'E-commerce').astype(int)
+        else:
+            df['category_risk_score'] = 0.15
+            df['is_high_risk_category'] = 0
+            df['is_financial_category'] = 0
+            df['is_tech_category'] = 0
+            df['is_ecommerce_category'] = 0
+
+        # === 4. ANÁLISIS DE COMERCIANTES ===
+        if not hasattr(self, 'merchant_risk_scores') or not self.merchant_risk_scores:
+            self.merchant_risk_scores = {}
         
-        # <<< CAMBIO CLAVE 2: Crear una nueva característica para identificar comerciantes nuevos >>>
+        # Calcular riesgo de comerciantes durante entrenamiento
+        if 'comerciante' in original_df.columns and 'es_fraude' in original_df.columns:
+            try:
+                merchant_fraud_rates = original_df.groupby('comerciante')['es_fraude'].agg(['mean', 'count'])
+                for merchant in merchant_fraud_rates.index:
+                    fraud_rate = merchant_fraud_rates.loc[merchant, 'mean']
+                    transaction_count = merchant_fraud_rates.loc[merchant, 'count']
+                    confidence = min(transaction_count / 20, 1.0)
+                    base_risk = 0.15
+                    if not pd.isna(fraud_rate) and not pd.isna(confidence):
+                        self.merchant_risk_scores[merchant] = base_risk + (fraud_rate * confidence * 0.6)
+            except Exception as e:
+                print(f"⚠️ Error calculando riesgo de comerciantes: {e}")
+        
+        # Características de comerciantes robustas
+        df['merchant_risk_score'] = df['comerciante'].astype(str).map(self.merchant_risk_scores).fillna(0.15)
+        df['merchant_risk_score'] = df['merchant_risk_score'].replace([np.inf, -np.inf], 0.15)
+        
         known_merchants = set(self.merchant_risk_scores.keys())
-        df['is_new_merchant'] = (~df['comerciante'].isin(known_merchants)).astype(int)
-
+        df['is_new_merchant'] = (~df['comerciante'].astype(str).isin(known_merchants)).astype(int)
         df['is_high_risk_merchant'] = (df['merchant_risk_score'] > 0.5).astype(int)
         
-        # === 4. ANÁLISIS GEOGRÁFICO (🔥 CAMBIOS CLAVE) ===
-        # <<< CAMBIO CLAVE 3: Penalizar ubicaciones desconocidas con un ALTO riesgo por defecto >>>
-        df['location_risk_score'] = df['ubicacion'].map(self.location_risk_scores).fillna(0.70)
+        # Comerciantes específicos de riesgo (según 03-fraud-samples.sql)
+        high_risk_merchants = ['COM019', 'COM020', 'COM021', 'COM022', 'COM023', 'COM024', 'COM025']
+        df['is_flagged_merchant'] = df['comerciante'].astype(str).isin(high_risk_merchants).astype(int)
 
-        # <<< CAMBIO CLAVE 4: Crear una nueva característica para identificar ubicaciones nuevas >>>
+        # === 5. ANÁLISIS GEOGRÁFICO ===
+        if not hasattr(self, 'location_risk_scores') or not self.location_risk_scores:
+            self.location_risk_scores = {}
+        
+        # Calcular riesgo de ubicaciones durante entrenamiento
+        if 'ubicacion' in original_df.columns and 'es_fraude' in original_df.columns:
+            try:
+                location_fraud_rates = original_df.groupby('ubicacion')['es_fraude'].agg(['mean', 'count'])
+                for location in location_fraud_rates.index:
+                    fraud_rate = location_fraud_rates.loc[location, 'mean']
+                    transaction_count = location_fraud_rates.loc[location, 'count']
+                    confidence = min(transaction_count / 15, 1.0)
+                    base_risk = 0.12
+                    if not pd.isna(fraud_rate) and not pd.isna(confidence):
+                        self.location_risk_scores[location] = base_risk + (fraud_rate * confidence * 0.5)
+            except Exception as e:
+                print(f"⚠️ Error calculando riesgo de ubicaciones: {e}")
+        
+        df['location_risk_score'] = df['ubicacion'].astype(str).map(self.location_risk_scores).fillna(0.12)
+        df['location_risk_score'] = df['location_risk_score'].replace([np.inf, -np.inf], 0.12)
+        
         known_locations = set(self.location_risk_scores.keys())
-        df['is_new_location'] = (~df['ubicacion'].isin(known_locations)).astype(int)
+        df['is_new_location'] = (~df['ubicacion'].astype(str).isin(known_locations)).astype(int)
+        df['is_high_risk_location'] = (df['location_risk_score'] > 0.4).astype(int)
+        df['is_online_location'] = df['ubicacion'].astype(str).str.contains('Online', case=False, na=False).astype(int)
 
-        # <<< CAMBIO CLAVE 5: Crear una característica para transacciones internacionales >>>
-        # Asume que la base de operaciones es 'Argentina'. ¡Esto es muy potente!
+        # === 6. ANÁLISIS DE PAÍSES ===
         if 'pais' in df.columns:
-            df['is_foreign_country'] = (df['pais'].str.lower() != 'argentina').astype(int)
+            df['is_argentina'] = (df['pais'].astype(str).str.lower() == 'argentina').astype(int)
+            df['is_foreign_country'] = (df['pais'].astype(str).str.lower() != 'argentina').astype(int)
+            # Países de alto riesgo según los datos generados
+            high_risk_countries = ['usa', 'nigeria', 'rusia', 'malta']
+            df['is_high_risk_country'] = df['pais'].astype(str).str.lower().isin(high_risk_countries).astype(int)
         else:
+            df['is_argentina'] = 1
             df['is_foreign_country'] = 0
+            df['is_high_risk_country'] = 0
 
-        # === 5. ANÁLISIS DE TARJETAS (Sin cambios) ===
-        card_risk_map = {'Débito': 0.1, 'Crédito': 0.2, 'Prepaga': 0.3, 'Visa': 0.2, 'Unknown': 0.4}
-        df['card_risk_score'] = df['tipo_tarjeta'].map(card_risk_map).fillna(0.3)
-        
-        # === 6. CARACTERÍSTICAS COMBINADAS (Actualizadas con las nuevas) ===
+        # === 7. ANÁLISIS DE CIUDADES ===
+        if 'ciudad' in df.columns:
+            df['is_capital'] = (df['ciudad'].astype(str) == 'Buenos Aires').astype(int)
+            foreign_cities = ['Miami', 'Lagos', 'Online']
+            df['is_foreign_city'] = df['ciudad'].astype(str).isin(foreign_cities).astype(int)
+        else:
+            df['is_capital'] = 1
+            df['is_foreign_city'] = 0
+
+        # === 8. ANÁLISIS DE TARJETAS ===
+        card_risk_map = {
+            'Débito': 0.12, 'Crédito': 0.15, 'Prepaga': 0.20,
+            'Unknown': 0.25, 'unknown': 0.25, 'nan': 0.25
+        }
+        df['card_risk_score'] = df['tipo_tarjeta'].astype(str).map(card_risk_map).fillna(0.18)
+
+        # === 9. ANÁLISIS DE CANALES ===
+        if 'canal' in df.columns:
+            channel_risk_map = {
+                'online': 0.25, 'pos': 0.10, 'atm': 0.15, 
+                'telefono': 0.20, 'mobile': 0.18, 'Unknown': 0.15, 'unknown': 0.15
+            }
+            df['channel_risk_score'] = df['canal'].astype(str).map(channel_risk_map).fillna(0.15)
+            df['is_online_channel'] = (df['canal'].astype(str) == 'online').astype(int)
+        else:
+            df['channel_risk_score'] = 0.15
+            df['is_online_channel'] = 0
+
+        # === 10. ANÁLISIS DE DISTANCIA ===
+        if 'distancia_ubicacion_usual' in df.columns:
+            df['distancia_ubicacion_usual'] = pd.to_numeric(df['distancia_ubicacion_usual'], errors='coerce').fillna(0)
+            df['is_distant_location'] = (df['distancia_ubicacion_usual'] > 100).astype(int)
+            df['is_very_distant_location'] = (df['distancia_ubicacion_usual'] > 1000).astype(int)
+            df['distance_log'] = np.log1p(df['distancia_ubicacion_usual'].clip(lower=0))
+        else:
+            df['is_distant_location'] = 0
+            df['is_very_distant_location'] = 0
+            df['distance_log'] = 0
+
+        # === 11. CARACTERÍSTICAS COMBINADAS ===
         df['combined_risk'] = (
-            df['merchant_risk_score'] * 0.4 +
-            df['location_risk_score'] * 0.3 +
-            df['is_new_merchant'] * 0.5 +      # <<< Ponderar fuertemente si es nuevo
-            df['is_foreign_country'] * 0.5 +   # <<< Ponderar fuertemente si es extranjero
-            df['is_very_high_transaction'] * 0.2 +
-            df['is_very_late'] * 0.1
-        )
+            df['merchant_risk_score'] * 0.25 +
+            df['location_risk_score'] * 0.20 +
+            df['category_risk_score'] * 0.15 +
+            df['card_risk_score'] * 0.10 +
+            df['channel_risk_score'] * 0.10 +
+            df['is_new_merchant'] * 0.10 +
+            df['is_foreign_country'] * 0.10
+        ).clip(0, 1)
         
-        # === 7. ENCODING DE VARIABLES CATEGÓRICAS (🔥 CAMBIO CLAVE) ===
-        # <<< CAMBIO CLAVE 6: Tratar los valores desconocidos como una categoría separada "UNKNOWN" >>>
-        # En lugar de mapearlos a una categoría existente.
-        categorical_columns = ['comerciante', 'ubicacion', 'tipo_tarjeta', 'pais', 'canal']
+        df['anomaly_score'] = (
+            df['is_very_high_transaction'] * 0.20 +
+            df['is_flagged_merchant'] * 0.20 +
+            df['is_high_risk_location'] * 0.15 +
+            df['is_very_late'] * 0.15 +
+            df['is_foreign_country'] * 0.15 +
+            df['is_very_distant_location'] * 0.15
+        ).clip(0, 1)
+
+        # === 12. ENCODING DE VARIABLES CATEGÓRICAS ===
+        categorical_columns = ['comerciante', 'ubicacion', 'tipo_tarjeta']
+        if 'categoria_comerciante' in df.columns:
+            categorical_columns.append('categoria_comerciante')
+        if 'ciudad' in df.columns:
+            categorical_columns.append('ciudad')
+        if 'pais' in df.columns:
+            categorical_columns.append('pais')
+        if 'canal' in df.columns:
+            categorical_columns.append('canal')
+        
         for col in categorical_columns:
             if col in df.columns:
-                le = self.label_encoders.get(col)
-                if le is None: # Si es la primera vez (entrenamiento)
-                    le = LabelEncoder()
-                    df[col] = df[col].astype(str)
-                    df[f'{col}_encoded'] = le.fit_transform(df[col])
-                    self.label_encoders[col] = le
-                else: # Para predicción
-                    df[col] = df[col].astype(str)
-                    # Mapea valores conocidos, y los no conocidos a una categoría especial
-                    known_values = set(le.classes_)
-                    df[f'{col}_encoded'] = df[col].apply(lambda x: le.transform([x])[0] if x in known_values else le.transform(['<unknown>'])[0] if '<unknown>' in known_values else -1)
+                try:
+                    df[col] = df[col].astype(str).fillna('Unknown')
+                    
+                    if col not in self.label_encoders:
+                        # Primera vez (entrenamiento)
+                        self.label_encoders[col] = LabelEncoder()
+                        unique_values = list(df[col].unique()) + ['unknown', 'Unknown']
+                        self.label_encoders[col].fit(unique_values)
+                        df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
+                    else:
+                        # Predicción - manejo de categorías nuevas
+                        known_categories = set(self.label_encoders[col].classes_)
+                        df[col] = df[col].apply(lambda x: x if x in known_categories else 'unknown')
+                        
+                        # Verificar que 'unknown' existe
+                        if 'unknown' not in known_categories:
+                            current_classes = list(self.label_encoders[col].classes_)
+                            current_classes.append('unknown')
+                            self.label_encoders[col].classes_ = np.array(current_classes)
+                        
+                        df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
+                except Exception as e:
+                    print(f"⚠️ Error en encoding de {col}: {e}")
+                    # Fallback: usar hash
+                    df[f'{col}_encoded'] = df[col].astype(str).apply(lambda x: hash(x) % 1000)
 
-        # Limpieza final
-        columns_to_drop = ['comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 
-                           'cuenta_origen_id', 'pais', 'ciudad', 'canal']
+        # === 13. LIMPIEZA FINAL ===
+        # Eliminar columnas categóricas originales
+        columns_to_drop = [
+            'comerciante', 'ubicacion', 'tipo_tarjeta', 'categoria_comerciante',
+            'ciudad', 'pais', 'canal', 'horario_transaccion', 'cuenta_origen_id', 
+            'cuenta_destino_id', 'distancia_ubicacion_usual', 'monto_cuenta_origen',
+            'numero_transaccion', 'ip_address', 'dispositivo', 'autenticacion_exitosa',
+            'intentos_fallidos', 'created_at', 'updated_at'
+        ]
         df = df.drop(columns=[col for col in columns_to_drop if col in df.columns], errors='ignore')
         
-        print(f"✅ Características generadas: {len(df.columns)} features sutiles")
+        # LIMPIEZA FINAL EXHAUSTIVA
+        df = df.fillna(0)
+        df = df.replace([np.inf, -np.inf], 0)
+        
+        # Verificar que todas las columnas son numéricas
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        nan_count = df.isnull().sum().sum()
+        inf_count = np.isinf(df.select_dtypes(include=[np.number])).sum().sum()
+        
+        print(f"✅ Características generadas: {len(df.columns)} features súper robustas")
+        print(f"🔍 Verificación final: {nan_count} NaN, {inf_count} infinitos")
+        
+        if nan_count > 0 or inf_count > 0:
+            print("⚠️ Limpieza adicional aplicada")
+            df = df.fillna(0).replace([np.inf, -np.inf], 0)
+        
+        return df
+        df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
+        
+        valid_amounts = df['monto'][df['monto'] > 0]
+        if len(valid_amounts) > 5:
+            try:
+                df['monto_log'] = np.log1p(df['monto'].clip(lower=0))
+                percentiles = valid_amounts.quantile([0.75, 0.95])
+                if not percentiles.isna().any():
+                    df['is_high_transaction'] = (df['monto'] > percentiles[0.75]).astype(int)
+                    df['is_very_high_transaction'] = (df['monto'] > percentiles[0.95]).astype(int)
+                else:
+                    df['is_high_transaction'] = (df['monto'] > 10000).astype(int)
+                    df['is_very_high_transaction'] = (df['monto'] > 50000).astype(int)
+            except Exception as e:
+                print(f"⚠️ Error en análisis de montos: {e}")
+                df['monto_log'] = np.log1p(df['monto'].clip(lower=0))
+                df['is_high_transaction'] = (df['monto'] > 10000).astype(int)
+                df['is_very_high_transaction'] = (df['monto'] > 50000).astype(int)
+        else:
+            df['monto_log'] = np.log1p(df['monto'].clip(lower=0))
+            df['is_high_transaction'] = (df['monto'] > 10000).astype(int)
+            df['is_very_high_transaction'] = (df['monto'] > 50000).astype(int)
+
+        # === 3. ANÁLISIS DE CATEGORÍAS DE COMERCIANTES ===
+        if 'categoria_comerciante' in df.columns:
+            # ✅ MAPEO SEGURO DE CATEGORÍAS
+            category_risk_map = {
+                'Alimentación': 0.05, 'Combustibles': 0.08, 'Gastronomía': 0.10,
+                'Salud': 0.06, 'Tecnología': 0.25, 'Entretenimiento': 0.20,
+                'E-commerce': 0.30, 'Financiero': 0.45, 'Retail': 0.18,
+                'Bancario': 0.35, 'Unknown': 0.15, 'unknown': 0.15
+            }
+            df['category_risk_score'] = df['categoria_comerciante'].astype(str).map(category_risk_map).fillna(0.15)
+            df['is_high_risk_category'] = (df['category_risk_score'] > 0.3).astype(int)
+            df['is_financial_category'] = (df['categoria_comerciante'].astype(str) == 'Financiero').astype(int)
+            df['is_tech_category'] = (df['categoria_comerciante'].astype(str) == 'Tecnología').astype(int)
+            df['is_ecommerce_category'] = (df['categoria_comerciante'].astype(str) == 'E-commerce').astype(int)
+        else:
+            df['category_risk_score'] = 0.15
+            df['is_high_risk_category'] = 0
+            df['is_financial_category'] = 0
+            df['is_tech_category'] = 0
+            df['is_ecommerce_category'] = 0
+
+        # === 4. ANÁLISIS DE COMERCIANTES ===
+        # ✅ INICIALIZAR SI NO EXISTE
+        if not hasattr(self, 'merchant_risk_scores') or not self.merchant_risk_scores:
+            self.merchant_risk_scores = {}
+        
+        # Calcular riesgo de comerciantes durante entrenamiento
+        if 'comerciante' in original_df.columns and 'es_fraude' in original_df.columns:
+            try:
+                merchant_fraud_rates = original_df.groupby('comerciante')['es_fraude'].agg(['mean', 'count'])
+                for merchant in merchant_fraud_rates.index:
+                    fraud_rate = merchant_fraud_rates.loc[merchant, 'mean']
+                    transaction_count = merchant_fraud_rates.loc[merchant, 'count']
+                    confidence = min(transaction_count / 20, 1.0)
+                    base_risk = 0.15
+                    if not pd.isna(fraud_rate) and not pd.isna(confidence):
+                        self.merchant_risk_scores[merchant] = base_risk + (fraud_rate * confidence * 0.6)
+            except Exception as e:
+                print(f"⚠️  Error calculando riesgo de comerciantes: {e}")
+        
+        # ✅ CARACTERÍSTICAS DE COMERCIANTES ROBUSTAS
+        df['merchant_risk_score'] = df['comerciante'].astype(str).map(self.merchant_risk_scores).fillna(0.75)
+        df['merchant_risk_score'] = df['merchant_risk_score'].replace([np.inf, -np.inf], 0.15)
+        
+        known_merchants = set(self.merchant_risk_scores.keys())
+        df['is_new_merchant'] = (~df['comerciante'].astype(str).isin(known_merchants)).astype(int)
+        df['is_high_risk_merchant'] = (df['merchant_risk_score'] > 0.5).astype(int)
+        
+        # Comerciantes específicos de riesgo (según 03-fraud-samples.sql)
+        high_risk_merchants = ['COM019', 'COM020', 'COM021', 'COM022', 'COM023', 'COM024', 'COM025']
+        df['is_flagged_merchant'] = df['comerciante'].astype(str).isin(high_risk_merchants).astype(int)
+
+        # === 5. ANÁLISIS GEOGRÁFICO ===
+        # ✅ INICIALIZAR SI NO EXISTE
+        if not hasattr(self, 'location_risk_scores') or not self.location_risk_scores:
+            self.location_risk_scores = {}
+        
+        # Calcular riesgo de ubicaciones durante entrenamiento
+        if 'ubicacion' in original_df.columns and 'es_fraude' in original_df.columns:
+            try:
+                location_fraud_rates = original_df.groupby('ubicacion')['es_fraude'].agg(['mean', 'count'])
+                for location in location_fraud_rates.index:
+                    fraud_rate = location_fraud_rates.loc[location, 'mean']
+                    transaction_count = location_fraud_rates.loc[location, 'count']
+                    confidence = min(transaction_count / 15, 1.0)
+                    base_risk = 0.12
+                    if not pd.isna(fraud_rate) and not pd.isna(confidence):
+                        self.location_risk_scores[location] = base_risk + (fraud_rate * confidence * 0.5)
+            except Exception as e:
+                print(f"⚠️  Error calculando riesgo de ubicaciones: {e}")
+        
+        df['location_risk_score'] = df['ubicacion'].astype(str).map(self.location_risk_scores).fillna(0.70)
+        df['location_risk_score'] = df['location_risk_score'].replace([np.inf, -np.inf], 0.12)
+        
+        known_locations = set(self.location_risk_scores.keys())
+        df['is_new_location'] = (~df['ubicacion'].astype(str).isin(known_locations)).astype(int)
+        df['is_high_risk_location'] = (df['location_risk_score'] > 0.4).astype(int)
+        df['is_online_location'] = df['ubicacion'].astype(str).str.contains('Online', case=False, na=False).astype(int)
+
+        # === 6. ANÁLISIS DE PAÍSES ===
+        if 'pais' in df.columns:
+            df['is_argentina'] = (df['pais'].astype(str).str.lower() == 'argentina').astype(int)
+            df['is_foreign_country'] = (df['pais'].astype(str).str.lower() != 'argentina').astype(int)
+            # Países de alto riesgo según los datos generados
+            high_risk_countries = ['usa', 'nigeria', 'rusia', 'malta']
+            df['is_high_risk_country'] = df['pais'].astype(str).str.lower().isin(high_risk_countries).astype(int)
+        else:
+            df['is_argentina'] = 1
+            df['is_foreign_country'] = 0
+            df['is_high_risk_country'] = 0
+
+        # === 7. ANÁLISIS DE CIUDADES ===
+        if 'ciudad' in df.columns:
+            df['is_capital'] = (df['ciudad'].astype(str) == 'Buenos Aires').astype(int)
+            foreign_cities = ['Miami', 'Lagos', 'Online']
+            df['is_foreign_city'] = df['ciudad'].astype(str).isin(foreign_cities).astype(int)
+        else:
+            df['is_capital'] = 1
+            df['is_foreign_city'] = 0
+
+        # === 8. ANÁLISIS DE TARJETAS ===
+        card_risk_map = {
+            'Débito': 0.12, 'Crédito': 0.15, 'Prepaga': 0.20,
+            'Unknown': 0.25, 'unknown': 0.25, 'nan': 0.25
+        }
+        df['card_risk_score'] = df['tipo_tarjeta'].astype(str).map(card_risk_map).fillna(0.18)
+
+        # === 9. ANÁLISIS DE CANALES ===
+        if 'canal' in df.columns:
+            channel_risk_map = {
+                'online': 0.25, 'pos': 0.10, 'atm': 0.15, 
+                'telefono': 0.20, 'mobile': 0.18, 'Unknown': 0.15, 'unknown': 0.15
+            }
+            df['channel_risk_score'] = df['canal'].astype(str).map(channel_risk_map).fillna(0.15)
+            df['is_online_channel'] = (df['canal'].astype(str) == 'online').astype(int)
+        else:
+            df['channel_risk_score'] = 0.15
+            df['is_online_channel'] = 0
+
+        # === 10. ANÁLISIS DE DISTANCIA ===
+        if 'distancia_ubicacion_usual' in df.columns:
+            df['distancia_ubicacion_usual'] = pd.to_numeric(df['distancia_ubicacion_usual'], errors='coerce').fillna(0)
+            df['is_distant_location'] = (df['distancia_ubicacion_usual'] > 100).astype(int)
+            df['is_very_distant_location'] = (df['distancia_ubicacion_usual'] > 1000).astype(int)
+            df['distance_log'] = np.log1p(df['distancia_ubicacion_usual'].clip(lower=0))
+        else:
+            df['is_distant_location'] = 0
+            df['is_very_distant_location'] = 0
+            df['distance_log'] = 0
+
+        # === 11. CARACTERÍSTICAS COMBINADAS ===
+        df['combined_risk'] = (
+            df['merchant_risk_score'] * 0.25 +
+            df['location_risk_score'] * 0.20 +
+            df['category_risk_score'] * 0.15 +
+            df['card_risk_score'] * 0.10 +
+            df['channel_risk_score'] * 0.10 +
+            df['is_new_merchant'] * 0.10 +
+            df['is_foreign_country'] * 0.10
+        ).clip(0, 1)
+        
+        df['anomaly_score'] = (
+            df['is_very_high_transaction'] * 0.20 +
+            df['is_flagged_merchant'] * 0.20 +
+            df['is_high_risk_location'] * 0.15 +
+            df['is_very_late'] * 0.15 +
+            df['is_foreign_country'] * 0.15 +
+            df['is_very_distant_location'] * 0.15
+        ).clip(0, 1)
+
+        # === 12. ENCODING DE VARIABLES CATEGÓRICAS ===
+        categorical_columns = ['comerciante', 'ubicacion', 'tipo_tarjeta']
+        if 'categoria_comerciante' in df.columns:
+            categorical_columns.append('categoria_comerciante')
+        if 'ciudad' in df.columns:
+            categorical_columns.append('ciudad')
+        if 'pais' in df.columns:
+            categorical_columns.append('pais')
+        if 'canal' in df.columns:
+            categorical_columns.append('canal')
+        
+        for col in categorical_columns:
+            if col in df.columns:
+                try:
+                    df[col] = df[col].astype(str).fillna('Unknown')
+                    
+                    if col not in self.label_encoders:
+                        # Primera vez (entrenamiento)
+                        self.label_encoders[col] = LabelEncoder()
+                        unique_values = list(df[col].unique()) + ['unknown', 'Unknown']
+                        self.label_encoders[col].fit(unique_values)
+                        df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
+                    else:
+                        # Predicción - manejo de categorías nuevas
+                        known_categories = set(self.label_encoders[col].classes_)
+                        df[col] = df[col].apply(lambda x: x if x in known_categories else 'unknown')
+                        
+                        # Verificar que 'unknown' existe
+                        if 'unknown' not in known_categories:
+                            current_classes = list(self.label_encoders[col].classes_)
+                            current_classes.append('unknown')
+                            self.label_encoders[col].classes_ = np.array(current_classes)
+                        
+                        df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
+                except Exception as e:
+                    print(f"⚠️  Error en encoding de {col}: {e}")
+                    # Fallback: usar hash
+                    df[f'{col}_encoded'] = df[col].astype(str).apply(lambda x: hash(x) % 1000)
+
+        # === 13. LIMPIEZA FINAL ===
+        # Eliminar columnas categóricas originales
+        columns_to_drop = [
+            'comerciante', 'ubicacion', 'tipo_tarjeta', 'categoria_comerciante',
+            'ciudad', 'pais', 'canal', 'horario_transaccion', 'cuenta_origen_id', 
+            'cuenta_destino_id', 'distancia_ubicacion_usual', 'monto_cuenta_origen',
+            'numero_transaccion', 'ip_address', 'dispositivo', 'autenticacion_exitosa',
+            'intentos_fallidos', 'created_at', 'updated_at'
+        ]
+        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns], errors='ignore')
+        
+        # ✅ LIMPIEZA FINAL EXHAUSTIVA
+        df = df.fillna(0)
+        df = df.replace([np.inf, -np.inf], 0)
+        
+        # Verificar que todas las columnas son numéricas
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        nan_count = df.isnull().sum().sum()
+        inf_count = np.isinf(df.select_dtypes(include=[np.number])).sum().sum()
+        
+        print(f"✅ Características generadas: {len(df.columns)} features súper robustas")
+        print(f"🔍 Verificación final: {nan_count} NaN, {inf_count} infinitos")
+        
+        if nan_count > 0 or inf_count > 0:
+            print("⚠️  Limpieza adicional aplicada")
+            df = df.fillna(0).replace([np.inf, -np.inf], 0)
         
         return df
     

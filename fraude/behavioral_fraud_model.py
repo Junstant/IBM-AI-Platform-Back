@@ -118,6 +118,70 @@ class HybridFraudDetector(AdvancedFraudDetector):
             fraud_indicators.append(f"Comerciante con nombre demasiado corto: '{transaction_data['comerciante']}'")
             confidence_score += 0.7
         
+        # 3. 🌍 ANÁLISIS DE UBICACIONES SOSPECHOSAS
+        for suspicious_term in self.obvious_fraud_patterns['suspicious_locations']:
+            if suspicious_term in location:
+                fraud_indicators.append(f"Ubicación sospechosa: '{transaction_data['ubicacion']}'")
+                confidence_score += 0.6
+                break
+        
+        # Ubicaciones con patrones extraños
+        if re.search(r'[^a-zA-Z0-9\s\-\.,]', location):
+            fraud_indicators.append(f"Ubicación con caracteres especiales: '{transaction_data['ubicacion']}'")
+            confidence_score += 0.5
+        
+        # 4. 🕐 ANÁLISIS DE HORARIOS SOSPECHOSOS
+        if time_str in self.obvious_fraud_patterns['suspicious_times']:
+            fraud_indicators.append(f"Horario repetitivo sospechoso: '{time_str}'")
+            confidence_score += 0.6
+        
+        # Horarios en horas extremas (muy tarde o muy temprano)
+        try:
+            if ':' in time_str:
+                hour = int(time_str.split(':')[0])
+                if hour in [1, 2, 3, 4]:  # Muy temprano en la madrugada
+                    fraud_indicators.append(f"Transacción en horario inusual: {time_str}")
+                    confidence_score += 0.3
+        except (ValueError, IndexError):
+            pass
+        
+        # 5. 💳 ANÁLISIS DE TIPO DE TARJETA
+        card_type = str(transaction_data.get('tipo_tarjeta', '')).lower().strip()
+        if card_type in ['unknown', 'desconocido', 'test', 'fake', 'falso']:
+            fraud_indicators.append(f"Tipo de tarjeta sospechoso: '{card_type}'")
+            confidence_score += 0.5
+        
+        # 6. 🌐 ANÁLISIS DE PAÍSES Y CANALES
+        country = str(transaction_data.get('pais', '')).lower().strip()
+        if country in ['nigeria', 'offshore', 'unknown', 'darkweb']:
+            fraud_indicators.append(f"País de alto riesgo: '{country}'")
+            confidence_score += 0.8
+        
+        channel = str(transaction_data.get('canal', '')).lower().strip()
+        if channel in ['tor', 'vpn', 'anonymous', 'proxy']:
+            fraud_indicators.append(f"Canal sospechoso: '{channel}'")
+            confidence_score += 0.7
+        
+        # 7. 📊 ANÁLISIS DE DISTANCIA
+        distance = self._safe_float_conversion(transaction_data.get('distancia_ubicacion_usual', 0))
+        if distance > 5000:  # Más de 5000 km
+            fraud_indicators.append(f"Distancia extrema de ubicación usual: {distance:.1f} km")
+            confidence_score += 0.6
+        elif distance > 2000:  # Más de 2000 km
+            fraud_indicators.append(f"Distancia alta de ubicación usual: {distance:.1f} km")
+            confidence_score += 0.3
+        
+        # 8. 🔢 ANÁLISIS DE IDs Y NÚMEROS
+        transaction_id = str(transaction_data.get('numero_transaccion', ''))
+        if transaction_id in ['123456789', '987654321', '111111111', '000000000']:
+            fraud_indicators.append(f"ID de transacción obviamente falso: '{transaction_id}'")
+            confidence_score += 0.9
+        
+        # Normalizar confidence_score (máximo 1.0)
+        confidence_score = min(confidence_score, 1.0)
+        
+        return fraud_indicators, confidence_score
+        
         # 3. 📍 ANÁLISIS DE UBICACIONES SOSPECHOSAS
         for suspicious_term in self.obvious_fraud_patterns['suspicious_locations']:
             if suspicious_term in location:
