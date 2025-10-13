@@ -241,7 +241,6 @@ def predict_all_from_db():
     if transactions_data is None or transactions_data.empty:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
-    # Procesar todas las transacciones de una vez usando el método predict_batch
     try:
         print(f"🔍 Procesando {len(transactions_data)} transacciones...")
         
@@ -251,31 +250,57 @@ def predict_all_from_db():
         if not predictions:
             raise HTTPException(status_code=500, detail="Error procesando las transacciones.")
         
+        # DEBUG: Verificar las predicciones
+        fraud_predictions = sum(predictions)
+        max_probability = max([max(p) for p in probabilities])
+        min_probability = min([min(p) for p in probabilities])
+        
+        print(f"🔍 DEBUG - Predicciones de fraude: {fraud_predictions}/{len(predictions)}")
+        print(f"🔍 DEBUG - Probabilidad máxima: {max_probability}")
+        print(f"🔍 DEBUG - Probabilidad mínima: {min_probability}")
+        print(f"🔍 DEBUG - Umbral del modelo: {getattr(detector, 'optimal_threshold', 'No definido')}")
+        
         # Procesar resultados
         results = []
+        fraud_count_real = 0
+        fraud_count_predicted = 0
+        
         for i, transaction in enumerate(transactions_data):
-            is_fraud = bool(predictions[i])
+            is_fraud_predicted = bool(predictions[i])
+            is_fraud_real = bool(transaction[9])  # es_fraude real
             probability = float(probabilities[i][1]) if len(probabilities[i]) > 1 else float(probabilities[i][0])
             
-            if is_fraud:  # Solo incluir transacciones fraudulentas
+            if is_fraud_real:
+                fraud_count_real += 1
+            if is_fraud_predicted:
+                fraud_count_predicted += 1
+            
+            # TEMPORAL: Mostrar algunas transacciones fraudulentas reales aunque no las prediga
+            if is_fraud_real and len(results) < 50:  # Mostrar las primeras 50 fraudulentas reales
                 result = {
-                    "id": int(transaction[0]),  # id
-                    "monto": float(transaction[3]),  # monto
-                    "comerciante": transaction[4],  # comerciante
-                    "ubicacion": transaction[5],  # ubicacion
-                    "tipo_tarjeta": transaction[6],  # tipo_tarjeta
-                    "horario_transaccion": str(transaction[7]),  # horario_transaccion
-                    "fecha_transaccion": str(transaction[8]),  # fecha_transaccion
-                    "prediccion": "Fraude detectado",
-                    "es_fraude": True,
-                    "probabilidad_fraude": round(probability, 3),
-                    "es_fraude_real": bool(transaction[9])  # es_fraude real para comparar
+                    "id": int(transaction[0]),
+                    "monto": float(transaction[3]),
+                    "comerciante": transaction[4],
+                    "ubicacion": transaction[5],
+                    "tipo_tarjeta": transaction[6],
+                    "horario_transaccion": str(transaction[7]),
+                    "fecha_transaccion": str(transaction[8]),
+                    "prediccion": "Fraude detectado" if is_fraud_predicted else "NO DETECTADO por el modelo",
+                    "es_fraude_predicho": is_fraud_predicted,
+                    "es_fraude_real": is_fraud_real,
+                    "probabilidad_fraude": round(probability, 3)
                 }
                 results.append(result)
+        
+        print(f"🔍 DEBUG - Fraudes reales en DB: {fraud_count_real}")
+        print(f"🔍 DEBUG - Fraudes predichos: {fraud_count_predicted}")
         
         return {
             "transacciones_fraudulentas_encontradas": len(results),
             "total_transacciones_analizadas": len(transactions_data),
+            "fraudes_reales_en_db": fraud_count_real,
+            "fraudes_predichos_por_modelo": fraud_count_predicted,
+            "umbral_modelo": getattr(detector, 'optimal_threshold', 'No definido'),
             "resultados": results
         }
         

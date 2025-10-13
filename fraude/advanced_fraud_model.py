@@ -329,6 +329,11 @@ class AdvancedFraudDetector:
         optimal_idx = np.argmax(f1_scores)
         optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
         
+        # TEMPORAL: Forzar un umbral más bajo para debugging
+        if optimal_threshold > 0.8:
+            optimal_threshold = 0.5
+            print(f"🔧 DEBUGGING: Forzando umbral a 0.5 en lugar de {thresholds[optimal_idx] if optimal_idx < len(thresholds) else 'N/A'}")
+        
         return optimal_threshold
     
     def predict_batch(self, transactions_data):
