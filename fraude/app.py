@@ -285,7 +285,7 @@ def options_predict_all():
 @app.get("/predict_all_from_db")
 def predict_all_from_db():
     """
-    Predice fraude usando todas las transacciones actuales de la base de datos.
+    Predice el fraude usando todas las transacciones actuales de la base de datos.
     Retorna solo las transacciones identificadas como fraudulentas.
     """
     if not modelo_entrenado:
