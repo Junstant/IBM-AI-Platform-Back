@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import pandas as pd
+import numpy as np  # ✅ AGREGAR ESTA IMPORTACIÓN
 from datetime import time, date, datetime
 
 # Importa las funciones y clases necesarias de tus otros archivos
@@ -334,11 +335,9 @@ def predict_all_from_db():
     try:
         print(f"🔍 Procesando {len(transactions_df)} transacciones...")
         
-        # Convertir DataFrame a lista de listas para el modelo
-        transactions_data = transactions_df.values.tolist()
-        
-        # Usar el método predict_batch
-        predictions, probabilities = detector.predict_batch(transactions_data)
+        # ✅ USAR DIRECTAMENTE EL DATAFRAME, NO CONVERTIR A LISTA
+        # El problema era que convertir a lista perdía los nombres de columnas
+        predictions, probabilities = detector.predict_batch(transactions_df)
         
         if not predictions:
             raise HTTPException(status_code=500, detail="Error procesando las transacciones.")
