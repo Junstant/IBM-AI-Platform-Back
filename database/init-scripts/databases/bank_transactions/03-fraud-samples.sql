@@ -63,14 +63,14 @@ INSERT INTO transacciones (
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT 
-    1000 + (gs % 800),  -- 800 usuarios diferentes
+    1000 + (gs % 500),  -- 500 usuarios diferentes para evitar conflictos
     -- Montos MUY realistas y variados
     CASE 
-        WHEN random() < 0.3 THEN 50 + (random() * 450)::DECIMAL(10,2)      -- Compras pequeñas: $50-500
-        WHEN random() < 0.6 THEN 500 + (random() * 1500)::DECIMAL(10,2)    -- Compras medianas: $500-2000
-        WHEN random() < 0.85 THEN 2000 + (random() * 3000)::DECIMAL(10,2)  -- Compras grandes: $2000-5000
-        WHEN random() < 0.95 THEN 5000 + (random() * 10000)::DECIMAL(10,2) -- Compras muy grandes: $5000-15000
-        ELSE 15000 + (random() * 20000)::DECIMAL(10,2)                     -- Compras especiales: $15000-35000
+        WHEN random() < 0.3 THEN 50 + (random() * 450)::NUMERIC(10,2)      -- Compras pequeñas: $50-500
+        WHEN random() < 0.6 THEN 500 + (random() * 1500)::NUMERIC(10,2)    -- Compras medianas: $500-2000
+        WHEN random() < 0.85 THEN 2000 + (random() * 3000)::NUMERIC(10,2)  -- Compras grandes: $2000-5000
+        WHEN random() < 0.95 THEN 5000 + (random() * 10000)::NUMERIC(10,2) -- Compras muy grandes: $5000-15000
+        ELSE 15000 + (random() * 20000)::NUMERIC(10,2)                     -- Compras especiales: $15000-35000
     END,
     -- Solo comerciantes completamente legítimos
     CASE (gs % 18)
@@ -99,12 +99,12 @@ SELECT
     CURRENT_DATE - (random() * 90)::int,  -- Últimos 3 meses
     FALSE,  -- ✅ EXPLÍCITAMENTE NORMALES
     CASE WHEN random() < 0.65 THEN 'pos' WHEN random() < 0.85 THEN 'online' ELSE 'atm' END,
-    10000 + (random() * 90000)::DECIMAL(10,2),  -- Saldos realistas
-    (random() * 20)::DECIMAL(8,2)  -- Distancias cortas normales
-FROM generate_series(1, 8500) gs;
+    10000 + (random() * 90000)::NUMERIC(10,2),  -- Saldos realistas
+    (random() * 20)::NUMERIC(8,2)  -- Distancias cortas normales
+FROM generate_series(1, 6000) gs;  -- Reducir a 6000 para evitar conflictos
 
 -- ===== GENERAR TRANSACCIONES FRAUDULENTAS SUTILES =====
-\echo '   🚨 Generando 1,500 transacciones fraudulentas SUTILES...';
+\echo '   🚨 Generando 1,000 transacciones fraudulentas SUTILES...';
 
 -- Tipo 1: Fraudes sutiles con montos moderadamente altos (60% del fraude)
 INSERT INTO transacciones (
@@ -113,14 +113,14 @@ INSERT INTO transacciones (
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT 
-    1000 + (gs % 800),  -- Mismos usuarios
+    1000 + (gs % 500),  -- Mismos usuarios
     -- Montos fraudulentos SUTILES - no tan evidentes
     CASE 
-        WHEN random() < 0.4 THEN 8000 + (random() * 12000)::DECIMAL(10,2)   -- $8K-20K (un poco alto pero no obvio)
-        WHEN random() < 0.7 THEN 20000 + (random() * 25000)::DECIMAL(10,2)  -- $20K-45K (alto pero creíble)
-        WHEN random() < 0.9 THEN 45000 + (random() * 30000)::DECIMAL(10,2)  -- $45K-75K (muy alto)
-        ELSE 75000 + (random() * 50000)::DECIMAL(10,2)                      -- $75K-125K (extremo pero no ridículo)
-    END,
+        WHEN random() < 0.4 THEN 8000 + (random() * 12000)::NUMERIC(10,2)   -- $8K-20K (un poco alto pero no obvio)
+        WHEN random() < 0.7 THEN 20000 + (random() * 25000)::NUMERIC(10,2)  -- $20K-45K (alto pero creíble)
+        WHEN random() < 0.9 THEN 45000 + (random() * 30000)::NUMERIC(10,2)  -- $45K-75K (muy alto)
+        ELSE 75000 + (random() * 50000)::NUMERIC(10,2)                      -- $75K-125K (extremo pero no ridículo)
+    END,  
     -- Mix de comerciantes legítimos y medio riesgo
     CASE 
         WHEN random() < 0.3 THEN  -- 30% en comerciantes legítimos (fraude con tarjeta robada)
@@ -170,17 +170,17 @@ SELECT
     CASE WHEN random() < 0.6 THEN 'online' WHEN random() < 0.8 THEN 'pos' ELSE 'atm' END,
     -- Saldos que a veces son menores al monto (indicador sutil)
     CASE 
-        WHEN random() < 0.3 THEN 1000 + (random() * 8000)::DECIMAL(10,2)   -- Saldo insuficiente
-        WHEN random() < 0.6 THEN 10000 + (random() * 30000)::DECIMAL(10,2) -- Saldo justo
-        ELSE 50000 + (random() * 100000)::DECIMAL(10,2)                    -- Saldo alto
+        WHEN random() < 0.3 THEN 1000 + (random() * 8000)::NUMERIC(10,2)   -- Saldo insuficiente
+        WHEN random() < 0.6 THEN 10000 + (random() * 30000)::NUMERIC(10,2) -- Saldo justo
+        ELSE 50000 + (random() * 100000)::NUMERIC(10,2)                    -- Saldo alto
     END,
     -- Distancias SUTILMENTE sospechosas
     CASE 
-        WHEN random() < 0.4 THEN (random() * 30)::DECIMAL(8,2)      -- Cerca de lo usual
-        WHEN random() < 0.7 THEN 30 + (random() * 100)::DECIMAL(8,2) -- Un poco lejos
-        ELSE 100 + (random() * 200)::DECIMAL(8,2)                   -- Lejos pero no ridículo
+        WHEN random() < 0.4 THEN (random() * 30)::NUMERIC(8,2)      -- Cerca de lo usual
+        WHEN random() < 0.7 THEN 30 + (random() * 100)::NUMERIC(8,2) -- Un poco lejos
+        ELSE 100 + (random() * 200)::NUMERIC(8,2)                   -- Lejos pero no ridículo
     END
-FROM generate_series(1, 900) gs;
+FROM generate_series(10001, 10600) gs;  -- Usar rango diferente para evitar conflictos
 
 -- Tipo 2: Fraudes de pequeños montos pero patrones sospechosos (40% del fraude)
 INSERT INTO transacciones (
@@ -189,12 +189,12 @@ INSERT INTO transacciones (
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 )
 SELECT 
-    1000 + (gs % 800),
+    1000 + (gs % 500),
     -- Montos PEQUEÑOS pero con patrones sospechosos
     CASE 
-        WHEN random() < 0.5 THEN 200 + (random() * 800)::DECIMAL(10,2)    -- $200-1000 (testeo de tarjeta)
-        WHEN random() < 0.8 THEN 1000 + (random() * 2000)::DECIMAL(10,2)  -- $1000-3000 (fraude menor)
-        ELSE 3000 + (random() * 5000)::DECIMAL(10,2)                      -- $3000-8000 (fraude medio)
+        WHEN random() < 0.5 THEN 200 + (random() * 800)::NUMERIC(10,2)    -- $200-1000 (testeo de tarjeta)
+        WHEN random() < 0.8 THEN 1000 + (random() * 2000)::NUMERIC(10,2)  -- $1000-3000 (fraude menor)
+        ELSE 3000 + (random() * 5000)::NUMERIC(10,2)                      -- $3000-8000 (fraude medio)
     END,
     -- Comerciantes diversos
     CASE (gs % 12)
@@ -226,29 +226,29 @@ SELECT
     CURRENT_DATE - (random() * 60)::int,
     TRUE,  -- ✅ FRAUDE PERO MUY SUTIL
     CASE WHEN random() < 0.7 THEN 'online' WHEN random() < 0.9 THEN 'pos' ELSE 'mobile' END,
-    5000 + (random() * 45000)::DECIMAL(10,2),  -- Saldos normales
-    (random() * 150)::DECIMAL(8,2)  -- Distancias variadas
-FROM generate_series(1, 600) gs;
+    5000 + (random() * 45000)::NUMERIC(10,2),  -- Saldos normales
+    (random() * 150)::NUMERIC(8,2)  -- Distancias variadas
+FROM generate_series(20001, 20400) gs;  -- Usar otro rango diferente
 
 -- ===== VERIFICAR DISTRIBUCIÓN REALISTA =====
 \echo '🔍 Verificando distribución realista de datos...';
 
--- Mostrar estadísticas detalladas
+-- Mostrar estadísticas detalladas (SIN ROUND - usar CAST)
 WITH stats AS (
     SELECT 
         es_fraude,
         COUNT(*) as cantidad,
-        ROUND(AVG(monto), 2) as monto_promedio,
-        ROUND(MIN(monto), 2) as monto_minimo,
-        ROUND(MAX(monto), 2) as monto_maximo,
-        ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY monto), 2) as monto_mediana
+        CAST(AVG(monto) AS NUMERIC(10,2)) as monto_promedio,
+        CAST(MIN(monto) AS NUMERIC(10,2)) as monto_minimo,
+        CAST(MAX(monto) AS NUMERIC(10,2)) as monto_maximo,
+        CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY monto) AS NUMERIC(10,2)) as monto_mediana
     FROM transacciones
     GROUP BY es_fraude
 )
 SELECT 
     CASE WHEN es_fraude THEN 'FRAUDULENTAS' ELSE 'NORMALES' END as tipo,
     cantidad,
-    ROUND((cantidad * 100.0 / (SELECT COUNT(*) FROM transacciones)), 2) as porcentaje,
+    CAST((cantidad * 100.0 / (SELECT COUNT(*) FROM transacciones)) AS NUMERIC(5,2)) as porcentaje,
     monto_promedio,
     monto_minimo,
     monto_maximo,
@@ -302,24 +302,24 @@ UPDATE comerciantes SET
 UPDATE comerciantes SET
     tasa_fraude = CASE 
         WHEN total_transacciones > 0 THEN 
-            transacciones_fraudulentas::DECIMAL / total_transacciones::DECIMAL
+            transacciones_fraudulentas::NUMERIC / total_transacciones::NUMERIC
         ELSE 0
     END;
 
--- Mostrar tasas de fraude por comerciante
+-- Mostrar tasas de fraude por comerciante (SIN ROUND)
 \echo '📊 Tasas de fraude por comerciante:';
 SELECT 
     codigo_comerciante,
     nombre,
     total_transacciones,
     transacciones_fraudulentas,
-    ROUND(tasa_fraude * 100, 2) as tasa_fraude_porcentaje
+    CAST(tasa_fraude * 100 AS NUMERIC(5,2)) as tasa_fraude_porcentaje
 FROM comerciantes 
 WHERE total_transacciones > 0
 ORDER BY tasa_fraude DESC;
 
 \echo '✅ Datos SUTILES y REALISTAS insertados exitosamente';
-\echo '   📊 10,000 transacciones generadas (8,500 normales + 1,500 fraudulentas)';
+\echo '   📊 7,000 transacciones generadas (6,000 normales + 1,000 fraudulentas)';
 \echo '   🎯 Fraudes sutiles con patrones realistas';
 \echo '   💡 Montos y horarios menos evidentes';
 \echo '   🔍 Distribución optimizada para ML realista';
