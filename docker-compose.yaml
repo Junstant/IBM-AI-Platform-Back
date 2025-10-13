@@ -312,10 +312,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 120s
-      timeout: 120s
-      retries: 3
-      start_period: 120s
+      interval: 30s  # ← Cambiar de 120s a 30s
+      timeout: 10s   # ← Cambiar de 120s a 10s
+      retries: 10    # ← Más reintentos
+      start_period: 180s  # ← Más tiempo de espera inicial
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:

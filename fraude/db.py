@@ -2,27 +2,36 @@
 import psycopg2
 import pandas as pd
 import os
+import time
 from decimal import Decimal
 from dotenv import load_dotenv
 
 load_dotenv()
 
-def get_db_connection():
+def get_db_connection(max_retries=5, retry_delay=2):
     """
     Establece y devuelve una conexión a la base de datos de PostgreSQL.
+    Incluye lógica de reintentos para manejar casos donde la DB no está lista.
     """
-    try:
-        conn = psycopg2.connect(
-            dbname="bank_transactions",  # Base de datos específica para fraude
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "root"),
-            host=os.getenv("DB_HOST", "localhost"),
-            port=os.getenv("DB_PORT", "8070")
-        )
-        return conn
-    except psycopg2.OperationalError as e:
-        print(f"Error al conectar a la base de datos: {e}")
-        return None
+    for attempt in range(max_retries):
+        try:
+            conn = psycopg2.connect(
+                dbname=os.getenv("DB2_NAME", "bank_transactions"),  # Base de datos específica para fraude
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "root"),
+                host=os.getenv("DB_HOST", "postgres_db"),  # Nombre del servicio Docker
+                port=os.getenv("DB_INTERNAL_PORT", "5432")  # ✅ Puerto interno del contenedor
+            )
+            print(f"✅ Conexión a base de datos establecida exitosamente")
+            return conn
+        except psycopg2.OperationalError as e:
+            if attempt < max_retries - 1:
+                print(f"⏳ Intento {attempt + 1}/{max_retries} - DB no está lista, reintentando en {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                print(f"❌ Error al conectar a la base de datos después de {max_retries} intentos: {e}")
+                return None
+    return None
 
 def fetch_transactions():
     """
