@@ -163,28 +163,62 @@ class AdvancedFraudDetector:
         return df
     
     def prepare_data(self, transactions):
-        """🧠 Preparación inteligente de datos"""
+        """🧠 Preparación inteligente de datos - VERSIÓN ACTUALIZADA"""
         print("📊 Preparando datos con algoritmos inteligentes...")
         
-        columns = [
-            'id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'comerciante',
-            'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'fecha_transaccion', 'es_fraude'
-        ]
-        df = pd.DataFrame(transactions, columns=columns)
+        # ✅ SI YA ES UN DATAFRAME (de fetch_transactions), usarlo directamente
+        if isinstance(transactions, pd.DataFrame):
+            df = transactions.copy()
+            print(f"📊 Dataset recibido como DataFrame: {len(df)} transacciones")
+        else:
+            # ✅ SI ES UNA LISTA DE TUPLAS, USAR TODAS LAS COLUMNAS DISPONIBLES
+            # Actualizar para incluir las nuevas columnas de la base de datos
+            columns = [
+                'id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'comerciante',
+                'categoria_comerciante', 'ubicacion', 'ciudad', 'pais', 'tipo_tarjeta', 
+                'horario_transaccion', 'fecha_transaccion', 'canal', 'distancia_ubicacion_usual', 'es_fraude'
+            ]
+            df = pd.DataFrame(transactions, columns=columns)
+            print(f"📊 Dataset creado desde lista: {len(df)} transacciones")
         
+        # ✅ VERIFICAR COLUMNAS PRESENTES
+        expected_columns = ['monto', 'comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'fecha_transaccion', 'es_fraude']
+        missing_columns = [col for col in expected_columns if col not in df.columns]
+        if missing_columns:
+            print(f"⚠️  Columnas faltantes: {missing_columns}")
+        
+        # ✅ CONVERSION SEGURA DE TIPOS
         if 'monto' in df.columns:
             df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
-
-        print(f"📊 Dataset inicial: {len(df)} transacciones")
         
-        # Información del dataset
-        fraud_count = df['es_fraude'].sum()
-        fraud_percentage = (fraud_count / len(df)) * 100
+        # ✅ LLENAR VALORES FALTANTES CON VALORES POR DEFECTO
+        default_values = {
+            'categoria_comerciante': 'Unknown',
+            'ciudad': 'Buenos Aires',
+            'pais': 'Argentina',
+            'canal': 'pos',
+            'distancia_ubicacion_usual': 0
+        }
         
-        print(f"📊 Análisis del dataset:")
-        print(f"   Total transacciones: {len(df)}")
-        print(f"   Fraudes: {fraud_count} ({fraud_percentage:.2f}%)")
-        print(f"   Legítimas: {len(df) - fraud_count} ({100 - fraud_percentage:.2f}%)")
+        for col, default_val in default_values.items():
+            if col not in df.columns:
+                df[col] = default_val
+                print(f"📝 Agregada columna faltante '{col}' con valor por defecto: {default_val}")
+            else:
+                df[col] = df[col].fillna(default_val)
+        
+        print(f"📊 Dataset final preparado: {len(df)} transacciones")
+        
+        # ✅ INFORMACIÓN DEL DATASET
+        if 'es_fraude' in df.columns:
+            fraud_count = df['es_fraude'].sum()
+            fraud_percentage = (fraud_count / len(df)) * 100
+            
+            print(f"📊 Análisis del dataset:")
+            print(f"   Total transacciones: {len(df)}")
+            print(f"   Fraudes: {fraud_count} ({fraud_percentage:.2f}%)")
+            print(f"   Legítimas: {len(df) - fraud_count} ({100 - fraud_percentage:.2f}%)")
+            print(f"   Columnas disponibles: {list(df.columns)}")
         
         return df
     

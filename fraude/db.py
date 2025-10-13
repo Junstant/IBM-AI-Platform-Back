@@ -36,11 +36,13 @@ def get_db_connection(max_retries=5, retry_delay=2):
 def fetch_transactions():
     """
     Obtiene todas las transacciones de la base de datos como DataFrame.
+    ✅ VERSIÓN ACTUALIZADA: Incluye TODAS las columnas necesarias para el modelo
     """
     conn = get_db_connection()
     if conn:
         try:
             cur = conn.cursor()
+            # ✅ INCLUIR TODAS LAS COLUMNAS QUE EL MODELO NECESITA
             cur.execute("""
                 SELECT 
                     id, 
@@ -48,12 +50,18 @@ def fetch_transactions():
                     cuenta_destino_id, 
                     monto, 
                     comerciante, 
+                    COALESCE(categoria_comerciante, 'Unknown') as categoria_comerciante,
                     ubicacion, 
+                    COALESCE(ciudad, 'Buenos Aires') as ciudad,
+                    COALESCE(pais, 'Argentina') as pais,
                     tipo_tarjeta, 
                     horario_transaccion, 
                     fecha_transaccion,
+                    COALESCE(canal, 'pos') as canal,
+                    COALESCE(distancia_ubicacion_usual, 0) as distancia_ubicacion_usual,
                     es_fraude
-                FROM transacciones;
+                FROM transacciones
+                ORDER BY fecha_transaccion DESC, id DESC;
             """)
             transactions = cur.fetchall()
             
@@ -63,20 +71,34 @@ def fetch_transactions():
             # Convertir a DataFrame
             df = pd.DataFrame(transactions, columns=columns)
             
-            # Convertir tipos de datos problemáticos
-            if 'monto' in df.columns:
-                df['monto'] = df['monto'].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
-            
-            # Asegurar que las columnas numéricas sean float
-            numeric_columns = ['id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            # ✅ CONVERSIÓN SEGURA DE TIPOS DE DATOS
+            if not df.empty:
+                # Convertir Decimal a float
+                if 'monto' in df.columns:
+                    df['monto'] = df['monto'].apply(lambda x: float(x) if isinstance(x, Decimal) else x)
+                
+                if 'distancia_ubicacion_usual' in df.columns:
+                    df['distancia_ubicacion_usual'] = df['distancia_ubicacion_usual'].apply(
+                        lambda x: float(x) if isinstance(x, Decimal) else x
+                    )
+                
+                # Convertir columnas numéricas
+                numeric_columns = ['id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'distancia_ubicacion_usual']
+                for col in numeric_columns:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                
+                # ✅ LIMPIAR VALORES STRING Y REEMPLAZAR NULL/NaN
+                string_columns = ['comerciante', 'categoria_comerciante', 'ubicacion', 'ciudad', 'pais', 'tipo_tarjeta', 'canal']
+                for col in string_columns:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str).fillna('Unknown')
+                        df[col] = df[col].replace(['None', 'nan', ''], 'Unknown')
             
             cur.close()
             return df
         except psycopg2.DatabaseError as e:
-            print(f"Error al obtener transacciones: {e}")
+            print(f"❌ Error al obtener transacciones: {e}")
             return None
         finally:
             conn.close()
