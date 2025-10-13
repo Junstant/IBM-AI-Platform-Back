@@ -144,6 +144,9 @@ class AdvancedFraudDetector:
             'Débito': 0.12,
             'Crédito': 0.15,
             'Prepaga': 0.20,
+            'Visa': 0.16,      # Añadir valores para nuevas tarjetas
+            'Mastercard': 0.16,
+            'American Express': 0.18,
             'Unknown': 0.25
         }
         df['card_risk_score'] = df['tipo_tarjeta'].map(card_risk_map).fillna(0.18)
@@ -173,19 +176,28 @@ class AdvancedFraudDetector:
             df['monto_zscore'] = 0
         df['is_outlier_amount'] = (df['monto_zscore'] > 2.5).astype(int)  # Incrementado de 2 a 2.5
         
-        # === 8. ENCODING DE VARIABLES CATEGÓRICAS ===
+        # === 8. ENCODING DE VARIABLES CATEGÓRICAS (MEJORADO) ===
         categorical_columns = ['comerciante', 'ubicacion', 'tipo_tarjeta']
         
         for col in categorical_columns:
             if col in df.columns:
                 if col not in self.label_encoders:
+                    # Primera vez entrenando
                     self.label_encoders[col] = LabelEncoder()
                     df[f'{col}_encoded'] = self.label_encoders[col].fit_transform(df[col].astype(str))
                 else:
                     # Para nuevos datos, manejar categorías no vistas
                     known_categories = set(self.label_encoders[col].classes_)
                     df[col] = df[col].astype(str)
-                    df[col] = df[col].apply(lambda x: x if x in known_categories else 'unknown')
+                    
+                    # 🔥 SOLUCIÓN: Mapear valores desconocidos a un valor conocido
+                    def map_unknown_values(value):
+                        if value in known_categories:
+                            return value
+                        # Si no existe, usar el primer valor conocido como default
+                        return list(known_categories)[0] if known_categories else 'COM001'
+                    
+                    df[col] = df[col].apply(map_unknown_values)
                     df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
         
         # Eliminar columnas categóricas originales y horario

@@ -178,21 +178,68 @@ def predict_single_transaction(transaction: Transaction):
         raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado. Intente más tarde.")
 
     try:
-        # Crear un DataFrame con la transacción individual
+        print(f"🔍 Procesando transacción: {transaction}")
+        
+        # 🔥 MAPEAR VALORES CONOCIDOS PARA EVITAR ERRORES
+        # Mapear comerciante a uno conocido si es necesario
+        comerciante_mapeado = transaction.comerciante
+        comerciantes_conocidos = [
+            'COM001', 'COM002', 'COM003', 'COM004', 'COM005', 
+            'COM008', 'COM014', 'COM016', 'COM017', 'COM019', 'COM021'
+        ]
+        if comerciante_mapeado not in comerciantes_conocidos:
+            # Mapear comerciantes comunes a códigos conocidos
+            if 'amazon' in comerciante_mapeado.lower():
+                comerciante_mapeado = 'COM021'  # E-commerce conocido
+            elif any(term in comerciante_mapeado.lower() for term in ['online', 'web', 'internet']):
+                comerciante_mapeado = 'COM016'  # Coto Digital (online)
+            elif any(term in comerciante_mapeado.lower() for term in ['super', 'market']):
+                comerciante_mapeado = 'COM001'  # Supermercado Disco
+            else:
+                comerciante_mapeado = 'COM001'  # Default a comerciante conocido
+        
+        # Mapear ubicación a una conocida si es necesario
+        ubicacion_mapeada = transaction.ubicacion
+        ubicaciones_conocidas = [
+            'Buenos Aires Centro', 'Palermo, CABA', 'Recoleta',
+            'Puerto Madero', 'Villa Crespo', 'San Telmo', 'Online'
+        ]
+        if ubicacion_mapeada not in ubicaciones_conocidas:
+            if 'usa' in ubicacion_mapeada.lower() or 'united' in ubicacion_mapeada.lower():
+                ubicacion_mapeada = 'Online'  # Transacciones internacionales como Online
+            elif any(term in ubicacion_mapeada.lower() for term in ['online', 'web', 'internet']):
+                ubicacion_mapeada = 'Online'
+            else:
+                ubicacion_mapeada = 'Buenos Aires Centro'  # Default
+        
+        # Mapear tipo de tarjeta a uno conocido si es necesario
+        tipo_tarjeta_mapeado = transaction.tipo_tarjeta
+        tipos_conocidos = ['Débito', 'Crédito', 'Prepaga']
+        if tipo_tarjeta_mapeado not in tipos_conocidos:
+            if 'visa' in tipo_tarjeta_mapeado.lower():
+                tipo_tarjeta_mapeado = 'Crédito'
+            elif 'master' in tipo_tarjeta_mapeado.lower():
+                tipo_tarjeta_mapeado = 'Crédito'
+            elif 'amex' in tipo_tarjeta_mapeado.lower() or 'american' in tipo_tarjeta_mapeado.lower():
+                tipo_tarjeta_mapeado = 'Crédito'
+            else:
+                tipo_tarjeta_mapeado = 'Débito'  # Default
+        
+        # Crear un DataFrame con la transacción individual usando valores mapeados
         transaction_data = pd.DataFrame([{
             'id': 0,  # placeholder
-            'cuenta_origen_id': 1,  # placeholder
+            'cuenta_origen_id': 1001,  # placeholder realista
             'cuenta_destino_id': None,
             'monto': transaction.monto,
-            'comerciante': transaction.comerciante,
-            'ubicacion': transaction.ubicacion,
-            'tipo_tarjeta': transaction.tipo_tarjeta,
+            'comerciante': comerciante_mapeado,  # Usar valor mapeado
+            'ubicacion': ubicacion_mapeada,      # Usar valor mapeado
+            'tipo_tarjeta': tipo_tarjeta_mapeado, # Usar valor mapeado
             'horario_transaccion': transaction.horario_transaccion,
             'fecha_transaccion': str(date.today()),
             'es_fraude': False  # placeholder
         }])
 
-        print(f"🔍 Procesando transacción: {transaction}")
+        print(f"🔄 Transacción mapeada: comerciante={comerciante_mapeado}, ubicacion={ubicacion_mapeada}, tipo_tarjeta={tipo_tarjeta_mapeado}")
         
         # Usar el método predict_batch con el DataFrame
         predictions, probabilities = detector.predict_batch(transaction_data.values.tolist())
@@ -205,12 +252,19 @@ def predict_single_transaction(transaction: Transaction):
         
         print(f"📊 Resultado: is_fraud={is_fraud}, fraud_probability={fraud_probability}")
         
+        # 🔥 AÑADIR INFORMACIÓN DE MAPEO EN LA RESPUESTA
         response_data = {
             "prediccion": "Fraude detectado" if is_fraud else "Transacción normal",
             "es_fraude": is_fraud,
             "probabilidad_fraude": round(fraud_probability, 3),
             "nivel_confianza": "Alta" if fraud_probability > 0.8 else "Media" if fraud_probability > 0.5 else "Baja",
-            "transaccion_enviada": transaction.dict()
+            "transaccion_enviada": transaction.dict(),
+            "transaccion_procesada": {
+                "comerciante_mapeado": comerciante_mapeado,
+                "ubicacion_mapeada": ubicacion_mapeada,
+                "tipo_tarjeta_mapeado": tipo_tarjeta_mapeado,
+                "nota": "Valores mapeados a equivalentes conocidos por el modelo"
+            }
         }
         
         print(f"📤 Enviando respuesta: {response_data}")
