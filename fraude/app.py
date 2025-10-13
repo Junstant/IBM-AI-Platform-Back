@@ -237,14 +237,17 @@ def predict_all_from_db():
     if not modelo_entrenado:
         raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado.")
 
-    transactions_data = fetch_transactions()
-    if transactions_data is None or transactions_data.empty:
+    transactions_df = fetch_transactions()  # ← Cambiar nombre para claridad
+    if transactions_df is None or transactions_df.empty:
         raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
 
     try:
-        print(f"🔍 Procesando {len(transactions_data)} transacciones...")
+        print(f"🔍 Procesando {len(transactions_df)} transacciones...")
         
-        # Usar el método predict_batch que aplica todas las transformaciones correctamente
+        # Convertir DataFrame a lista de listas para el modelo
+        transactions_data = transactions_df.values.tolist()
+        
+        # Usar el método predict_batch
         predictions, probabilities = detector.predict_batch(transactions_data)
         
         if not predictions:
@@ -252,22 +255,25 @@ def predict_all_from_db():
         
         # DEBUG: Verificar las predicciones
         fraud_predictions = sum(predictions)
-        max_probability = max([max(p) for p in probabilities])
-        min_probability = min([min(p) for p in probabilities])
+        max_probability = max([max(p) for p in probabilities]) if probabilities else 0
+        min_probability = min([min(p) for p in probabilities]) if probabilities else 0
         
         print(f"🔍 DEBUG - Predicciones de fraude: {fraud_predictions}/{len(predictions)}")
         print(f"🔍 DEBUG - Probabilidad máxima: {max_probability}")
         print(f"🔍 DEBUG - Probabilidad mínima: {min_probability}")
         print(f"🔍 DEBUG - Umbral del modelo: {getattr(detector, 'optimal_threshold', 'No definido')}")
         
-        # Procesar resultados
+        # Procesar resultados usando el DataFrame
         results = []
         fraud_count_real = 0
         fraud_count_predicted = 0
         
-        for i, transaction in enumerate(transactions_data):
+        for i in range(len(transactions_df)):
+            # Acceder a los datos usando iloc (pandas)
+            transaction_row = transactions_df.iloc[i]
+            
             is_fraud_predicted = bool(predictions[i])
-            is_fraud_real = bool(transaction[9])  # es_fraude real
+            is_fraud_real = bool(transaction_row['es_fraude'])  # ← Usar nombre de columna
             probability = float(probabilities[i][1]) if len(probabilities[i]) > 1 else float(probabilities[i][0])
             
             if is_fraud_real:
@@ -275,17 +281,17 @@ def predict_all_from_db():
             if is_fraud_predicted:
                 fraud_count_predicted += 1
             
-            # TEMPORAL: Mostrar algunas transacciones fraudulentas reales aunque no las prediga
-            if is_fraud_real and len(results) < 50:  # Mostrar las primeras 50 fraudulentas reales
+            # Mostrar las transacciones predichas como fraudulentas
+            if is_fraud_predicted:
                 result = {
-                    "id": int(transaction[0]),
-                    "monto": float(transaction[3]),
-                    "comerciante": transaction[4],
-                    "ubicacion": transaction[5],
-                    "tipo_tarjeta": transaction[6],
-                    "horario_transaccion": str(transaction[7]),
-                    "fecha_transaccion": str(transaction[8]),
-                    "prediccion": "Fraude detectado" if is_fraud_predicted else "NO DETECTADO por el modelo",
+                    "id": int(transaction_row['id']),
+                    "monto": float(transaction_row['monto']),
+                    "comerciante": transaction_row['comerciante'],
+                    "ubicacion": transaction_row['ubicacion'],
+                    "tipo_tarjeta": transaction_row['tipo_tarjeta'],
+                    "horario_transaccion": str(transaction_row['horario_transaccion']),
+                    "fecha_transaccion": str(transaction_row['fecha_transaccion']),
+                    "prediccion": "Fraude detectado",
                     "es_fraude_predicho": is_fraud_predicted,
                     "es_fraude_real": is_fraud_real,
                     "probabilidad_fraude": round(probability, 3)
@@ -297,7 +303,7 @@ def predict_all_from_db():
         
         return {
             "transacciones_fraudulentas_encontradas": len(results),
-            "total_transacciones_analizadas": len(transactions_data),
+            "total_transacciones_analizadas": len(transactions_df),
             "fraudes_reales_en_db": fraud_count_real,
             "fraudes_predichos_por_modelo": fraud_count_predicted,
             "umbral_modelo": getattr(detector, 'optimal_threshold', 'No definido'),
