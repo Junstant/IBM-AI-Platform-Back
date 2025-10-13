@@ -761,7 +761,7 @@ async def predict_single_transaction(transaction: TransactionInput):
         logger.error(f"❌ Error prediciendo transacción individual: {e}")
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-@app.get("/fraude/predict_all_from_db", response_model=DatabaseAnalysisResponse)
+@app.get("/predict_all_from_db", response_model=DatabaseAnalysisResponse)
 async def predict_all_from_database():
     """
     🗄️ Analizar todas las transacciones en la base de datos
