@@ -539,7 +539,7 @@ class AdvancedFraudDetector:
                         
                         df[f'{col}_encoded'] = self.label_encoders[col].transform(df[col])
                 except Exception as e:
-                    print(f"⚠️  Error en encoding de {col}: {e}")
+                    print(f"⚠️ Error en encoding de {col}: {e}")
                     # Fallback: usar hash
                     df[f'{col}_encoded'] = df[col].astype(str).apply(lambda x: hash(x) % 1000)
 
@@ -576,64 +576,128 @@ class AdvancedFraudDetector:
         return df
     
     def prepare_data(self, transactions):
-        """🧠 Preparación inteligente de datos - VERSIÓN ACTUALIZADA"""
+        """
+        🧠 Preparación inteligente de datos con validación robusta
+        VERSIÓN CORREGIDA para manejar diferentes formatos de entrada
+        """
         print("📊 Preparando datos con algoritmos inteligentes...")
         
-        # ✅ SI YA ES UN DATAFRAME (de fetch_transactions), usarlo directamente
-        if isinstance(transactions, pd.DataFrame):
-            df = transactions.copy()
-            print(f"📊 Dataset recibido como DataFrame: {len(df)} transacciones")
-        else:
-            # ✅ SI ES UNA LISTA DE TUPLAS, USAR TODAS LAS COLUMNAS DISPONIBLES
-            # Actualizar para incluir las nuevas columnas de la base de datos
-            columns = [
-                'id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'comerciante',
-                'categoria_comerciante', 'ubicacion', 'ciudad', 'pais', 'tipo_tarjeta', 
-                'horario_transaccion', 'fecha_transaccion', 'canal', 'distancia_ubicacion_usual', 'es_fraude'
-            ]
-            df = pd.DataFrame(transactions, columns=columns)
-            print(f"📊 Dataset creado desde lista: {len(df)} transacciones")
-        
-        # ✅ VERIFICAR COLUMNAS PRESENTES
-        expected_columns = ['monto', 'comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion', 'fecha_transaccion', 'es_fraude']
-        missing_columns = [col for col in expected_columns if col not in df.columns]
-        if missing_columns:
-            print(f"⚠️  Columnas faltantes: {missing_columns}")
-        
-        # ✅ CONVERSION SEGURA DE TIPOS
-        if 'monto' in df.columns:
-            df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
-        
-        # ✅ LLENAR VALORES FALTANTES CON VALORES POR DEFECTO
-        default_values = {
-            'categoria_comerciante': 'Unknown',
-            'ciudad': 'Buenos Aires',
-            'pais': 'Argentina',
-            'canal': 'pos',
-            'distancia_ubicacion_usual': 0
-        }
-        
-        for col, default_val in default_values.items():
-            if col not in df.columns:
-                df[col] = default_val
-                print(f"📝 Agregada columna faltante '{col}' con valor por defecto: {default_val}")
-            else:
-                df[col] = df[col].fillna(default_val)
-        
-        print(f"📊 Dataset final preparado: {len(df)} transacciones")
-        
-        # ✅ INFORMACIÓN DEL DATASET
-        if 'es_fraude' in df.columns:
-            fraud_count = df['es_fraude'].sum()
-            fraud_percentage = (fraud_count / len(df)) * 100
+        try:
+            if not transactions:
+                print("❌ No hay transacciones para procesar")
+                return pd.DataFrame()
             
-            print(f"📊 Análisis del dataset:")
-            print(f"   Total transacciones: {len(df)}")
-            print(f"   Fraudes: {fraud_count} ({fraud_percentage:.2f}%)")
-            print(f"   Legítimas: {len(df) - fraud_count} ({100 - fraud_percentage:.2f}%)")
-            print(f"   Columnas disponibles: {list(df.columns)}")
+            # === DETECTAR TIPO DE DATOS DE ENTRADA ===
+            if isinstance(transactions, pd.DataFrame):
+                print(f"📊 DataFrame recibido: {len(transactions)} transacciones")
+                df = transactions.copy()
+            elif isinstance(transactions, list):
+                if len(transactions) == 0:
+                    return pd.DataFrame()
+                
+                # Detectar si es una lista de tuplas (de DB) o lista de dicts
+                first_item = transactions[0]
+                
+                if isinstance(first_item, tuple):
+                    # Datos de la base de datos - usar todas las columnas esperadas
+                    columns = [
+                        'id', 'cuenta_origen_id', 'cuenta_destino_id', 'monto', 'comerciante', 
+                        'categoria_comerciante', 'ubicacion', 'ciudad', 'pais', 'tipo_tarjeta', 
+                        'horario_transaccion', 'fecha_transaccion', 'canal', 
+                        'distancia_ubicacion_usual', 'es_fraude'
+                    ]
+                    print(f"📊 Dataset creado desde tuplas DB: {len(transactions)} transacciones")
+                    df = pd.DataFrame(transactions, columns=columns)
+                    
+                elif isinstance(first_item, dict):
+                    # Datos de API - crear DataFrame directamente
+                    print(f"📊 Dataset creado desde diccionarios: {len(transactions)} transacciones")
+                    df = pd.DataFrame(transactions)
+                    
+                else:
+                    # Caso inesperado - intentar conversión directa
+                    print(f"📊 Formato no reconocido, intentando conversión directa...")
+                    df = pd.DataFrame(transactions)
+            else:
+                # Caso individual - convertir a DataFrame
+                print("📊 Procesando transacción individual...")
+                if isinstance(transactions, dict):
+                    df = pd.DataFrame([transactions])
+                else:
+                    # Asumir que es un formato válido para DataFrame
+                    df = pd.DataFrame(transactions)
         
-        return df
+            # === VALIDACIÓN Y LIMPIEZA ===
+            if df.empty:
+                print("❌ DataFrame vacío después de la conversión")
+                return df
+            
+            print(f"📊 Dataset final preparado: {len(df)} transacciones")
+            print(f"📊 Columnas disponibles: {list(df.columns)}")
+            
+            # === ANÁLISIS DEL DATASET ===
+            if 'es_fraude' in df.columns:
+                fraud_count = df['es_fraude'].sum()
+                total_count = len(df)
+                normal_count = total_count - fraud_count
+                
+                print(f"📊 Análisis del dataset:")
+                print(f"   Total transacciones: {total_count}")
+                print(f"   Fraudes: {fraud_count} ({fraud_count/total_count*100:.2f}%)")
+                print(f"   Legítimas: {normal_count} ({normal_count/total_count*100:.2f}%)")
+            
+            # === ASEGURAR COLUMNAS MÍNIMAS REQUERIDAS ===
+            required_columns = ['monto', 'comerciante', 'ubicacion', 'tipo_tarjeta', 'horario_transaccion']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                print(f"⚠️ Columnas faltantes: {missing_columns}")
+                # Agregar columnas faltantes con valores por defecto
+                for col in missing_columns:
+                    if col == 'monto':
+                        df[col] = 0.0
+                    elif col == 'comerciante':
+                        df[col] = 'COM001'
+                    elif col == 'ubicacion':
+                        df[col] = 'Buenos Aires'
+                    elif col == 'tipo_tarjeta':
+                        df[col] = 'Débito'
+                    elif col == 'horario_transaccion':
+                        df[col] = '12:00:00'
+            
+            # === AGREGAR COLUMNAS OPCIONALES SI NO EXISTEN ===
+            optional_columns = {
+                'categoria_comerciante': 'E-commerce',
+                'ciudad': 'Buenos Aires',
+                'pais': 'Argentina',
+                'canal': 'online',
+                'distancia_ubicacion_usual': 0.0,
+                'cuenta_origen_id': 1001,
+                'id': range(len(df))
+            }
+            
+            for col, default_value in optional_columns.items():
+                if col not in df.columns:
+                    if col == 'id':
+                        df[col] = range(len(df))
+                    else:
+                        df[col] = default_value
+            
+            # === CONVERSIÓN DE TIPOS ===
+            try:
+                df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
+                if 'distancia_ubicacion_usual' in df.columns:
+                    df['distancia_ubicacion_usual'] = pd.to_numeric(df['distancia_ubicacion_usual'], errors='coerce').fillna(0)
+            except Exception as e:
+                print(f"⚠️ Error en conversión de tipos: {e}")
+            
+            return df
+            
+        except Exception as e:
+            print(f"❌ Error en prepare_data: {e}")
+            import traceback
+            traceback.print_exc()
+            return pd.DataFrame()
     
     def train_model(self, data):
         """🧠 Entrenamiento con múltiples algoritmos de IA"""
