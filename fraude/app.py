@@ -1,468 +1,839 @@
-# app.py
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
+"""
+🚀 APLICACIÓN DE DETECCIÓN DE FRAUDE CON MACHINE LEARNING
+=======================================================
+Sistema avanzado de ML para detectar fraudes financieros usando Random Forest
+Optimizado para trabajar con la base de datos PostgreSQL existente
+
+Características principales:
+- Entrenamiento automático con datos existentes
+- Detección de transacciones individuales y masivas
+- Feature engineering inteligente
+- Análisis de patrones comportamentales
+- API REST compatible con el frontend React
+"""
+
+import os
+import sys
+import logging
+import numpy as np
 import pandas as pd
-import numpy as np  # ✅ AGREGAR ESTA IMPORTACIÓN
-from datetime import time, date, datetime
+import joblib
+import warnings
+from datetime import datetime, time, date
+from typing import Dict, List, Optional, Tuple, Any
+import json
 
-# Importa las funciones y clases necesarias de tus otros archivos
-from behavioral_fraud_model import HybridFraudDetector
-from db import fetch_transactions, get_db_connection
+# FastAPI y dependencias web
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+import uvicorn
 
-# --- Instancia y configuración de la API ---
+# Machine Learning
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, precision_recall_curve
+from sklearn.impute import SimpleImputer
+
+# Base de datos
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from sqlalchemy import create_engine
+import sqlalchemy
+
+# Configuración
+warnings.filterwarnings('ignore')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# =====================================================
+# CONFIGURACIÓN DE LA APLICACIÓN
+# =====================================================
+
+class Config:
+    """Configuración centralizada de la aplicación"""
+    
+    # Base de datos
+    DB_HOST = os.getenv('DB_HOST', 'localhost')
+    DB_PORT = os.getenv('DB_PORT', '8070')
+    DB_USER = os.getenv('DB_USER', 'postgres')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', 'root')
+    DB_NAME = os.getenv('DB2_NAME', 'bank_transactions')  # Base de datos de fraude
+    
+    # ML Models
+    MODEL_PATH = 'models/'
+    FRAUD_MODEL_FILE = 'fraud_detection_model.pkl'
+    ENCODERS_FILE = 'label_encoders.pkl'
+    SCALER_FILE = 'feature_scaler.pkl'
+    FEATURES_FILE = 'feature_names.pkl'
+    
+    # Configuración del modelo
+    RANDOM_STATE = 42
+    TEST_SIZE = 0.2
+    MIN_SAMPLES_FOR_TRAINING = 100
+    
+    # Umbrales de detección
+    HIGH_RISK_THRESHOLD = 0.7
+    MEDIUM_RISK_THRESHOLD = 0.3
+
+# Instancia de configuración
+config = Config()
+
+# =====================================================
+# MODELOS PYDANTIC PARA LA API
+# =====================================================
+
+class TransactionInput(BaseModel):
+    """Modelo para recibir datos de una transacción individual"""
+    monto: float = Field(..., description="Monto de la transacción")
+    comerciante: str = Field(..., description="Código o nombre del comerciante")
+    ubicacion: str = Field(..., description="Ubicación de la transacción")
+    tipo_tarjeta: str = Field(..., description="Tipo de tarjeta: Débito, Crédito, Prepaga")
+    horario_transaccion: str = Field(..., description="Horario en formato HH:MM:SS")
+    cuenta_origen_id: Optional[int] = Field(1001, description="ID de cuenta origen (opcional)")
+    categoria_comerciante: Optional[str] = Field("Varios", description="Categoría del comerciante")
+    ciudad: Optional[str] = Field("Buenos Aires", description="Ciudad")
+    pais: Optional[str] = Field("Argentina", description="País")
+    canal: Optional[str] = Field("online", description="Canal de la transacción")
+
+class PredictionResponse(BaseModel):
+    """Respuesta para predicción individual"""
+    prediccion_fraude: bool
+    probabilidad_fraude: float
+    nivel_riesgo: str
+    prediccion: str
+    transaccion_enviada: Dict
+    timestamp: str
+    razones_deteccion: List[str]
+    confianza_modelo: float
+
+class DatabaseAnalysisResponse(BaseModel):
+    """Respuesta para análisis de base de datos"""
+    transacciones_fraudulentas_encontradas: int
+    total_transacciones_analizadas: int
+    tiempo_procesamiento: float
+    timestamp: str
+    resultados: List[Dict]
+    resumen_estadisticas: Dict
+
+# =====================================================
+# GESTOR DE BASE DE DATOS
+# =====================================================
+
+class DatabaseManager:
+    """Gestor para todas las operaciones de base de datos"""
+    
+    def __init__(self, config: Config):
+        self.config = config
+        self.connection_string = (
+            f"postgresql://{config.DB_USER}:{config.DB_PASSWORD}@"
+            f"{config.DB_HOST}:{config.DB_PORT}/{config.DB_NAME}"
+        )
+        self.engine = create_engine(self.connection_string)
+    
+    def test_connection(self) -> bool:
+        """Probar conexión a la base de datos"""
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(sqlalchemy.text("SELECT 1")).fetchone()
+                logger.info("✅ Conexión a base de datos exitosa")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Error conectando a base de datos: {e}")
+            return False
+    
+    def get_all_transactions(self) -> pd.DataFrame:
+        """Obtener todas las transacciones para entrenamiento"""
+        query = """
+        SELECT 
+            t.*,
+            c.nivel_riesgo as comerciante_nivel_riesgo,
+            c.categoria as comerciante_categoria_real,
+            c.tasa_fraude as comerciante_tasa_fraude
+        FROM transacciones t
+        LEFT JOIN comerciantes c ON t.comerciante = c.codigo_comerciante
+        ORDER BY t.fecha_transaccion DESC, t.horario_transaccion DESC
+        """
+        
+        try:
+            df = pd.read_sql(query, self.engine)
+            logger.info(f"📊 Cargadas {len(df)} transacciones de la base de datos")
+            return df
+        except Exception as e:
+            logger.error(f"❌ Error cargando transacciones: {e}")
+            raise
+    
+    def get_user_profile(self, cuenta_id: int) -> Optional[Dict]:
+        """Obtener perfil de comportamiento del usuario"""
+        query = """
+        SELECT * FROM perfiles_usuario WHERE cuenta_id = %s
+        """
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(sqlalchemy.text(query), {"cuenta_id": cuenta_id}).fetchone()
+                if result:
+                    return dict(result._mapping)
+                return None
+        except Exception as e:
+            logger.warning(f"⚠️ No se pudo obtener perfil del usuario {cuenta_id}: {e}")
+            return None
+
+# =====================================================
+# INGENIERO DE CARACTERÍSTICAS (FEATURE ENGINEERING)
+# =====================================================
+
+class FeatureEngineer:
+    """Clase para crear y transformar características para el modelo ML"""
+    
+    def __init__(self):
+        self.label_encoders = {}
+        self.scaler = StandardScaler()
+        self.fitted = False
+    
+    def create_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Crear características basadas en tiempo"""
+        df = df.copy()
+        
+        # Convertir horario a datetime para extraer características
+        if 'horario_transaccion' in df.columns:
+            # Manejar diferentes formatos de tiempo
+            def parse_time(time_str):
+                if pd.isna(time_str):
+                    return time(14, 30)  # Tiempo por defecto
+                
+                if isinstance(time_str, time):
+                    return time_str
+                
+                try:
+                    # Si es string, intentar parsear
+                    time_str = str(time_str).strip()
+                    if '.' in time_str:
+                        time_str = time_str.split('.')[0]  # Remover microsegundos
+                    
+                    parts = time_str.split(':')
+                    hour = int(parts[0]) if len(parts) > 0 else 14
+                    minute = int(parts[1]) if len(parts) > 1 else 30
+                    second = int(parts[2]) if len(parts) > 2 else 0
+                    
+                    return time(hour, minute, second)
+                except:
+                    return time(14, 30)  # Tiempo por defecto en caso de error
+            
+            df['horario_parsed'] = df['horario_transaccion'].apply(parse_time)
+            df['hour'] = df['horario_parsed'].apply(lambda x: x.hour)
+            df['minute'] = df['horario_parsed'].apply(lambda x: x.minute)
+        else:
+            df['hour'] = 14  # Hora por defecto
+            df['minute'] = 30
+        
+        # Características de tiempo
+        df['is_weekend'] = pd.to_datetime(df['fecha_transaccion']).dt.dayofweek >= 5
+        df['is_night'] = (df['hour'] >= 22) | (df['hour'] <= 6)
+        df['is_business_hours'] = (df['hour'] >= 9) & (df['hour'] <= 18)
+        df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24)
+        df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24)
+        
+        return df
+    
+    def create_amount_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Crear características basadas en montos"""
+        df = df.copy()
+        
+        # Características de monto
+        df['monto_log'] = np.log1p(df['monto'])
+        df['is_high_amount'] = df['monto'] > df['monto'].quantile(0.95)
+        df['is_low_amount'] = df['monto'] < df['monto'].quantile(0.05)
+        df['amount_zscore'] = (df['monto'] - df['monto'].mean()) / df['monto'].std()
+        
+        # Relación con saldo de cuenta
+        if 'monto_cuenta_origen' in df.columns:
+            df['monto_cuenta_origen'] = df['monto_cuenta_origen'].fillna(df['monto'] * 2)  # Estimación conservadora
+            df['amount_to_balance_ratio'] = df['monto'] / (df['monto_cuenta_origen'] + 1)
+            df['is_large_portion_balance'] = df['amount_to_balance_ratio'] > 0.5
+        else:
+            df['amount_to_balance_ratio'] = 0.1  # Ratio por defecto
+            df['is_large_portion_balance'] = False
+        
+        return df
+    
+    def create_merchant_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Crear características basadas en comerciantes"""
+        df = df.copy()
+        
+        # Características de comerciante
+        df['merchant_risk_encoded'] = df['comerciante_nivel_riesgo'].map({
+            'bajo': 0, 'medio': 1, 'alto': 2, 'crítico': 3
+        }).fillna(1)  # Medio por defecto
+        
+        # Características de categoría
+        risk_categories = ['Financiero', 'E-commerce', 'Criptomonedas', 'Casinos']
+        df['is_risk_category'] = df['categoria_comerciante'].isin(risk_categories)
+        
+        # Características geográficas
+        risk_countries = ['Nigeria', 'Rusia', 'Malta', 'USA']
+        df['is_risk_country'] = df['pais'].isin(risk_countries)
+        
+        risk_locations = ['Online', 'Desconocida']
+        df['is_online_transaction'] = df['ubicacion'].isin(risk_locations)
+        
+        return df
+    
+    def encode_categorical_features(self, df: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
+        """Codificar características categóricas"""
+        df = df.copy()
+        
+        categorical_columns = ['tipo_tarjeta', 'canal', 'categoria_comerciante', 'pais', 'ciudad']
+        
+        for col in categorical_columns:
+            if col in df.columns:
+                if fit:
+                    # Ajustar el encoder durante entrenamiento
+                    if col not in self.label_encoders:
+                        self.label_encoders[col] = LabelEncoder()
+                    
+                    # Asegurar que hay valores no nulos
+                    df[col] = df[col].fillna('unknown')
+                    self.label_encoders[col].fit(df[col].astype(str))
+                
+                # Transformar
+                df[col] = df[col].fillna('unknown')
+                
+                if col in self.label_encoders:
+                    # Manejar valores no vistos durante entrenamiento
+                    def safe_transform(value):
+                        try:
+                            return self.label_encoders[col].transform([str(value)])[0]
+                        except ValueError:
+                            # Valor no visto, usar el primer valor conocido
+                            return 0
+                    
+                    df[f'{col}_encoded'] = df[col].astype(str).apply(safe_transform)
+                else:
+                    df[f'{col}_encoded'] = 0  # Valor por defecto
+        
+        return df
+    
+    def prepare_features(self, df: pd.DataFrame, fit: bool = False) -> Tuple[np.ndarray, List[str]]:
+        """Preparar todas las características para el modelo"""
+        
+        # Aplicar todas las transformaciones
+        df = self.create_time_features(df)
+        df = self.create_amount_features(df)
+        df = self.create_merchant_features(df)
+        df = self.encode_categorical_features(df, fit=fit)
+        
+        # Seleccionar características finales
+        feature_columns = [
+            # Características de monto
+            'monto', 'monto_log', 'is_high_amount', 'is_low_amount', 'amount_zscore',
+            'amount_to_balance_ratio', 'is_large_portion_balance',
+            
+            # Características de tiempo
+            'hour', 'minute', 'is_weekend', 'is_night', 'is_business_hours',
+            'hour_sin', 'hour_cos',
+            
+            # Características de comerciante
+            'merchant_risk_encoded', 'is_risk_category', 'is_risk_country', 'is_online_transaction',
+            
+            # Características categóricas codificadas
+            'tipo_tarjeta_encoded', 'canal_encoded', 'categoria_comerciante_encoded',
+            'pais_encoded', 'ciudad_encoded',
+            
+            # Características adicionales si están disponibles
+            'distancia_ubicacion_usual'
+        ]
+        
+        # Filtrar columnas que existen
+        available_features = [col for col in feature_columns if col in df.columns]
+        
+        # Llenar valores faltantes
+        feature_df = df[available_features].copy()
+        
+        # Rellenar NaN con valores apropiados
+        for col in feature_df.columns:
+            if feature_df[col].dtype in ['int64', 'float64']:
+                feature_df[col] = feature_df[col].fillna(feature_df[col].median())
+            else:
+                feature_df[col] = feature_df[col].fillna(0)
+        
+        # Escalar características numéricas si es necesario
+        if fit:
+            features_scaled = self.scaler.fit_transform(feature_df)
+            self.fitted = True
+        else:
+            if self.fitted:
+                features_scaled = self.scaler.transform(feature_df)
+            else:
+                features_scaled = feature_df.values  # No escalar si no se ha ajustado
+        
+        return features_scaled, available_features
+
+# =====================================================
+# DETECTOR DE FRAUDE PRINCIPAL
+# =====================================================
+
+class FraudDetector:
+    """Detector principal de fraude con ML"""
+    
+    def __init__(self, config: Config):
+        self.config = config
+        self.db_manager = DatabaseManager(config)
+        self.feature_engineer = FeatureEngineer()
+        self.model = None
+        self.feature_names = []
+        self.is_trained = False
+        
+        # Crear directorio de modelos
+        os.makedirs(config.MODEL_PATH, exist_ok=True)
+    
+    def train_model(self, force_retrain: bool = False) -> Dict[str, Any]:
+        """Entrenar el modelo de detección de fraude"""
+        
+        model_path = os.path.join(self.config.MODEL_PATH, self.config.FRAUD_MODEL_FILE)
+        
+        # Verificar si el modelo ya existe y no se fuerza reentrenamiento
+        if os.path.exists(model_path) and not force_retrain:
+            logger.info("🔄 Cargando modelo existente...")
+            return self.load_model()
+        
+        logger.info("🤖 Iniciando entrenamiento del modelo de ML...")
+        
+        # Cargar datos
+        df = self.db_manager.get_all_transactions()
+        
+        if len(df) < self.config.MIN_SAMPLES_FOR_TRAINING:
+            raise ValueError(f"Insuficientes datos para entrenar. Mínimo: {self.config.MIN_SAMPLES_FOR_TRAINING}, actual: {len(df)}")
+        
+        # Preparar características
+        X, feature_names = self.feature_engineer.prepare_features(df, fit=True)
+        y = df['es_fraude'].astype(int)
+        
+        self.feature_names = feature_names
+        
+        logger.info(f"📊 Preparadas {X.shape[0]} muestras con {X.shape[1]} características")
+        logger.info(f"🏷️ Distribución de clases: {y.value_counts().to_dict()}")
+        
+        # Dividir datos
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=self.config.TEST_SIZE, 
+            random_state=self.config.RANDOM_STATE, 
+            stratify=y
+        )
+        
+        # Entrenar modelo Random Forest
+        self.model = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=10,
+            min_samples_split=5,
+            min_samples_leaf=2,
+            random_state=self.config.RANDOM_STATE,
+            class_weight='balanced',  # Importante para datos desbalanceados
+            n_jobs=-1
+        )
+        
+        logger.info("🔧 Entrenando modelo Random Forest...")
+        self.model.fit(X_train, y_train)
+        
+        # Evaluar modelo
+        y_pred = self.model.predict(X_test)
+        y_pred_proba = self.model.predict_proba(X_test)[:, 1]
+        
+        # Métricas
+        auc_score = roc_auc_score(y_test, y_pred_proba)
+        report = classification_report(y_test, y_pred, output_dict=True)
+        
+        training_results = {
+            'auc_score': auc_score,
+            'classification_report': report,
+            'feature_importance': dict(zip(feature_names, self.model.feature_importances_)),
+            'training_samples': len(X_train),
+            'test_samples': len(X_test),
+            'fraud_rate': y.mean()
+        }
+        
+        logger.info(f"✅ Modelo entrenado - AUC: {auc_score:.3f}")
+        
+        # Guardar modelo
+        self.save_model()
+        self.is_trained = True
+        
+        return training_results
+    
+    def save_model(self):
+        """Guardar modelo y componentes"""
+        try:
+            # Guardar modelo principal
+            joblib.dump(self.model, os.path.join(self.config.MODEL_PATH, self.config.FRAUD_MODEL_FILE))
+            
+            # Guardar encoders y scaler
+            joblib.dump(self.feature_engineer.label_encoders, os.path.join(self.config.MODEL_PATH, self.config.ENCODERS_FILE))
+            joblib.dump(self.feature_engineer.scaler, os.path.join(self.config.MODEL_PATH, self.config.SCALER_FILE))
+            joblib.dump(self.feature_names, os.path.join(self.config.MODEL_PATH, self.config.FEATURES_FILE))
+            
+            logger.info("💾 Modelo guardado exitosamente")
+        except Exception as e:
+            logger.error(f"❌ Error guardando modelo: {e}")
+            raise
+    
+    def load_model(self) -> Dict[str, Any]:
+        """Cargar modelo existente"""
+        try:
+            # Cargar modelo principal
+            model_path = os.path.join(self.config.MODEL_PATH, self.config.FRAUD_MODEL_FILE)
+            self.model = joblib.load(model_path)
+            
+            # Cargar componentes auxiliares
+            self.feature_engineer.label_encoders = joblib.load(os.path.join(self.config.MODEL_PATH, self.config.ENCODERS_FILE))
+            self.feature_engineer.scaler = joblib.load(os.path.join(self.config.MODEL_PATH, self.config.SCALER_FILE))
+            self.feature_engineer.fitted = True
+            self.feature_names = joblib.load(os.path.join(self.config.MODEL_PATH, self.config.FEATURES_FILE))
+            
+            self.is_trained = True
+            logger.info("✅ Modelo cargado exitosamente")
+            
+            return {
+                'model_loaded': True,
+                'feature_count': len(self.feature_names),
+                'model_type': str(type(self.model).__name__)
+            }
+        except Exception as e:
+            logger.error(f"❌ Error cargando modelo: {e}")
+            raise
+    
+    def predict_single(self, transaction_data: Dict) -> Dict[str, Any]:
+        """Predecir fraude para una transacción individual"""
+        
+        if not self.is_trained:
+            raise ValueError("Modelo no entrenado. Ejecute train_model() primero.")
+        
+        # Convertir a DataFrame
+        df = pd.DataFrame([transaction_data])
+        
+        # Agregar campos faltantes con valores por defecto
+        default_values = {
+            'fecha_transaccion': date.today(),
+            'comerciante_nivel_riesgo': 'medio',
+            'comerciante_categoria_real': transaction_data.get('categoria_comerciante', 'Varios'),
+            'comerciante_tasa_fraude': 0.05,
+            'distancia_ubicacion_usual': 10.0,
+            'monto_cuenta_origen': transaction_data.get('monto', 0) * 5  # Estimación
+        }
+        
+        for key, value in default_values.items():
+            if key not in df.columns:
+                df[key] = value
+        
+        # Preparar características
+        X, _ = self.feature_engineer.prepare_features(df, fit=False)
+        
+        # Predecir
+        fraud_probability = float(self.model.predict_proba(X)[0][1])
+        is_fraud = fraud_probability >= 0.5
+        
+        # Determinar nivel de riesgo
+        if fraud_probability >= self.config.HIGH_RISK_THRESHOLD:
+            risk_level = "HIGH"
+        elif fraud_probability >= self.config.MEDIUM_RISK_THRESHOLD:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+        
+        # Generar razones de detección
+        reasons = self._generate_detection_reasons(transaction_data, fraud_probability)
+        
+        return {
+            'prediccion_fraude': is_fraud,
+            'probabilidad_fraude': fraud_probability,
+            'nivel_riesgo': risk_level,
+            'prediccion': "FRAUDE DETECTADO" if is_fraud else "TRANSACCIÓN NORMAL",
+            'transaccion_enviada': transaction_data,
+            'timestamp': datetime.now().isoformat(),
+            'razones_deteccion': reasons,
+            'confianza_modelo': float(max(fraud_probability, 1 - fraud_probability))
+        }
+    
+    def predict_database(self) -> Dict[str, Any]:
+        """Analizar todas las transacciones en la base de datos"""
+        
+        if not self.is_trained:
+            raise ValueError("Modelo no entrenado. Ejecute train_model() primero.")
+        
+        start_time = datetime.now()
+        
+        # Cargar todas las transacciones
+        df = self.db_manager.get_all_transactions()
+        
+        # Preparar características
+        X, _ = self.feature_engineer.prepare_features(df, fit=False)
+        
+        # Predecir en lotes
+        predictions = self.model.predict_proba(X)[:, 1]
+        
+        # Agregar predicciones al DataFrame
+        df['probabilidad_fraude'] = predictions
+        df['prediccion_fraude'] = predictions >= 0.5
+        df['nivel_riesgo'] = pd.cut(predictions, 
+                                   bins=[0, self.config.MEDIUM_RISK_THRESHOLD, self.config.HIGH_RISK_THRESHOLD, 1],
+                                   labels=['LOW', 'MEDIUM', 'HIGH'])
+        df['prediccion'] = df['prediccion_fraude'].map({True: 'FRAUDE', False: 'NORMAL'})
+        
+        # Filtrar solo transacciones fraudulentas detectadas
+        fraudulent_df = df[df['prediccion_fraude'] == True].copy()
+        
+        # Convertir a formato JSON serializable
+        results = []
+        for _, row in fraudulent_df.iterrows():
+            result = {
+                'id': int(row['id']),
+                'cuenta_origen_id': int(row['cuenta_origen_id']) if pd.notna(row['cuenta_origen_id']) else None,
+                'cuenta_destino_id': int(row['cuenta_destino_id']) if pd.notna(row['cuenta_destino_id']) else None,
+                'monto': float(row['monto']),
+                'comerciante': str(row['comerciante']),
+                'ubicacion': str(row['ubicacion']),
+                'tipo_tarjeta': str(row['tipo_tarjeta']),
+                'fecha_transaccion': str(row['fecha_transaccion']),
+                'horario_transaccion': str(row['horario_transaccion']),
+                'probabilidad_fraude': float(row['probabilidad_fraude']),
+                'nivel_riesgo': str(row['nivel_riesgo']),
+                'prediccion': str(row['prediccion']),
+                'es_fraude_real': bool(row['es_fraude'])  # Para comparación
+            }
+            results.append(result)
+        
+        end_time = datetime.now()
+        processing_time = (end_time - start_time).total_seconds()
+        
+        # Estadísticas
+        total_analyzed = len(df)
+        fraudulent_detected = len(fraudulent_df)
+        actual_frauds = df['es_fraude'].sum()
+        
+        return {
+            'transacciones_fraudulentas_encontradas': fraudulent_detected,
+            'total_transacciones_analizadas': total_analyzed,
+            'tiempo_procesamiento': processing_time,
+            'timestamp': end_time.isoformat(),
+            'resultados': results,
+            'resumen_estadisticas': {
+                'fraudes_reales_en_db': int(actual_frauds),
+                'fraudes_detectados': fraudulent_detected,
+                'precision_estimada': f"{(fraudulent_detected / max(actual_frauds, 1) * 100):.1f}%" if actual_frauds > 0 else "N/A",
+                'tasa_deteccion': f"{(fraudulent_detected / total_analyzed * 100):.2f}%"
+            }
+        }
+    
+    def _generate_detection_reasons(self, transaction_data: Dict, probability: float) -> List[str]:
+        """Generar razones legibles de por qué se detectó como fraude"""
+        reasons = []
+        
+        monto = transaction_data.get('monto', 0)
+        ubicacion = transaction_data.get('ubicacion', '')
+        comerciante = transaction_data.get('comerciante', '')
+        
+        if monto > 50000:
+            reasons.append(f"Monto muy alto: ${monto:,.2f}")
+        
+        if 'Online' in ubicacion or 'Desconocida' in ubicacion:
+            reasons.append("Ubicación sospechosa: transacción online o ubicación desconocida")
+        
+        if any(keyword in comerciante.lower() for keyword in ['susp', 'unknown', 'crypto', 'casino']):
+            reasons.append("Comerciante de alto riesgo")
+        
+        # Análisis de horario
+        try:
+            hour = int(transaction_data.get('horario_transaccion', '14:00:00').split(':')[0])
+            if hour <= 6 or hour >= 22:
+                reasons.append(f"Horario inusual: {hour:02d}:xx")
+        except:
+            pass
+        
+        if probability > 0.8:
+            reasons.append("Patrón altamente sospechoso detectado por IA")
+        
+        if not reasons:
+            reasons.append("Combinación de factores de riesgo menores")
+        
+        return reasons
+
+# =====================================================
+# APLICACIÓN FASTAPI
+# =====================================================
+
+# Inicializar FastAPI
 app = FastAPI(
-    title="Fraud Detection API - Hybrid AI System",
-    description="API avanzada para detectar fraude con análisis comportamental y patrones evidentes usando IA híbrida",
-    version="2.0.0"
+    title="🛡️ API de Detección de Fraude con ML",
+    description="Sistema inteligente de detección de fraude financiero usando Random Forest",
+    version="1.0.0"
 )
 
+# Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Temporalmente permite todos los orígenes para debug
+    allow_origins=["*"],  # En producción, especificar dominios exactos
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Instancia global del detector híbrido y estado del modelo
-detector = HybridFraudDetector()
-modelo_entrenado = False
+# Instancia global del detector
+fraud_detector = FraudDetector(config)
 
-# --- Pydantic Model para una nueva transacción ---
-class Transaction(BaseModel):
-    """
-    Define la estructura de una nueva transacción que se enviará a la API.
-    """
-    monto: float
-    comerciante: str
-    ubicacion: str
-    tipo_tarjeta: str
-    horario_transaccion: str # Se usa un string para recibir la hora (ej: "14:30:00")
+# =====================================================
+# ENDPOINTS DE LA API
+# =====================================================
 
-# --- Endpoints de la API ---
+@app.on_event("startup")
+async def startup_event():
+    """Inicialización al arrancar la aplicación"""
+    logger.info("🚀 Iniciando API de Detección de Fraude...")
+    
+    # Verificar conexión a base de datos
+    if not fraud_detector.db_manager.test_connection():
+        raise Exception("No se pudo conectar a la base de datos")
+    
+    # Cargar o entrenar modelo
+    try:
+        fraud_detector.load_model()
+        logger.info("✅ Modelo cargado desde archivo")
+    except:
+        logger.info("🔄 Modelo no encontrado, entrenando nuevo modelo...")
+        try:
+            training_results = fraud_detector.train_model()
+            logger.info(f"✅ Modelo entrenado exitosamente - AUC: {training_results['auc_score']:.3f}")
+        except Exception as e:
+            logger.error(f"❌ Error entrenando modelo: {e}")
+            raise
+    
+    logger.info("🎯 API lista para detectar fraudes!")
+
+@app.get("/")
+async def root():
+    """Endpoint raíz con información de la API"""
+    return {
+        "message": "🛡️ API de Detección de Fraude con ML",
+        "version": "1.0.0",
+        "status": "active",
+        "model_trained": fraud_detector.is_trained,
+        "endpoints": {
+            "predict_single": "/predict_single_transaction (POST)",
+            "predict_database": "/api/fraude/predict_all_from_db (GET)",
+            "train_model": "/train_model (POST)",
+            "health": "/health (GET)"
+        }
+    }
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for Docker health checks"""
-    try:
-        return {
-            "status": "healthy",
-            "service": "fraude-api",
-            "timestamp": datetime.now().isoformat(),
-            "modelo_entrenado": modelo_entrenado
-        }
-    except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}, 503
+    """Verificación de estado de salud"""
+    db_ok = fraud_detector.db_manager.test_connection()
+    
+    return {
+        "status": "healthy" if db_ok and fraud_detector.is_trained else "unhealthy",
+        "database_connection": "ok" if db_ok else "error",
+        "model_status": "trained" if fraud_detector.is_trained else "not_trained",
+        "timestamp": datetime.now().isoformat()
+    }
 
-# --- Evento de inicio: entrena el modelo automáticamente ---
-@app.on_event("startup")
-def startup_event():
+@app.post("/predict_single_transaction", response_model=PredictionResponse)
+async def predict_single_transaction(transaction: TransactionInput):
     """
-    🚀 Entrena automáticamente el modelo al iniciar la API.
-    Los datos ya fueron generados por el script SQL inicial.
+    🔍 Analizar una transacción individual para detectar fraude
+    
+    Recibe los datos de una transacción y devuelve:
+    - Probabilidad de fraude (0.0 a 1.0)
+    - Clasificación de riesgo (LOW/MEDIUM/HIGH)  
+    - Razones de la detección
     """
-    global modelo_entrenado
     try:
-        print("🧠 === INICIANDO SISTEMA DE DETECCIÓN DE FRAUDE ===")
-        print("📊 Verificando disponibilidad de datos de entrenamiento...")
+        # Convertir modelo Pydantic a dict
+        transaction_dict = transaction.dict()
         
-        # Verificar si hay transacciones en la base de datos
-        conn = get_db_connection()
-        if not conn:
-            print("❌ Error: No se pudo conectar a la base de datos")
-            return
+        # Predecir
+        result = fraud_detector.predict_single(transaction_dict)
         
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM transacciones")
-            total_transacciones = cur.fetchone()[0]
-            
-            cur.execute("SELECT COUNT(*) FROM transacciones WHERE es_fraude = TRUE")
-            transacciones_fraude = cur.fetchone()[0]
-            
-            cur.execute("SELECT COUNT(*) FROM transacciones WHERE es_fraude = FALSE")
-            transacciones_normales = cur.fetchone()[0]
-            
-            cur.close()
-        except Exception as e:
-            print(f"❌ Error verificando datos: {e}")
-            return
-        finally:
-            conn.close()
+        logger.info(f"🔍 Transacción analizada: ${transaction.monto} - Fraude: {result['prediccion_fraude']} ({result['probabilidad_fraude']:.1%})")
         
-        print(f"📈 Datos disponibles: {total_transacciones} transacciones totales")
-        print(f"� Fraudes: {transacciones_fraude} | ✅ Normales: {transacciones_normales}")
-        
-        if total_transacciones == 0:
-            print("⚠️  Advertencia: No hay transacciones en la base de datos")
-            print("💡 Asegúrate de que el script SQL 03-fraud-samples.sql se haya ejecutado correctamente")
-            return
-        
-        if total_transacciones < 100:
-            print("⚠️  Advertencia: Pocos datos para entrenamiento óptimo")
-            print("🎯 Se recomienda tener al menos 1,000 transacciones")
-        
-        # Entrenar el modelo con los datos disponibles
-        print("🤖 Iniciando entrenamiento del modelo híbrido...")
-        transactions_data = fetch_transactions()
-        
-        if transactions_data is not None and not transactions_data.empty:
-            detector.train_model(transactions_data)
-            modelo_entrenado = True
-            print("✅ Modelo híbrido entrenado exitosamente!")
-            print(f"🎯 Entrenado con {len(transactions_data)} transacciones")
-            print("🚀 API lista para detectar fraude en tiempo real")
-        else:
-            print("❌ No se pudieron obtener datos de transacciones para entrenamiento")
-            modelo_entrenado = False
-            
-    except Exception as e:
-        print(f"❌ Error durante el entrenamiento inicial: {e}")
-        modelo_entrenado = False
+        return PredictionResponse(**result)
         
     except Exception as e:
-        print(f"❌ Error durante la inicialización: {e}")
-        print("🔧 El modelo se puede entrenar manualmente cuando sea necesario.")
-        modelo_entrenado = False
+        logger.error(f"❌ Error prediciendo transacción individual: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-@app.get("/")
-def root():
-    return {"message": "Bienvenido a la API de Detección de Fraude Híbrida con IA. Sistema con análisis comportamental y patrones evidentes listo para predecir."}
-
-@app.post("/retrain")
-def retrain_model():
+@app.get("/api/fraude/predict_all_from_db", response_model=DatabaseAnalysisResponse)
+async def predict_all_from_database():
     """
-    Re-entrena el modelo con los datos actuales de la base de datos.
+    🗄️ Analizar todas las transacciones en la base de datos
+    
+    Procesa masivamente todas las transacciones y devuelve:
+    - Lista de transacciones fraudulentas detectadas
+    - Estadísticas del análisis
+    - Tiempo de procesamiento
     """
-    global modelo_entrenado
     try:
-        print("� Re-entrenando modelo con datos actuales...")
+        logger.info("📊 Iniciando análisis masivo de base de datos...")
         
-        # Obtener datos de transacciones
-        transactions_data = fetch_transactions()
+        result = fraud_detector.predict_database()
         
-        if transactions_data is None or transactions_data.empty:
-            raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos")
+        logger.info(f"✅ Análisis completado: {result['transacciones_fraudulentas_encontradas']} fraudes detectados de {result['total_transacciones_analizadas']} transacciones")
         
-        print(f"📊 Datos encontrados: {len(transactions_data)} transacciones")
+        return DatabaseAnalysisResponse(**result)
         
-        # Verificar distribución
-        fraud_count = sum(1 for t in transactions_data if t[9])  # Columna es_fraude
-        normal_count = len(transactions_data) - fraud_count
+    except Exception as e:
+        logger.error(f"❌ Error analizando base de datos: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@app.post("/train_model")
+async def retrain_model(force: bool = False):
+    """
+    🤖 Reentrenar el modelo de detección de fraude
+    
+    Parámetros:
+    - force: Si es True, fuerza el reentrenamiento aunque ya exista un modelo
+    """
+    try:
+        logger.info("🔄 Iniciando reentrenamiento del modelo...")
         
-        # Re-entrenar el modelo
-        detector.train_model(transactions_data)
-        modelo_entrenado = True
-        
-        print("✅ Modelo re-entrenado exitosamente!")
+        training_results = fraud_detector.train_model(force_retrain=force)
         
         return {
-            "message": "Modelo re-entrenado exitosamente",
-            "total_transacciones": len(transactions_data),
-            "transacciones_fraude": fraud_count,
-            "transacciones_normales": normal_count,
-            "modelo_listo": modelo_entrenado
-        }
-        
-    except Exception as e:
-        modelo_entrenado = False
-        raise HTTPException(status_code=500, detail=f"Error re-entrenando modelo: {str(e)}")
-
-@app.post("/predict_single_transaction")
-def predict_single_transaction(transaction: Transaction):
-    """
-    Predice si una única transacción es fraudulenta.
-    VERSIÓN CORREGIDA Y FUNCIONAL
-    """
-    if not modelo_entrenado:
-        raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado. Intente más tarde.")
-
-    try:
-        print(f"🔍 Procesando transacción: monto={transaction.monto} comerciante='{transaction.comerciante}' ubicacion='{transaction.ubicacion}' tipo_tarjeta='{transaction.tipo_tarjeta}' horario_transaccion='{transaction.horario_transaccion}'")
-        
-        # === MAPEO SIMPLE Y DIRECTO ===
-        # Mapear comerciantes solo si es necesario
-        comerciante_mapeado = transaction.comerciante
-        if not comerciante_mapeado.startswith('COM'):
-            # Si no es un código COM, usar uno por defecto basado en el tipo
-            if any(word in transaction.comerciante.lower() for word in ['tech', 'online', 'crypto', 'casino']):
-                comerciante_mapeado = 'COM019'  # Riesgo medio
-            else:
-                comerciante_mapeado = 'COM001'  # Bajo riesgo
-        
-        # Mapear ubicaciones
-        ubicacion_mapeada = transaction.ubicacion
-        if transaction.ubicacion.upper() in ['USA', 'US', 'UNITED STATES']:
-            ubicacion_mapeada = 'Miami'
-        elif transaction.ubicacion.lower() in ['online', 'internet']:
-            ubicacion_mapeada = 'Online'
-        
-        # Mapear tipo de tarjeta
-        tipo_tarjeta_mapeado = transaction.tipo_tarjeta
-        if transaction.tipo_tarjeta.lower() in ['visa', 'mastercard', 'amex']:
-            tipo_tarjeta_mapeado = 'Crédito'
-        elif transaction.tipo_tarjeta.lower() in ['debit', 'debito']:
-            tipo_tarjeta_mapeado = 'Débito'
-        
-        print(f"🔄 Transacción mapeada: comerciante={comerciante_mapeado}, ubicacion={ubicacion_mapeada}, tipo_tarjeta={tipo_tarjeta_mapeado}")
-        
-        # === CREAR ESTRUCTURA DE DATOS COMPATIBLE ===
-        # Usar el formato de diccionario que funciona correctamente
-        transaction_dict = {
-            'id': 99999,
-            'cuenta_origen_id': 1001,
-            'cuenta_destino_id': None,
-            'monto': float(transaction.monto),
-            'comerciante': comerciante_mapeado,
-            'categoria_comerciante': 'E-commerce',
-            'ubicacion': ubicacion_mapeada,
-            'ciudad': 'Buenos Aires',
-            'pais': 'Argentina',
-            'tipo_tarjeta': tipo_tarjeta_mapeado,
-            'horario_transaccion': str(transaction.horario_transaccion),
-            'fecha_transaccion': str(pd.Timestamp.now().date()),
-            'canal': 'online',
-            'distancia_ubicacion_usual': 0.0,
-            'es_fraude': False
-        }
-        
-        # === CREAR LISTA EN FORMATO COMPATIBLE ===
-        transaction_data = [transaction_dict]
-        
-        print(f"📊 Datos preparados para análisis: {transaction_dict}")
-        
-        # === USAR EL MÉTODO predict_batch QUE YA FUNCIONA ===
-        predictions, probabilities = detector.predict_batch(transaction_data)
-        
-        if not predictions or not probabilities:
-            print("❌ Error: predicciones vacías del modelo")
-            raise HTTPException(status_code=500, detail="Error en la predicción del modelo")
-        
-        # === EXTRAER RESULTADOS ===
-        is_fraud = bool(predictions[0])
-        
-        # Manejar diferentes formatos de probabilidades
-        if isinstance(probabilities[0], (list, tuple, np.ndarray)):
-            if len(probabilities[0]) > 1:
-                fraud_probability = float(probabilities[0][1])  # Probabilidad de fraude
-            else:
-                fraud_probability = float(probabilities[0][0])
-        else:
-            fraud_probability = float(probabilities[0])
-        
-        print(f"🎯 Resultado: fraude={is_fraud}, probabilidad={fraud_probability:.4f}")
-        
-        # === DETERMINAR NIVEL DE CONFIANZA ===
-        if fraud_probability > 0.8:
-            nivel_confianza = "Muy Alta"
-            riesgo = "Crítico"
-        elif fraud_probability > 0.6:
-            nivel_confianza = "Alta"
-            riesgo = "Alto"
-        elif fraud_probability > 0.4:
-            nivel_confianza = "Media"
-            riesgo = "Medio"
-        elif fraud_probability > 0.2:
-            nivel_confianza = "Baja"
-            riesgo = "Bajo"
-        else:
-            nivel_confianza = "Muy Baja"
-            riesgo = "Mínimo"
-        
-        # === RESPUESTA ESTRUCTURADA ===
-        response = {
-            "resultado": "🚨 Fraude detectado" if is_fraud else "✅ Transacción legítima",
-            "es_fraude": is_fraud,
-            "probabilidad_fraude": round(fraud_probability, 4),
-            "probabilidad_porcentaje": f"{round(fraud_probability * 100, 2)}%",
-            "nivel_confianza": nivel_confianza,
-            "riesgo_estimado": riesgo,
-            "umbral_modelo": getattr(detector, 'optimal_threshold', 0.5),
-            "detalles_analisis": {
-                "monto_original": transaction.monto,
-                "comerciante_original": transaction.comerciante,
-                "comerciante_procesado": comerciante_mapeado,
-                "ubicacion_original": transaction.ubicacion,
-                "ubicacion_procesada": ubicacion_mapeada,
-                "tipo_tarjeta_original": transaction.tipo_tarjeta,
-                "tipo_tarjeta_procesado": tipo_tarjeta_mapeado,
-                "horario": str(transaction.horario_transaccion)
-            },
-            "recomendacion": {
-                "accion": "🚨 BLOQUEAR TRANSACCIÓN" if is_fraud else "✅ APROBAR TRANSACCIÓN",
-                "motivo": f"Probabilidad de fraude: {round(fraud_probability * 100, 2)}%",
-                "nivel_alerta": "CRÍTICA" if fraud_probability > 0.8 else "ALTA" if fraud_probability > 0.6 else "MEDIA" if fraud_probability > 0.3 else "BAJA"
-            },
+            "message": "✅ Modelo reentrenado exitosamente",
+            "training_results": training_results,
             "timestamp": datetime.now().isoformat()
         }
         
-        print(f"📤 Respuesta exitosa: {response['resultado']}")
-        return response
-        
-    except HTTPException:
-        # Re-lanzar HTTPExceptions sin modificar
-        raise
     except Exception as e:
-        print(f"❌ Error en predict_single_transaction endpoint: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error procesando la transacción: {str(e)}"
-        )
+        logger.error(f"❌ Error reentrenando modelo: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
-
-@app.options("/predict_all_from_db")
-def options_predict_all():
-    """Handle preflight requests for CORS"""
-    return {}
-
-@app.get("/predict_all_from_db")
-def predict_all_from_db():
-    """
-    Predice el fraude usando todas las transacciones actuales de la base de datos.
-    Retorna solo las transacciones identificadas como fraudulentas.
-    """
-    if not modelo_entrenado:
-        raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado.")
-
-    transactions_df = fetch_transactions()  # ← Cambiar nombre para claridad
-    if transactions_df is None or transactions_df.empty:
-        raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
-
-    try:
-        print(f"🔍 Procesando {len(transactions_df)} transacciones...")
-        
-        # ✅ USAR DIRECTAMENTE EL DATAFRAME, NO CONVERTIR A LISTA
-        # El problema era que convertir a lista perdía los nombres de columnas
-        predictions, probabilities = detector.predict_batch(transactions_df)
-        
-        if not predictions:
-            raise HTTPException(status_code=500, detail="Error procesando las transacciones.")
-        
-        # DEBUG: Verificar las predicciones
-        fraud_predictions = sum(predictions)
-        max_probability = max([max(p) for p in probabilities]) if probabilities else 0
-        min_probability = min([min(p) for p in probabilities]) if probabilities else 0
-        
-        print(f"🔍 DEBUG - Predicciones de fraude: {fraud_predictions}/{len(predictions)}")
-        print(f"🔍 DEBUG - Probabilidad máxima: {max_probability}")
-        print(f"🔍 DEBUG - Probabilidad mínima: {min_probability}")
-        print(f"🔍 DEBUG - Umbral del modelo: {getattr(detector, 'optimal_threshold', 'No definido')}")
-        
-        # Procesar resultados usando el DataFrame
-        results = []
-        fraud_count_real = 0
-        fraud_count_predicted = 0
-        
-        for i in range(len(transactions_df)):
-            # Acceder a los datos usando iloc (pandas)
-            transaction_row = transactions_df.iloc[i]
-            
-            is_fraud_predicted = bool(predictions[i])
-            is_fraud_real = bool(transaction_row['es_fraude'])  # ← Usar nombre de columna
-            probability = float(probabilities[i][1]) if len(probabilities[i]) > 1 else float(probabilities[i][0])
-            
-            if is_fraud_real:
-                fraud_count_real += 1
-            if is_fraud_predicted:
-                fraud_count_predicted += 1
-            
-            # Mostrar las transacciones predichas como fraudulentas
-            if is_fraud_predicted:
-                result = {
-                    "id": int(transaction_row['id']),
-                    "monto": float(transaction_row['monto']),
-                    "comerciante": transaction_row['comerciante'],
-                    "ubicacion": transaction_row['ubicacion'],
-                    "tipo_tarjeta": transaction_row['tipo_tarjeta'],
-                    "horario_transaccion": str(transaction_row['horario_transaccion']),
-                    "fecha_transaccion": str(transaction_row['fecha_transaccion']),
-                    "prediccion": "Fraude detectado",
-                    "es_fraude_predicho": is_fraud_predicted,
-                    "es_fraude_real": is_fraud_real,
-                    "probabilidad_fraude": round(probability, 3)
-                }
-                results.append(result)
-        
-        print(f"🔍 DEBUG - Fraudes reales en DB: {fraud_count_real}")
-        print(f"🔍 DEBUG - Fraudes predichos: {fraud_count_predicted}")
-        
-        return {
-            "transacciones_fraudulentas_encontradas": len(results),
-            "total_transacciones_analizadas": len(transactions_df),
-            "fraudes_reales_en_db": fraud_count_real,
-            "fraudes_predichos_por_modelo": fraud_count_predicted,
-            "umbral_modelo": getattr(detector, 'optimal_threshold', 'No definido'),
-            "resultados": results
+@app.get("/model_info")
+async def get_model_info():
+    """Obtener información del modelo actual"""
+    if not fraud_detector.is_trained:
+        return {"error": "Modelo no entrenado"}
+    
+    return {
+        "model_type": "RandomForestClassifier",
+        "is_trained": fraud_detector.is_trained,
+        "feature_count": len(fraud_detector.feature_names),
+        "feature_names": fraud_detector.feature_names,
+        "thresholds": {
+            "high_risk": config.HIGH_RISK_THRESHOLD,
+            "medium_risk": config.MEDIUM_RISK_THRESHOLD
         }
-        
-    except Exception as e:
-        print(f"❌ Error procesando transacciones: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error procesando transacciones: {str(e)}")
+    }
 
-@app.get("/predict_all_transactions")
-def predict_all_transactions():
-    """
-    Predice fraude para todas las transacciones y retorna tanto fraudulentas como normales
-    con sus respectivas probabilidades.
-    """
-    if not modelo_entrenado:
-        raise HTTPException(status_code=400, detail="El modelo no ha sido entrenado.")
+# =====================================================
+# EJECUCIÓN PRINCIPAL
+# =====================================================
 
-    transactions_data = fetch_transactions()
-    if transactions_data is None or transactions_data.empty:
-        raise HTTPException(status_code=404, detail="No se encontraron transacciones en la base de datos.")
-
-    try:
-        print(f"🔍 Procesando {len(transactions_data)} transacciones...")
-        
-        # Usar el método predict_batch que aplica todas las transformaciones correctamente
-        predictions, probabilities = detector.predict_batch(transactions_data)
-        
-        if not predictions:
-            raise HTTPException(status_code=500, detail="Error procesando las transacciones.")
-        
-        # Procesar resultados
-        all_results = []
-        fraud_count = 0
-        
-        for i, transaction in enumerate(transactions_data):
-            is_fraud = bool(predictions[i])
-            probability = float(probabilities[i][1]) if len(probabilities[i]) > 1 else float(probabilities[i][0])
-            
-            if is_fraud:
-                fraud_count += 1
-            
-            result = {
-                "id": int(transaction[0]),  # id
-                "monto": float(transaction[3]),  # monto
-                "comerciante": transaction[4],  # comerciante
-                "ubicacion": transaction[5],  # ubicacion
-                "tipo_tarjeta": transaction[6],  # tipo_tarjeta
-                "horario_transaccion": str(transaction[7]),  # horario_transaccion
-                "fecha_transaccion": str(transaction[8]),  # fecha_transaccion
-                "prediccion": "Fraude detectado" if is_fraud else "Transacción normal",
-                "es_fraude_predicho": is_fraud,
-                "probabilidad_fraude": round(probability, 3),
-                "es_fraude_real": bool(transaction[9])  # es_fraude real para comparar
-            }
-            all_results.append(result)
-        
-        return {
-            "total_transacciones": len(all_results),
-            "transacciones_fraudulentas_detectadas": fraud_count,
-            "transacciones_normales": len(all_results) - fraud_count,
-            "tasa_fraude_detectada": round((fraud_count / len(all_results)) * 100, 2) if all_results else 0,
-            "resultados": all_results
-        }
-        
-    except Exception as e:
-        print(f"❌ Error procesando transacciones: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error procesando transacciones: {str(e)}")
+if __name__ == "__main__":
+    # Ejecutar servidor
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=8001,  # Puerto definido en .env para FRAUDE_API_PORT
+        reload=True,
+        log_level="info"
+    )
