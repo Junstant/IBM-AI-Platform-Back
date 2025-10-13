@@ -172,6 +172,9 @@ class AdvancedFraudDetector:
         ]
         df = pd.DataFrame(transactions, columns=columns)
         
+        if 'monto' in df.columns:
+            df['monto'] = pd.to_numeric(df['monto'], errors='coerce').fillna(0)
+
         print(f"📊 Dataset inicial: {len(df)} transacciones")
         
         # Información del dataset
@@ -211,6 +214,7 @@ class AdvancedFraudDetector:
         
         # Preparar características
         X = self._advanced_feature_engineering(data)
+        X = X.fillna(0)
         
         print(f"🎯 Entrenando con {len(X)} muestras y {len(X.columns)} características")
         
