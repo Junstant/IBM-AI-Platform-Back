@@ -15,8 +15,9 @@ from connection_manager import connection_manager
 from config import get_available_models
 from smart_config import get_db_connection_params, DB1_NAME
 
-# Carga las variables de entorno del archivo .env
-load_dotenv()
+# Carga las variables de entorno del archivo .env desde el directorio padre
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+load_dotenv(dotenv_path=env_path)
 
 # --- Modelos Pydantic para la validación de datos ---
 # Definen la estructura esperada de las solicitudes (requests) y respuestas (responses)

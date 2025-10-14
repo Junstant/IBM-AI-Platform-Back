@@ -6,7 +6,9 @@ Configuración centralizada para múltiples modelos LLM y bases de datos
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Cargar .env desde el directorio padre del proyecto
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+load_dotenv(dotenv_path=env_path)
 
 # Obtener configuración desde variables de entorno
 DEFAULT_HOST = os.getenv("LLM_HOST")
