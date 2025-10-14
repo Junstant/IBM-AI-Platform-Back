@@ -9,9 +9,9 @@ class LlamaInterface:
 
     def __init__(self, host=None, port=None):
         """Initialize the LLM Runtime interface with host and port."""
-        # CORREGIR ESTO - no usar puerto por defecto incorrecto
-        self.host = host or "127.0.0.1"  # ← CAMBIAR de 150.230.11.162 a localhost
-        self.port = port or "8086"  # ← OK, pero debe venir del config
+        # No usar defaults hardcodeados - siempre pasar host y port correctos
+        self.host = host
+        self.port = port
         print(f"DEBUG: LlamaInterface inicializada - {self.host}:{self.port}")
 
     async def get_llama_response_async(self, prompt):
