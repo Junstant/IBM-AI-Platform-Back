@@ -43,6 +43,11 @@ def test_databases():
         
         # Probar get_available_databases
         print("📊 Paso 3: Obtener bases de datos con información completa...")
+        print(f"DEBUG: Estado del connection_manager antes de get_available_databases:")
+        print(f"   - hasattr discovered_databases: {hasattr(connection_manager, 'discovered_databases')}")
+        if hasattr(connection_manager, 'discovered_databases'):
+            print(f"   - discovered_databases: {connection_manager.discovered_databases}")
+        
         databases = connection_manager.get_available_databases()
         print(f"   Resultado: {databases}")
         print(f"   Tipo: {type(databases)}")

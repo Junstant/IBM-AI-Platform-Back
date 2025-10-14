@@ -44,10 +44,12 @@ class ConnectionManager:
 
     def get_available_databases(self) -> List[Dict[str, Any]]:
         """Devuelve las bases de datos descubiertas en formato estructurado."""
-        if not hasattr(self, 'discovered_databases'):
+        if not hasattr(self, 'discovered_databases') or not self.discovered_databases:
+            print("DEBUG: Descubriendo bases de datos...")
             self.discovered_databases = self.discover_databases()
         
         print(f"DEBUG: Procesando {len(self.discovered_databases)} bases de datos descubiertas")
+        print(f"DEBUG: Lista de bases de datos: {self.discovered_databases}")
         
         # Convertir lista de nombres a objetos estructurados
         databases = []
