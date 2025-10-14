@@ -12,8 +12,8 @@ class DatabaseAnalyzer:
             "dbname": dbname,
             "user": user,
             "password": password,
-            "host": os.getenv("DB_HOST"),  # Usar host desde .env
-            "port": os.getenv("DB_PORT")
+            "host": host,  # Usar parámetro pasado
+            "port": str(port)  # Asegurar que sea string
         }
         self.connection = None
         self.schema_info = {}
@@ -22,10 +22,12 @@ class DatabaseAnalyzer:
     def connect(self) -> Tuple[bool, str]:
         """Establish connection to the database."""
         try:
+            print(f"DEBUG: Intentando conectar con parámetros: host={self.connection_params['host']}, port={self.connection_params['port']}, dbname={self.connection_params['dbname']}, user={self.connection_params['user']}")
             self.connection = psycopg2.connect(**self.connection_params)
             return True, "Connected to PostgreSQL database successfully!"
         except Exception as e:
-            return False, f"Error connecting to PostgreSQL database: {e}"
+            error_msg = f"Error connecting to PostgreSQL database: {e}\nParámetros: host={self.connection_params['host']}, port={self.connection_params['port']}, dbname={self.connection_params['dbname']}, user={self.connection_params['user']}"
+            return False, error_msg
 
     def close(self) -> str:
         """Close the database connection."""

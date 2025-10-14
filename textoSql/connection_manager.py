@@ -8,7 +8,8 @@ import psycopg2.extras
 from typing import Dict, List, Tuple, Any, Optional
 from llama_interface import LlamaInterface
 from database_analyzer import DatabaseAnalyzer
-from config import DATABASE_CONFIG, get_model_config, get_available_models
+from config import get_model_config, get_available_models
+from smart_config import get_db_connection_params
 
 class ConnectionManager:
     """Administra conexiones dinámicas a múltiples BDs y modelos LLM"""
@@ -24,13 +25,8 @@ class ConnectionManager:
         """Descubre todas las bases de datos disponibles en el servidor PostgreSQL."""
         try:
             import psycopg2
-            conn = psycopg2.connect(
-                dbname="postgres",
-                user=DATABASE_CONFIG["user"],
-                password=DATABASE_CONFIG["password"],
-                host=DATABASE_CONFIG["host"],  # Usar host desde .env
-                port=DATABASE_CONFIG["port"]
-            )
+            db_params = get_db_connection_params("postgres")
+            conn = psycopg2.connect(**db_params)
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT datname
@@ -59,12 +55,13 @@ class ConnectionManager:
     def get_database_analyzer(self, database_id: str) -> DatabaseAnalyzer:
         """Obtiene o crea un analizador para una base de datos específica"""
         if database_id not in self.db_analyzers:
+            db_params = get_db_connection_params(database_id)
             analyzer = DatabaseAnalyzer(
-                dbname=database_id,
-                user=DATABASE_CONFIG["user"],
-                password=DATABASE_CONFIG["password"],
-                host=DATABASE_CONFIG["host"],
-                port=DATABASE_CONFIG["port"]
+                dbname=db_params["dbname"],
+                user=db_params["user"],
+                password=db_params["password"],
+                host=db_params["host"],
+                port=db_params["port"]
             )
             
             # Conectar y verificar

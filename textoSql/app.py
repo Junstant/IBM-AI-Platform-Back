@@ -13,6 +13,7 @@ from llama_interface import LlamaInterface
 from utils import extract_sql_from_response
 from connection_manager import connection_manager
 from config import get_available_models
+from smart_config import get_db_connection_params, DB1_NAME
 
 # Carga las variables de entorno del archivo .env
 load_dotenv()
@@ -97,13 +98,14 @@ async def startup_event():
     Se ejecuta cuando la aplicación se inicia.
     Inicializa los objetos principales y los almacena en el estado de la app.
     """
-    # 1. Inicializar el analizador de la base de datos
+    # 1. Inicializar el analizador de la base de datos usando configuración inteligente
+    db_params = get_db_connection_params(DB1_NAME)
     db_analyzer = DatabaseAnalyzer(
-        dbname=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT"),
+        dbname=db_params["dbname"],
+        user=db_params["user"],
+        password=db_params["password"],
+        host=db_params["host"],
+        port=db_params["port"],
     )
     
     # 2. Conectar a la BD y analizar el esquema
