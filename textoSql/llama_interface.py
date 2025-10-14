@@ -35,10 +35,6 @@ class LlamaInterface:
 
         return full_response
 
-    def get_llama_response(self, prompt):
-        """Synchronous wrapper for get_llama_response_async."""
-        return asyncio.run(self.get_llama_response_async(prompt))
-
     async def explain_results_async(self, question: str, sql_query: str, results: List[Dict[str, Any]], error: str = None) -> str:
         """Explain the results in natural language."""
         if error:
@@ -70,7 +66,3 @@ If the results contain a lot of data, summarize the key points.
 
         explanation = await self.get_llama_response_async(prompt)
         return explanation.strip()
-
-    def explain_results(self, question: str, sql_query: str, results: List[Dict[str, Any]], error: str = None) -> str:
-        """Synchronous wrapper for explain_results_async."""
-        return asyncio.run(self.explain_results_async(question, sql_query, results, error))
