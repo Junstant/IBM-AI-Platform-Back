@@ -11,7 +11,7 @@ env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 load_dotenv(dotenv_path=env_path)
 
 # Obtener configuración desde variables de entorno
-DEFAULT_HOST = os.getenv("LLM_HOST")
+DEFAULT_HOST = os.getenv("VITE_API_HOST", "150.230.11.162")  # Usar la IP del servidor
 DB_HOST = os.getenv("DB_HOST")
 
 # Configuración de modelos LLM disponibles
@@ -90,8 +90,8 @@ def get_available_models():
     """
     Configuración usando variables de entorno
     """
-    # Usar variable de entorno para el host
-    host_ip = DEFAULT_HOST
+    # Usar la IP del servidor para todos los modelos LLM
+    host_ip = DEFAULT_HOST or "150.230.11.162"
     
     return [
         {

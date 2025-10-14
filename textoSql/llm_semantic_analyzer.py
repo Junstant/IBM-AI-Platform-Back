@@ -8,10 +8,10 @@ from typing import List, Dict, Any, Optional
 class LLMSemanticAnalyzer:
     """Class to analyze and infer column semantics using LLM with enhanced context awareness."""
 
-    def __init__(self, llm_service_host=os.getenv("LLM_HOST"), llm_service_port=os.getenv("LLM_PORT")):
+    def __init__(self, llm_service_host=None, llm_service_port=None):
         """Initialize the semantic analyzer with LLM service connection details."""
-        self.llm_service_host = llm_service_host
-        self.llm_service_port = llm_service_port
+        self.llm_service_host = llm_service_host or os.getenv("VITE_API_HOST", "150.230.11.162")
+        self.llm_service_port = llm_service_port or "8095"
 
     async def get_llm_response(self, prompt: str) -> str:
         """Get a response from the LLM Runtime API."""

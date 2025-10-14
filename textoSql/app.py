@@ -167,12 +167,18 @@ async def get_databases():
     Devuelve una lista de todas las bases de datos disponibles en el servidor PostgreSQL.
     """
     try:
+        print("🔍 Iniciando get_databases...")
         databases = connection_manager.get_available_databases()
-        return {
+        print(f"📊 Bases de datos encontradas: {len(databases)}")
+        print(f"📊 Datos: {databases}")
+        result = {
             "databases": databases,
             "total_count": len(databases)
         }
+        print(f"📊 Resultado final: {result}")
+        return result
     except Exception as e:
+        print(f"❌ Error en get_databases: {e}")
         raise HTTPException(status_code=500, detail=f"Error al obtener las bases de datos: {e}")
 
 @app.get("/models", summary="Lista los modelos LLM disponibles", tags=["📚 Recursos"])

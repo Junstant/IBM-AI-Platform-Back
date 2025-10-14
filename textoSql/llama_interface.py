@@ -7,10 +7,10 @@ from typing import List, Dict, Any
 class LlamaInterface:
     """Minimal interface for LLM Runtime API."""
 
-    def __init__(self, host=os.getenv("LLM_HOST"), port=os.getenv("LLM_PORT")):
+    def __init__(self, host=None, port=None):
         """Initialize the LLM Runtime interface with host and port."""
-        self.host = host
-        self.port = port
+        self.host = host or os.getenv("VITE_API_HOST", "150.230.11.162")
+        self.port = port or "8095"  # Puerto por defecto
 
     async def get_llama_response_async(self, prompt):
         """Get a response from the LLM Runtime API asynchronously."""
