@@ -47,12 +47,17 @@ class ConnectionManager:
         if not hasattr(self, 'discovered_databases'):
             self.discovered_databases = self.discover_databases()
         
+        print(f"DEBUG: Procesando {len(self.discovered_databases)} bases de datos descubiertas")
+        
         # Convertir lista de nombres a objetos estructurados
         databases = []
         for db_name in self.discovered_databases:
             try:
+                print(f"DEBUG: Procesando base de datos: {db_name}")
                 # Intentar obtener información adicional de la BD
                 db_params = get_db_connection_params(db_name)
+                print(f"DEBUG: Parámetros de conexión para {db_name}: {db_params}")
+                
                 conn = psycopg2.connect(**db_params)
                 cursor = conn.cursor()
                 
@@ -73,25 +78,32 @@ class ConnectionManager:
                 cursor.close()
                 conn.close()
                 
-                databases.append({
+                db_info = {
                     "id": db_name,
                     "name": db_name,
                     "size": size,
                     "tables": table_count,
                     "description": f"Base de datos PostgreSQL con {table_count} tablas"
-                })
+                }
+                
+                print(f"DEBUG: Info obtenida para {db_name}: {db_info}")
+                databases.append(db_info)
                 
             except Exception as e:
                 # Si hay error, agregar info básica
-                print(f"Warning: No se pudo obtener info completa de {db_name}: {e}")
-                databases.append({
+                print(f"WARNING: No se pudo obtener info completa de {db_name}: {e}")
+                print(f"DEBUG: Error completo: {type(e).__name__}: {str(e)}")
+                
+                db_info = {
                     "id": db_name,
                     "name": db_name,
                     "size": "Desconocido",
                     "tables": "?",
                     "description": "Base de datos PostgreSQL"
-                })
+                }
+                databases.append(db_info)
         
+        print(f"DEBUG: Total de bases de datos procesadas: {len(databases)}")
         return databases
     
     def get_available_models(self) -> List[Dict[str, Any]]:
