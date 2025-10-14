@@ -118,25 +118,12 @@ async def startup_event():
     db_analyzer.analyze_schema()
     print("Análisis del esquema completado.")
     
-    # 3. Inicializar las interfaces del LLM
-    llama_interface = LlamaInterface(
-        host=os.getenv("LLM_HOST"),     
-        port=os.getenv("GRANITE_PORT"),
-    )
-
     print(f"--- ESQUEMA GENERADO PARA EL LLM ---\n{db_analyzer.generate_schema_for_llm()}\n--- FIN DEL ESQUEMA ---")
 
+    # 4. TAMBIÉN ELIMINAR EL SQL_GENERATOR FIJO (legacy)
     
-    # 4. Crear el generador de SQL con el esquema ya analizado
-    sql_generator = SQLGenerator(
-        llm_interface=llama_interface,
-        db_schema=db_analyzer.generate_schema_for_llm(),
-    )
-    
-    # 5. Guardar los objetos en el estado de la aplicación para usarlos en los endpoints
+    # 5. Solo guardar el analizador de BD por compatibilidad con endpoints legacy
     app.state.db_analyzer = db_analyzer
-    app.state.llama_interface = llama_interface
-    app.state.sql_generator = sql_generator
     print("🚀 Aplicación iniciada y lista para recibir peticiones.")
 
 @app.on_event("shutdown")
