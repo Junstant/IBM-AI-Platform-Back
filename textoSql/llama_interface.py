@@ -9,8 +9,10 @@ class LlamaInterface:
 
     def __init__(self, host=None, port=None):
         """Initialize the LLM Runtime interface with host and port."""
-        self.host = host or os.getenv("VITE_API_HOST", "150.230.11.162")
-        self.port = port or "8095"
+        # CORREGIR ESTO - no usar puerto por defecto incorrecto
+        self.host = host or "127.0.0.1"  # ← CAMBIAR de 150.230.11.162 a localhost
+        self.port = port or "8086"  # ← OK, pero debe venir del config
+        print(f"DEBUG: LlamaInterface inicializada - {self.host}:{self.port}")
 
     async def get_llama_response_async(self, prompt):
         """Get a response from the LLM Runtime API asynchronously."""
@@ -19,12 +21,12 @@ class LlamaInterface:
             'temperature': 0.1,
             'repetition_penalty': 1.18,
             'n_predict': 500,
-            'stream': False,  # ← CAMBIAR A FALSE
+            'stream': False,
         }
 
         try:
+            print(f"DEBUG: Conectando a {self.host}:{self.port}")
             async with httpx.AsyncClient(timeout=300) as client:
-                print(f"DEBUG: Enviando request a {self.host}:{self.port}")
                 
                 response = await client.post(
                     f'http://{self.host}:{self.port}/completion', 
@@ -34,6 +36,7 @@ class LlamaInterface:
                 print(f"DEBUG: Status code: {response.status_code}")
                 
                 if response.status_code != 200:
+                    print(f"DEBUG: Error response: {response.text}")
                     raise Exception(f"LLM returned status {response.status_code}: {response.text}")
                 
                 # Parsear respuesta JSON directa (no streaming)
@@ -48,7 +51,7 @@ class LlamaInterface:
                 
         except Exception as e:
             print(f"DEBUG: Error en LLM request: {e}")
-            raise Exception(f"Error connecting to LLM: {e}")
+            raise Exception(f"Error connecting to LLM {self.host}:{self.port}: {e}")
 
     async def explain_results_async(self, question: str, sql_query: str, results: List[Dict[str, Any]], error: str = None) -> str:
         """Explain the results in natural language."""

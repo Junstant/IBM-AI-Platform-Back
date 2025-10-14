@@ -64,58 +64,58 @@ DATABASE_CONFIG = {
 
 def get_available_models():
     """
-    Configuración usando variables de entorno - ACTUALIZADA
+    Configuración usando variables de entorno - CORREGIDA
     """
-    # Usar la IP del servidor para todos los modelos LLM
-    host_ip = DEFAULT_HOST or "150.230.11.162"
+    # CAMBIAR ESTO - usar localhost para modelos locales
+    host_ip = "127.0.0.1"  # ← CAMBIAR DE 150.230.11.162 A localhost
     
     return [
         {
             "id": "mistral-7b",
             "name": "Mistral 7B",
             "description": "Modelo Mistral 7B optimizado para tareas generales",
-            "host": host_ip,
-            "port": os.getenv("MISTRAL_PORT", "8088"),  # Actualizado
+            "host": host_ip,  # ← Ahora usa localhost
+            "port": os.getenv("MISTRAL_PORT", "8088"),
             "container_name": "mistral-7b"
         },
         {
             "id": "gemma-2b",
             "name": "Gemma 2B",
             "description": "Modelo Gemma 2B ligero y rápido",
-            "host": host_ip,
-            "port": os.getenv("GEMMA_2B_PORT", "8085"),  # Actualizado
+            "host": host_ip,  # ← Ahora usa localhost
+            "port": os.getenv("GEMMA_2B_PORT", "8085"),
             "container_name": "gemma-2b"
         },
         {
             "id": "gemma-4b",
             "name": "Google Gemma 4B",
             "description": "Modelo Google Gemma 4B balanceado", 
-            "host": host_ip,
-            "port": os.getenv("GEMMA_4B_PORT", "8086"),  # Actualizado
+            "host": host_ip,  # ← Ahora usa localhost
+            "port": os.getenv("GEMMA_4B_PORT", "8086"),
             "container_name": "gemma-4b"
         },
         {
             "id": "gemma-12b",
             "name": "Google Gemma 12B", 
             "description": "Modelo Google Gemma 12B de alta capacidad",
-            "host": host_ip,
-            "port": os.getenv("GEMMA_12B_PORT", "8087"),  # Actualizado
+            "host": host_ip,  # ← Ahora usa localhost
+            "port": os.getenv("GEMMA_12B_PORT", "8087"),
             "container_name": "gemma-12b"
         },
         {
             "id": "deepseek-8b",
             "name": "DeepSeek 8B",
             "description": "Modelo DeepSeek 8B equilibrado",
-            "host": host_ip,
-            "port": os.getenv("DEEPSEEK_8B_PORT", "8089"),  # Actualizado
+            "host": host_ip,  # ← Ahora usa localhost
+            "port": os.getenv("DEEPSEEK_8B_PORT", "8089"),
             "container_name": "deepseek-8b"
         },
         {
             "id": "deepseek-14b",
             "name": "DeepSeek 14B", 
             "description": "Modelo DeepSeek 14B de alta capacidad",
-            "host": host_ip,
-            "port": os.getenv("DEEPSEEK_14B_PORT", "8090"),  # Mantiene
+            "host": host_ip,  # ← Ahora usa localhost
+            "port": os.getenv("DEEPSEEK_14B_PORT", "8090"),
             "container_name": "deepseek-14b"
         }
     ]
