@@ -42,11 +42,57 @@ class ConnectionManager:
             print(f"Error descubriendo bases de datos: {e}")
             return []
 
-    def get_available_databases(self) -> List[str]:
-        """Devuelve las bases de datos descubiertas."""
+    def get_available_databases(self) -> List[Dict[str, Any]]:
+        """Devuelve las bases de datos descubiertas en formato estructurado."""
         if not hasattr(self, 'discovered_databases'):
             self.discovered_databases = self.discover_databases()
-        return self.discovered_databases
+        
+        # Convertir lista de nombres a objetos estructurados
+        databases = []
+        for db_name in self.discovered_databases:
+            try:
+                # Intentar obtener información adicional de la BD
+                db_params = get_db_connection_params(db_name)
+                conn = psycopg2.connect(**db_params)
+                cursor = conn.cursor()
+                
+                # Obtener número de tablas
+                cursor.execute("""
+                    SELECT COUNT(*) 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public'
+                """)
+                table_count = cursor.fetchone()[0]
+                
+                # Obtener tamaño aproximado de la BD
+                cursor.execute("""
+                    SELECT pg_size_pretty(pg_database_size(%s))
+                """, (db_name,))
+                size = cursor.fetchone()[0]
+                
+                cursor.close()
+                conn.close()
+                
+                databases.append({
+                    "id": db_name,
+                    "name": db_name,
+                    "size": size,
+                    "tables": table_count,
+                    "description": f"Base de datos PostgreSQL con {table_count} tablas"
+                })
+                
+            except Exception as e:
+                # Si hay error, agregar info básica
+                print(f"Warning: No se pudo obtener info completa de {db_name}: {e}")
+                databases.append({
+                    "id": db_name,
+                    "name": db_name,
+                    "size": "Desconocido",
+                    "tables": "?",
+                    "description": "Base de datos PostgreSQL"
+                })
+        
+        return databases
     
     def get_available_models(self) -> List[Dict[str, Any]]:
         """Obtiene lista de modelos LLM disponibles"""
