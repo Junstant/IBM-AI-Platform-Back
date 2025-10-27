@@ -88,11 +88,7 @@ CREATE TABLE IF NOT EXISTS api_performance_logs (
     query_complexity_score INTEGER, -- 1-10 para TextoSQL
     fraud_risk_score DECIMAL(5,2), -- para detección de fraude
     sql_execution_time DECIMAL(10,3), -- tiempo de ejecución SQL
-    database_name VARCHAR(100), -- BD utilizada
-    INDEX idx_api_perf_timestamp (timestamp),
-    INDEX idx_api_perf_endpoint (endpoint),
-    INDEX idx_api_perf_functionality (functionality),
-    INDEX idx_api_perf_status (status_code)
+    database_name VARCHAR(100) -- BD utilizada
 );
 
 -- ================================================================
@@ -140,8 +136,7 @@ CREATE TABLE IF NOT EXISTS system_resources (
     network_tx_bytes BIGINT DEFAULT 0, -- bytes enviados
     active_connections INTEGER DEFAULT 0, -- conexiones PostgreSQL activas
     docker_containers_running INTEGER DEFAULT 0,
-    timestamp TIMESTAMP DEFAULT NOW(),
-    INDEX idx_system_resources_timestamp (timestamp)
+    timestamp TIMESTAMP DEFAULT NOW()
 );
 
 -- ================================================================
@@ -181,11 +176,7 @@ CREATE TABLE IF NOT EXISTS system_alerts (
     resolved_at TIMESTAMP,
     resolved_by VARCHAR(100),
     metadata JSONB, -- información adicional en JSON
-    created_at TIMESTAMP DEFAULT NOW(),
-    INDEX idx_alerts_type (alert_type),
-    INDEX idx_alerts_component (component),
-    INDEX idx_alerts_severity (severity),
-    INDEX idx_alerts_resolved (resolved)
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- ================================================================

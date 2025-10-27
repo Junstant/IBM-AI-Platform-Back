@@ -10,7 +10,6 @@ services:
       - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
       - POSTGRES_DB=postgres
-      - DB3_NAME=${DB3_NAME:-ai_platform_stats}  # Nueva variable para stats
       - PGDATA=/var/lib/postgresql/data
     volumes:
       - ./database/init-scripts:/docker-entrypoint-initdb.d
