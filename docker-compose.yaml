@@ -52,6 +52,8 @@ services:
       - FRAUDE_API_PORT=8000
       - TEXTOSQL_API_HOST=textosql-api
       - TEXTOSQL_API_PORT=8000
+      - STATS_API_HOST=stats-api
+      - STATS_API_PORT=8003
       - GEMMA_2B_PORT=${GEMMA_2B_PORT}
       - GEMMA_4B_PORT=${GEMMA_4B_PORT}
       - GEMMA_12B_PORT=${GEMMA_12B_PORT}
@@ -62,6 +64,8 @@ services:
       fraude-api:
         condition: service_healthy
       textosql-api:
+        condition: service_healthy
+      stats-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"] # localhost dentro del contenedor es el puerto 80
