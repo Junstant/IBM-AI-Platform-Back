@@ -40,6 +40,7 @@ services:
         - VITE_DEEPSEEK_14B_PORT=${DEEPSEEK_14B_PORT} 
         - VITE_FRAUD_DETECTION_PORT=${FRAUDE_API_PORT}
         - VITE_TEXTOSQL_API_PORT=${TEXTOSQL_API_PORT}
+        - VITE_STATS_API_PORT=${STATS_PORT}
     ports:
       - "${NGINX_PORT:-2012}:80"
     networks:
