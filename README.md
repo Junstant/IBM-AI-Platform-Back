@@ -101,11 +101,19 @@ docker-compose exec gemma-2b ls -la /models/
   - Soporte para múltiples bases de datos
   - Ejecución directa de consultas generadas
 
-### 🗄️ Base de Datos PostgreSQL
+### � API de Estadísticas
+- **Endpoint**: `http://localhost:8003/docs`
+  - Dashboard de métricas en tiempo real
+  - Monitoreo automático de modelos IA
+  - Sistema de alertas proactivo
+  - Performance y uso de recursos
+
+### �🗄️ Base de Datos PostgreSQL
 - **Host**: `localhost:8070`
   - Usuario: `postgres` / Contraseña: `root`
   - **banco_global**: Datos maestros (5000+ clientes, 8000+ cuentas)
   - **bank_transactions**: Transacciones (15000+ registros con fraudes)
+  - **ai_platform_stats**: Métricas y estadísticas del sistema
 
 ### 🧠 Modelos LLM Disponibles
 | Modelo | Puerto | Tamaño | Especialidad |
@@ -128,7 +136,7 @@ docker-compose up -d
 docker-compose ps
 
 # Ver logs de servicios específicos
-docker-compose logs -f [postgres|fraude-api|textosql-api|frontend]
+docker-compose logs -f [postgres|fraude-api|textosql-api|stats-api|frontend]
 docker-compose logs -f [gemma-2b|gemma-4b|mistral-7b|deepseek-8b]
 
 # Reiniciar servicio específico
@@ -145,6 +153,12 @@ docker-compose down -v
 ```bash
 # Ver uso de recursos
 docker stats
+
+# Dashboard de estadísticas
+curl http://localhost:8003/api/stats/dashboard-summary
+
+# Estado de modelos IA
+curl http://localhost:8003/api/stats/models-status
 
 # Diagnóstico completo del sistema
 ./scripts/diagnose.sh
@@ -185,6 +199,7 @@ DB2_NAME=bank_transactions     # Base para Fraude
 # === PUERTOS DE APIS ===
 FRAUDE_API_PORT=8001          # API Detección de Fraude
 TEXTOSQL_API_PORT=8000        # API Texto a SQL
+STATS_PORT=8003               # API de Estadísticas
 NGINX_PORT=2012               # Frontend React
 
 # === PUERTOS DE MODELOS LLM ===

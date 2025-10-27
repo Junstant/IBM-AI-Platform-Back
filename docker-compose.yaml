@@ -10,6 +10,7 @@ services:
       - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
       - POSTGRES_DB=postgres
+      - DB3_NAME=${DB3_NAME:-ai_platform_stats}  # Nueva variable para stats
       - PGDATA=/var/lib/postgresql/data
     volumes:
       - ./database/init-scripts:/docker-entrypoint-initdb.d
@@ -351,6 +352,49 @@ services:
       timeout: 120s
       retries: 3
       start_period: 120s
+
+  #📊 ======================== STATS API ========================
+  stats-api:
+    build:
+      context: ./stats
+      dockerfile: Dockerfile
+    container_name: stats-api
+    restart: always
+    ports:
+      - "${STATS_PORT:-8003}:8003"
+    env_file:
+      - .env
+    environment:
+      - DOCKER_ENV=true
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=ai_platform_stats
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/ai_platform_stats
+      # URLs de modelos para health checks
+      - GEMMA_2B_URL=http://gemma-2b:8080
+      - GEMMA_4B_URL=http://gemma-4b:8080
+      - GEMMA_12B_URL=http://gemma-12b:8080
+      - MISTRAL_7B_URL=http://mistral-7b:8080
+      - DEEPSEEK_8B_URL=http://deepseek-8b:8080
+      - DEEPSEEK_14B_URL=http://deepseek-14b:8080
+      - FRAUD_API_URL=http://fraude-api:8000
+      - TEXTOSQL_API_URL=http://textosql-api:8000
+    volumes:
+      - ./stats:/app
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Para monitorear Docker
+    networks:
+      - ai_platform_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   models_volume:
