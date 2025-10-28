@@ -320,7 +320,7 @@ async def get_system_resources(hours: int = 24):
     try:
         query = """
         SELECT * FROM system_resources 
-        WHERE timestamp >= NOW() - INTERVAL '%s hours'
+        WHERE timestamp >= NOW() - INTERVAL $1::text || ' hours'
         ORDER BY timestamp DESC
         LIMIT 100
         """
@@ -403,8 +403,8 @@ async def resolve_alert(alert_id: int, resolved_by: str = "admin"):
     try:
         query = """
         UPDATE system_alerts 
-        SET resolved = TRUE, resolved_at = NOW(), resolved_by = %s
-        WHERE id = %s AND resolved = FALSE
+        SET resolved = TRUE, resolved_at = NOW(), resolved_by = $1
+        WHERE id = $2 AND resolved = FALSE
         """
         result = await db_manager.execute_query(query, (resolved_by, alert_id))
         
@@ -428,7 +428,7 @@ async def get_model_metrics(model_name: str):
     try:
         query = """
         SELECT * FROM ai_models_metrics 
-        WHERE model_name = %s
+        WHERE model_name = $1
         ORDER BY updated_at DESC 
         LIMIT 1
         """
@@ -450,8 +450,8 @@ async def get_functionality_history(functionality: str, days: int = 7):
     try:
         query = """
         SELECT * FROM functionality_metrics 
-        WHERE functionality = %s 
-        AND date >= CURRENT_DATE - INTERVAL '%s days'
+        WHERE functionality = $1 
+        AND date >= CURRENT_DATE - INTERVAL $2::text || ' days'
         ORDER BY date DESC, hour DESC
         """
         results = await db_manager.fetch_all(query, (functionality, days))

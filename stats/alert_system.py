@@ -77,7 +77,7 @@ class AlertSystem:
         WHERE (
             status = 'error' OR 
             last_health_check < NOW() - INTERVAL '10 minutes' OR
-            avg_response_time > %s
+            avg_response_time > $1
         ) AND status != 'maintenance'
         """
         
@@ -134,7 +134,7 @@ class AlertSystem:
         WHERE timestamp >= NOW() - INTERVAL '1 hour'
         GROUP BY functionality, endpoint
         HAVING COUNT(*) >= 10 
-        AND (COUNT(*) FILTER (WHERE status_code >= 400)::DECIMAL / COUNT(*) * 100) > %s
+        AND (COUNT(*) FILTER (WHERE status_code >= 400)::DECIMAL / COUNT(*) * 100) > $1
         """
         
         results = await self.db_manager.fetch_all(query, (self.thresholds['api_error_rate'],))
@@ -301,9 +301,9 @@ class AlertSystem:
                 endpoint,
                 COUNT(*) as consecutive_count
             FROM recent_requests
-            WHERE rn <= %s AND status_code >= 400
+            WHERE rn <= $1 AND status_code >= 400
             GROUP BY functionality, endpoint
-            HAVING COUNT(*) = %s
+            HAVING COUNT(*) = $2
         )
         SELECT * FROM consecutive_errors
         """
@@ -339,9 +339,9 @@ class AlertSystem:
         query = """
         SELECT COUNT(*) 
         FROM system_alerts
-        WHERE component = %s 
-        AND component_name = %s
-        AND title ILIKE %s
+        WHERE component = $1 
+        AND component_name = $2
+        AND title ILIKE $3
         AND created_at >= NOW() - INTERVAL '2 hours'
         AND resolved = FALSE
         """
@@ -383,8 +383,8 @@ class AlertSystem:
         try:
             query = """
             UPDATE system_alerts 
-            SET resolved = TRUE, resolved_at = NOW(), resolved_by = %s
-            WHERE id = %s AND resolved = FALSE
+            SET resolved = TRUE, resolved_at = NOW(), resolved_by = $1
+            WHERE id = $2 AND resolved = FALSE
             """
             
             result = await self.db_manager.execute_query(query, (resolved_by, alert_id))

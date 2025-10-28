@@ -232,7 +232,7 @@ class ModelHealthChecker:
         """Obtener estado actual de un modelo"""
         query = """
         SELECT * FROM ai_models_metrics 
-        WHERE model_name = %s
+        WHERE model_name = $1
         ORDER BY updated_at DESC 
         LIMIT 1
         """
