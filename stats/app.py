@@ -150,6 +150,9 @@ class ModelStatus(BaseModel):
     uptime_seconds: int
     last_health_check: datetime
     health_status: str
+    
+    class Config:
+        protected_namespaces = ()
 
 class FunctionalityPerformance(BaseModel):
     functionality: str

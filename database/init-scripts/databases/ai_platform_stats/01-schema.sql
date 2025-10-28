@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS ai_models_metrics (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     CONSTRAINT chk_status CHECK (status IN ('active', 'inactive', 'loading', 'error', 'maintenance')),
-    CONSTRAINT chk_model_type CHECK (model_type IN ('llm', 'fraud', 'textosql', 'api'))
+    CONSTRAINT chk_model_type CHECK (model_type IN ('llm', 'fraud', 'textosql', 'api')),
+    CONSTRAINT unique_model_name UNIQUE (model_name)
 );
 
 -- ================================================================
