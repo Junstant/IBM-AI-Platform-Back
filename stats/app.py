@@ -55,6 +55,9 @@ async def lifespan(app: FastAPI):
     
     logger.info("🚀 Iniciando AI Platform Stats API...")
     
+    # Inicializar variables
+    background_tasks = []
+    
     try:
         # Inicializar componentes
         db_manager = DatabaseManager(settings.database_url)
@@ -87,7 +90,8 @@ async def lifespan(app: FastAPI):
         
         # Cancelar tareas
         for task in background_tasks:
-            task.cancel()
+            if not task.done():
+                task.cancel()
         
         if db_manager:
             await db_manager.close()
