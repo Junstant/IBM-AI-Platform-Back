@@ -317,10 +317,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s  # ← Cambiar de 120s a 30s
-      timeout: 10s   # ← Cambiar de 120s a 10s
-      retries: 10    # ← Más reintentos
-      start_period: 180s  # ← Más tiempo de espera inicial
+      interval: 15s      # ← Más frecuente
+      timeout: 10s       # ← Timeout razonable
+      retries: 20        # ← Más reintentos
+      start_period: 300s # ← Más tiempo inicial (5 minutos)
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
@@ -350,10 +350,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 120s
-      timeout: 120s
-      retries: 3
-      start_period: 120s
+      interval: 15s      # ← Más frecuente
+      timeout: 10s       # ← Timeout razonable
+      retries: 20        # ← Más reintentos
+      start_period: 300s # ← Más tiempo inicial (5 minutos)
 
   #📊 ======================== STATS API ========================
   stats-api:
@@ -385,7 +385,7 @@ services:
       - TEXTOSQL_API_URL=http://textosql-api:8000
     volumes:
       - ./stats:/app
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Para monitorear Docker
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - ai_platform_network
     depends_on:
@@ -393,10 +393,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      interval: 15s      # ← Más frecuente
+      timeout: 10s       # ← Timeout razonable
+      retries: 20        # ← Más reintentos
+      start_period: 300s # ← Más tiempo inicial (5 minutos)
 
 volumes:
   models_volume:

@@ -245,8 +245,8 @@ class AlertSystem:
         WHERE timestamp >= NOW() - INTERVAL '30 minutes'
         AND status_code < 400
         GROUP BY functionality
-        HAVING AVG(response_time) > %s OR 
-               PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time) > %s
+        HAVING AVG(response_time) > $1 OR 
+               PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time) > $2
         """
         
         results = await self.db_manager.fetch_all(query, (
@@ -358,6 +358,10 @@ class AlertSystem:
                            title: str, message: str, severity: int, metadata: dict = None):
         """Crear nueva alerta"""
         try:
+            # Convertir Decimals a float para JSON serialization
+            if metadata:
+                metadata = self._convert_decimals_to_float(metadata)
+            
             alert_data = {
                 'alert_type': alert_type,
                 'component': component,
@@ -378,6 +382,19 @@ class AlertSystem:
         except Exception as e:
             logger.error(f"Error creando alerta: {e}")
     
+    def _convert_decimals_to_float(self, obj):
+        """Convertir objetos Decimal a float recursivamente"""
+        import decimal
+        
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+        elif isinstance(obj, dict):
+            return {k: self._convert_decimals_to_float(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_decimals_to_float(item) for item in obj]
+        else:
+            return obj
+
     async def resolve_alert(self, alert_id: int, resolved_by: str = "system") -> bool:
         """Resolver una alerta específica"""
         try:
