@@ -176,27 +176,27 @@ services:
       start_period: 600s
 
   # #^ ======================== GEMMA 4B ========================
-  # gemma-4b:
-  #   image: quay.io/daniel_casali/llama.cpp-mma:v8
-  #   container_name: gemma-4b
-  #   user: "root"
-  #   restart: always
-  #   ports:
-  #     - "${GEMMA_4B_PORT:-8086}:8080"
-  #   volumes:
-  #     - models_volume:/models
-  #   networks:
-  #     - ai_platform_network
-  #   command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-4b-it-Q4_K_S.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
-  #   depends_on:
-  #     model-downloader:
-  #       condition: service_completed_successfully
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-  #     interval: 120s
-  #     timeout: 120s
-  #     retries: 3
-  #     start_period: 600s
+  gemma-4b:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: gemma-4b
+    user: "root"
+    restart: always
+    ports:
+      - "${GEMMA_4B_PORT:-8086}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-4b-it-Q4_K_S.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 120s
+      timeout: 120s
+      retries: 3
+      start_period: 600s
 
   #^ ======================== GEMMA 12B ========================
   gemma-12b:
