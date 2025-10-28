@@ -19,8 +19,13 @@ psql -U postgres -f /docker-entrypoint-initdb.d/databases/bank_transactions/01-s
 psql -U postgres -f /docker-entrypoint-initdb.d/databases/bank_transactions/02-seed-data.sql
 psql -U postgres -f /docker-entrypoint-initdb.d/databases/bank_transactions/03-fraud-samples.sql
 
+# Paso 4: Configurar ai_platform_stats desde estructura organizada
+echo "📊 Configurando ai_platform_stats..."
+psql -U postgres -f /docker-entrypoint-initdb.d/databases/ai_platform_stats/01-schema.sql
+
 echo "✅ Configuración completa finalizada exitosamente"
 echo ""
 echo "📋 Bases de datos configuradas:"
 echo "  🏦 banco_global (TextoSQL) - Esquema limpio + datos básicos"
 echo "  🔍 bank_transactions (Detección de Fraude) - Esquema + muestras de fraude"
+echo "  📊 ai_platform_stats (Stats API) - Esquema de métricas"
