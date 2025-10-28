@@ -3,7 +3,7 @@ Configuración global para el servicio de estadísticas
 """
 
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 try:
     from pydantic_settings import BaseSettings
@@ -19,83 +19,167 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # Base de datos
-    database_url: str = "postgresql://postgres:postgres@localhost:8070/ai_platform_stats"
     db_host: str = "localhost"
-    db_port: int = 8070
+    db_port: int = 5432
     db_user: str = "postgres"
     db_password: str = "postgres"
     db_name: str = "ai_platform_stats"
     
-    # Configuración de modelos IA
-    models_config: dict = {
-        "gemma-2b": {"port": 8085, "type": "llm", "size": "2B"},
-        "gemma-4b": {"port": 8086, "type": "llm", "size": "4B"},
-        "gemma-12b": {"port": 8087, "type": "llm", "size": "12B"},
-        "mistral-7b": {"port": 8088, "type": "llm", "size": "7B"},
-        "deepseek-8b": {"port": 8089, "type": "llm", "size": "8B"},
-        "deepseek-14b": {"port": 8090, "type": "llm", "size": "14B"},
-        "fraud-api": {"port": 8001, "type": "fraud", "size": None},
-        "textosql-api": {"port": 8000, "type": "textosql", "size": None}
-    }
-    
-    # Configuración de monitoreo
-    health_check_interval: int = 300  # 5 minutos
-    metrics_collection_interval: int = 60  # 1 minuto
-    alert_check_interval: int = 120  # 2 minutos
-    
-    # Umbrales de alertas
-    model_timeout_threshold: int = 30  # segundos
-    api_error_rate_threshold: float = 10.0  # porcentaje
-    memory_usage_threshold: float = 90.0  # porcentaje
-    cpu_usage_threshold: float = 90.0  # porcentaje
-    
-    # Configuración de limpieza
-    log_retention_days: int = 30
-    cleanup_hour: int = 2  # 2 AM
-    
-    # Logging
-    log_level: str = "INFO"
-    log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    
     # Configuración de entorno Docker
-    is_docker: bool = os.getenv("DOCKER_ENV", "false").lower() == "true"
+    is_docker: bool = False
+    docker_db_host: str = "postgres"
+    docker_db_port: int = 5432
     
-    # URLs de servicios externos
-    fraud_api_url: str = "http://localhost:8001"
-    textosql_api_url: str = "http://localhost:8000"
-    frontend_url: str = "http://localhost:2012"
+    # Puertos de modelos LLM (desde .env)
+    gemma_2b_port: int = 8085
+    gemma_4b_port: int = 8086
+    gemma_12b_port: int = 8087
+    mistral_port: int = 8088
+    deepseek_8b_port: int = 8089
+    deepseek_14b_port: int = 8090
+    
+    # Puertos de APIs (desde .env)
+    fraud_api_port: int = 8001
+    textosql_api_port: int = 8000
+    frontend_port: int = 2012
+    stats_port: int = 8003
+    
+    # Nombres de contenedores Docker (desde .env)
+    postgres_container_name: str = "postgres"
+    fraud_api_container_name: str = "fraude-api"
+    textosql_api_container_name: str = "textosql-api"
+    frontend_container_name: str = "frontend"
+    
+    # Puertos internos Docker (desde .env)
+    llm_internal_port: int = 8080
+    api_internal_port: int = 8000
+    
+    # Configuración de monitoreo (desde .env)
+    health_check_interval: int = 300
+    metrics_collection_interval: int = 60
+    alert_check_interval: int = 120
+    
+    # Umbrales de alertas (desde .env)
+    model_timeout_threshold: int = 30
+    api_error_rate_threshold: float = 10.0
+    memory_usage_threshold: float = 90.0
+    cpu_usage_threshold: float = 90.0
+    
+    # Configuración de limpieza (desde .env)
+    log_retention_days: int = 30
+    cleanup_hour: int = 2
+    
+    # Logging (desde .env)
+    log_level: str = "INFO"
     
     class Config:
         env_file = ".env"
         protected_namespaces = ()
         env_file_encoding = "utf-8"
+        case_sensitive = False
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
-        # Ajustar configuración para Docker
-        if self.is_docker:
-            self.db_host = "postgres"
-            self.fraud_api_url = "http://fraude-api:8001"
-            self.textosql_api_url = "http://textosql-api:8000"
-            self.frontend_url = "http://frontend:80"
+        # Detectar entorno Docker
+        self.is_docker = os.getenv("DOCKER_ENV", "false").lower() == "true"
+    
+    @property
+    def database_url(self) -> str:
+        """Construir URL de base de datos según el entorno"""
+        host = self.postgres_container_name if self.is_docker else self.db_host
+        port = self.docker_db_port if self.is_docker else self.db_port
         
-        # Construir URL de base de datos
-        self.database_url = (
+        return (
             f"postgresql://{self.db_user}:{self.db_password}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+            f"@{host}:{port}/{self.db_name}"
         )
     
-    def get_model_urls(self) -> dict:
+    @property
+    def models_config(self) -> Dict[str, Dict]:
+        """Configuración dinámica de modelos desde .env"""
+        return {
+            "gemma-2b": {
+                "port": self.gemma_2b_port,
+                "type": "llm",
+                "size": "2B",
+                "container_name": "gemma-2b"
+            },
+            "gemma-4b": {
+                "port": self.gemma_4b_port,
+                "type": "llm",
+                "size": "4B",
+                "container_name": "gemma-4b"
+            },
+            "gemma-12b": {
+                "port": self.gemma_12b_port,
+                "type": "llm",
+                "size": "12B",
+                "container_name": "gemma-12b"
+            },
+            "mistral-7b": {
+                "port": self.mistral_port,
+                "type": "llm",
+                "size": "7B",
+                "container_name": "mistral-7b"
+            },
+            "deepseek-8b": {
+                "port": self.deepseek_8b_port,
+                "type": "llm",
+                "size": "8B",
+                "container_name": "deepseek-8b"
+            },
+            "deepseek-14b": {
+                "port": self.deepseek_14b_port,
+                "type": "llm",
+                "size": "14B",
+                "container_name": "deepseek-14b"
+            },
+            "fraud-api": {
+                "port": self.fraud_api_port,
+                "type": "fraud",
+                "size": None,
+                "container_name": self.fraud_api_container_name
+            },
+            "textosql-api": {
+                "port": self.textosql_api_port,
+                "type": "textosql",
+                "size": None,
+                "container_name": self.textosql_api_container_name
+            }
+        }
+    
+    def get_model_urls(self) -> Dict[str, str]:
         """Obtener URLs de modelos según el entorno"""
         urls = {}
+        
         for model_name, config in self.models_config.items():
             if self.is_docker:
                 # En Docker, usar nombres de contenedores
-                host = model_name if config["type"] == "llm" else model_name
+                if config["type"] == "llm":
+                    urls[model_name] = f"http://{config['container_name']}:{self.llm_internal_port}"
+                else:  # APIs (fraud, textosql)
+                    urls[model_name] = f"http://{config['container_name']}:{self.api_internal_port}"
             else:
-                host = "localhost"
-            
-            urls[model_name] = f"http://{host}:{config['port']}"
+                # En localhost, usar puertos externos
+                urls[model_name] = f"http://localhost:{config['port']}"
         
         return urls
+    
+    def get_service_urls(self) -> Dict[str, str]:
+        """Obtener URLs de servicios según el entorno"""
+        if self.is_docker:
+            return {
+                "fraud_api": f"http://{self.fraud_api_container_name}:{self.api_internal_port}",
+                "textosql_api": f"http://{self.textosql_api_container_name}:{self.api_internal_port}",
+                "frontend": f"http://{self.frontend_container_name}:80"
+            }
+        else:
+            return {
+                "fraud_api": f"http://localhost:{self.fraud_api_port}",
+                "textosql_api": f"http://localhost:{self.textosql_api_port}",
+                "frontend": f"http://localhost:{self.frontend_port}"
+            }
+
+# Instancia global de configuración
+settings = Settings()
