@@ -63,14 +63,19 @@ services:
     depends_on:
       fraude-api:
         condition: service_healthy
+        restart: true
       textosql-api:
         condition: service_healthy
+        restart: true
+      stats-api:
+        condition: service_healthy
+        restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"] # localhost dentro del contenedor es el puerto 80
-      interval: 300s
-      timeout: 300s
-      retries: 3
-      start_period: 120s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   #? ======================== MODEL DOWNLOADER ========================
   model-downloader:
