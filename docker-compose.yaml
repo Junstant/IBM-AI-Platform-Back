@@ -16,11 +16,11 @@ services:
     networks:
       - ai_platform_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres && psql -U ${DB_USER:-postgres} -d banco_global -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
 #? ======================== FRONTEND (NGINX) ========================
   frontend:
@@ -64,8 +64,6 @@ services:
       fraude-api:
         condition: service_healthy
       textosql-api:
-        condition: service_healthy
-      stats-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"] # localhost dentro del contenedor es el puerto 80
@@ -315,12 +313,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s      # ← Más frecuente
-      timeout: 10s       # ← Timeout razonable
-      retries: 20        # ← Más reintentos
-      start_period: 300s # ← Más tiempo inicial (5 minutos)
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 180s
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
@@ -348,12 +347,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s      # ← Más frecuente
-      timeout: 10s       # ← Timeout razonable
-      retries: 20        # ← Más reintentos
-      start_period: 300s # ← Más tiempo inicial (5 minutos)
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 180s
 
   #📊 ======================== STATS API ========================
   stats-api:
@@ -391,12 +391,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 15s      # ← Más frecuente
-      timeout: 10s       # ← Timeout razonable
-      retries: 20        # ← Más reintentos
-      start_period: 300s # ← Más tiempo inicial (5 minutos)
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 180s
 
 volumes:
   models_volume:
