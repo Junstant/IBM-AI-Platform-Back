@@ -5,6 +5,15 @@
 
 \c banco_global;
 
+-- ===== LIMPIAR DATOS EXISTENTES PRIMERO =====
+\echo '🗑️ Limpiando datos existentes...';
+TRUNCATE TABLE tarjetas RESTART IDENTITY CASCADE;
+TRUNCATE TABLE prestamos RESTART IDENTITY CASCADE;
+TRUNCATE TABLE transacciones_banco RESTART IDENTITY CASCADE;
+TRUNCATE TABLE cuentas RESTART IDENTITY CASCADE;
+TRUNCATE TABLE clientes RESTART IDENTITY CASCADE;
+TRUNCATE TABLE productos_bancarios RESTART IDENTITY CASCADE;
+
 -- ===== TIPOS DE CUENTA BÁSICOS =====
 INSERT INTO tipos_cuenta (nombre, descripcion, tasa_interes, monto_minimo, comision_mantenimiento) VALUES
 ('Cuenta Corriente', 'Cuenta para movimientos diarios', 0.0000, 0.00, 15.00),
@@ -103,8 +112,10 @@ BEGIN
             (1000 + (i % 50))::TEXT,
             CASE WHEN i % 20 = 0 THEN 'inactivo' ELSE 'activo' END,
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day'
-        ) ON CONFLICT (documento_identidad) DO NOTHING;
+        );
     END LOOP;
+    
+    RAISE NOTICE 'Clientes insertados: %', (SELECT COUNT(*) FROM clientes);
 
     -- ===== INSERTAR 8000 CUENTAS =====
     RAISE NOTICE 'Insertando 8000 cuentas...';
@@ -129,8 +140,10 @@ BEGIN
             END,
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day',
             CASE WHEN i % 100 = 0 THEN 'inactiva' ELSE 'activa' END
-        ) ON CONFLICT (numero_cuenta) DO NOTHING;
+        );
     END LOOP;
+    
+    RAISE NOTICE 'Cuentas insertadas: %', (SELECT COUNT(*) FROM cuentas);
 
     -- ===== INSERTAR PRODUCTOS BANCARIOS =====
     INSERT INTO productos_bancarios (codigo, nombre, categoria, descripcion, tasa_interes, plazo_minimo, plazo_maximo, monto_minimo, monto_maximo, activo) VALUES
@@ -224,8 +237,10 @@ BEGIN
             (50000 + (RANDOM() * 500000))::NUMERIC(12,2),
             1 + (i % 25),
             CASE WHEN i % 50 = 0 THEN 'cancelado' WHEN i % 100 = 0 THEN 'vencido' ELSE 'activo' END
-        ) ON CONFLICT (numero_prestamo) DO NOTHING;
+        );
     END LOOP;
+    
+    RAISE NOTICE 'Préstamos insertados: %', (SELECT COUNT(*) FROM prestamos);
 
     -- ===== INSERTAR TARJETAS (5000 TARJETAS) =====
     RAISE NOTICE 'Insertando 5000 tarjetas...';
@@ -240,8 +255,10 @@ BEGIN
          CURRENT_DATE - (i % 365) * INTERVAL '1 day',
          CURRENT_DATE + (365 + (i % 365)) * INTERVAL '1 day',
          CASE WHEN i % 3 = 0 THEN 50000 + (RANDOM() * 150000)::NUMERIC(12,2) ELSE NULL END
-        ) ON CONFLICT (numero) DO NOTHING;
+        );
     END LOOP;
+    
+    RAISE NOTICE 'Tarjetas insertadas: %', (SELECT COUNT(*) FROM tarjetas);
 END $$;
 
 \echo '✅ Datos masivos insertados en banco_global';
