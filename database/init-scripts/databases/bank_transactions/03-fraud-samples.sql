@@ -6,13 +6,6 @@
 
 \c bank_transactions;
 
--- ===== LIMPIAR DATOS EXISTENTES PRIMERO =====
-\echo '🗑️ Limpiando datos existentes...';
-TRUNCATE TABLE alertas_fraude RESTART IDENTITY CASCADE;
-TRUNCATE TABLE transacciones RESTART IDENTITY CASCADE;
-DELETE FROM comerciantes;
-DELETE FROM perfiles_usuario;
-
 -- ===== INSERTAR COMERCIANTES COMPATIBLES CON EL MODELO IA =====
 \echo '🏪 Configurando comerciantes compatibles con IA avanzada...';
 INSERT INTO comerciantes (codigo_comerciante, nombre, categoria, subcategoria, ubicacion, ciudad, pais, nivel_riesgo) VALUES

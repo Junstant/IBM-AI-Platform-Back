@@ -5,15 +5,6 @@
 
 \c banco_global;
 
--- ===== LIMPIAR DATOS EXISTENTES PRIMERO =====
-\echo '🗑️ Limpiando datos existentes...';
-TRUNCATE TABLE tarjetas RESTART IDENTITY CASCADE;
-TRUNCATE TABLE prestamos RESTART IDENTITY CASCADE;
-TRUNCATE TABLE transacciones_banco RESTART IDENTITY CASCADE;
-TRUNCATE TABLE cuentas RESTART IDENTITY CASCADE;
-TRUNCATE TABLE clientes RESTART IDENTITY CASCADE;
-TRUNCATE TABLE productos_bancarios RESTART IDENTITY CASCADE;
-
 -- ===== TIPOS DE CUENTA BÁSICOS =====
 INSERT INTO tipos_cuenta (nombre, descripcion, tasa_interes, monto_minimo, comision_mantenimiento) VALUES
 ('Cuenta Corriente', 'Cuenta para movimientos diarios', 0.0000, 0.00, 15.00),

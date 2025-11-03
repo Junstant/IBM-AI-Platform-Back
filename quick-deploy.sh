@@ -59,11 +59,20 @@ case "${1:-menu}" in
     "full"|"all"|"a")
         log "🔄 Actualizando todo el stack..."
         git pull origin main
-        docker compose stop frontend stats-api fraude-api textosql-api
+        
+        # Detener todo incluyendo PostgreSQL
+        docker compose down
+        
+        # Eliminar volumen de PostgreSQL para forzar reinicialización
+        warn "Eliminando volumen de PostgreSQL para reinicializar datos..."
+        docker volume rm ibm-ai-platform-back_postgres_data 2>/dev/null || true
+        
+        # Rebuild y levantar todo
         docker compose build --no-cache frontend stats-api fraude-api textosql-api
         docker compose up -d
-        sleep 30
-        log "✅ Stack completo actualizado!"
+        
+        sleep 40
+        log "✅ Stack completo actualizado con datos frescos!"
         echo -e "${WHITE}🌐 Frontend: http://localhost:2012${NC}"
         echo -e "${WHITE}📊 Stats: http://localhost:8003/docs${NC}"
         echo -e "${WHITE}🛡️ Fraude: http://localhost:8001/docs${NC}"
