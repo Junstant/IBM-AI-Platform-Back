@@ -85,7 +85,7 @@ DECLARE
                           'Av. Las Heras', 'Defensa', 'Reconquista', 'San Martín', 'Belgrano', 'Maipú', 'Lavalle', 'Bartolomé Mitre'];
 BEGIN
     -- ===== INSERTAR 5000 CLIENTES =====
-    \echo 'Insertando 5000 clientes...';
+    RAISE NOTICE 'Insertando 5000 clientes...';
     FOR i IN 1..5000 LOOP
         INSERT INTO clientes (
             nombre, apellido, email, telefono, fecha_nacimiento, documento_identidad, 
@@ -107,7 +107,7 @@ BEGIN
     END LOOP;
 
     -- ===== INSERTAR 8000 CUENTAS =====
-    \echo 'Insertando 8000 cuentas...';
+    RAISE NOTICE 'Insertando 8000 cuentas...';
     FOR i IN 1..8000 LOOP
         cliente_id_var := 1 + (i % 5000);
         tipo_cuenta_var := 1 + (i % 6);
@@ -143,7 +143,7 @@ BEGIN
     ON CONFLICT (codigo) DO NOTHING;
 
     -- ===== INSERTAR 15000 TRANSACCIONES (ÚLTIMOS 2 AÑOS) =====
-    \echo 'Insertando 15000 transacciones...';
+    RAISE NOTICE 'Insertando 15000 transacciones...';
     FOR i IN 1..15000 LOOP
         cuenta_id_var := 1 + (i % 8000);
         tipo_transaccion_var := 1 + (i % 8);
@@ -192,7 +192,7 @@ BEGIN
     END LOOP;
 
     -- ===== INSERTAR 2000 PRÉSTAMOS =====
-    \echo 'Insertando 2000 préstamos...';
+    RAISE NOTICE 'Insertando 2000 préstamos...';
     FOR i IN 1..2000 LOOP
         cliente_id_var := 1 + (i % 5000);
         
@@ -228,7 +228,7 @@ BEGIN
     END LOOP;
 
     -- ===== INSERTAR TARJETAS (5000 TARJETAS) =====
-    \echo 'Insertando 5000 tarjetas...';
+    RAISE NOTICE 'Insertando 5000 tarjetas...';
     FOR i IN 1..5000 LOOP
         cliente_id_var := 1 + (i % 5000);
         
