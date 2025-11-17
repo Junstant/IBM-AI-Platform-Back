@@ -16,11 +16,11 @@ services:
     networks:
       - ai_platform_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres && psql -U ${DB_USER:-postgres} -d banco_global -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
 #? ======================== FRONTEND (NGINX) ========================
   frontend:
@@ -63,16 +63,19 @@ services:
     depends_on:
       fraude-api:
         condition: service_healthy
+        restart: true
       textosql-api:
         condition: service_healthy
+        restart: true
       stats-api:
         condition: service_healthy
+        restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"] # localhost dentro del contenedor es el puerto 80
-      interval: 300s
-      timeout: 300s
-      retries: 3
-      start_period: 120s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   #? ======================== MODEL DOWNLOADER ========================
   model-downloader:
@@ -389,6 +392,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s

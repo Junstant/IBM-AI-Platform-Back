@@ -116,7 +116,7 @@ DECLARE
                              'Claro (Celular)', 'Movistar (Celular)', 'Personal (Celular)', 'Cablevisión', 'DirecTV'];
 BEGIN
     -- ===== INSERTAR 5000 CLIENTES =====
-    \echo 'Insertando 5000 clientes...';
+    RAISE NOTICE 'Insertando 5000 clientes...';
     FOR i IN 1..5000 LOOP
         INSERT INTO clientes (
             nombre, apellido, email, telefono, fecha_nacimiento, documento_identidad, 
@@ -134,8 +134,10 @@ BEGIN
             (1000 + (i % 50))::TEXT,
             CASE WHEN i % 20 = 0 THEN 'inactivo' ELSE 'activo' END,
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day'
-        ) ON CONFLICT (documento_identidad) DO NOTHING;
+        );
     END LOOP;
+    
+    RAISE NOTICE 'Clientes insertados: %', (SELECT COUNT(*) FROM clientes);
 
     -- ===== INSERTAR 8000 CUENTAS CON SALDOS INICIALES REALISTAS =====
     \echo 'Insertando 8000 cuentas con saldos iniciales...';
@@ -164,8 +166,10 @@ BEGIN
             saldo_cuenta,
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day',
             CASE WHEN i % 100 = 0 THEN 'inactiva' ELSE 'activa' END
-        ) ON CONFLICT (numero_cuenta) DO NOTHING;
+        );
     END LOOP;
+    
+    RAISE NOTICE 'Cuentas insertadas: %', (SELECT COUNT(*) FROM cuentas);
 
     -- ===== INSERTAR 50000 TRANSACCIONES REALISTAS (ÚLTIMOS 2 AÑOS) =====
     \echo 'Insertando 50000 transacciones con saldos coherentes...';
@@ -434,6 +438,8 @@ BEGIN
             END LOOP;
         END IF;
     END LOOP;
+    
+    RAISE NOTICE 'Préstamos insertados: %', (SELECT COUNT(*) FROM prestamos);
 
     -- ===== INSERTAR 6000 TARJETAS =====
     \echo 'Insertando 6000 tarjetas...';

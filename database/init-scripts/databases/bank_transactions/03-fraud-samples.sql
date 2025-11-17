@@ -6,13 +6,6 @@
 
 \c bank_transactions;
 
--- ===== LIMPIAR DATOS EXISTENTES PRIMERO =====
-\echo '🗑️ Limpiando datos existentes...';
-TRUNCATE TABLE alertas_fraude RESTART IDENTITY CASCADE;
-TRUNCATE TABLE transacciones RESTART IDENTITY CASCADE;
-DELETE FROM comerciantes;
-DELETE FROM perfiles_usuario;
-
 -- ===== INSERTAR COMERCIANTES COMPATIBLES CON EL MODELO IA =====
 \echo '🏪 Configurando comerciantes compatibles con IA avanzada...';
 INSERT INTO comerciantes (codigo_comerciante, nombre, categoria, subcategoria, ubicacion, ciudad, pais, nivel_riesgo) VALUES
@@ -262,20 +255,22 @@ TRUE, 'online', 1000000.00, 15000.0);
 
 -- ===== GENERAR PERFILES DE USUARIO PARA BEHAVIORAL ANALYSIS =====
 \echo '👤 Creando perfiles de usuario para análisis comportamental...';
-INSERT INTO perfiles_usuario (cuenta_id, transacciones_promedio_mes, monto_promedio_transaccion, 
-horario_preferido_inicio, horario_preferido_fin, ubicaciones_frecuentes, 
-categoria_comerciante_frecuente, tipo_tarjeta_preferida, patron_fin_semana) 
+INSERT INTO perfiles_usuario (cuenta_id, ubicacion_frecuente, comerciante_frecuente,
+horario_preferido_inicio, horario_preferido_fin, monto_promedio, 
+frecuencia_transaccional, ratio_fin_semana, ratio_noche) 
 SELECT 
     1000 + gs,
-    CASE 
-        WHEN random() < 0.3 THEN 5 + (random() * 10)::int    -- Usuarios poco activos
-        WHEN random() < 0.7 THEN 15 + (random() * 20)::int   -- Usuarios normales  
-        ELSE 35 + (random() * 30)::int                       -- Usuarios muy activos
+    CASE (gs % 5)
+        WHEN 0 THEN 'Microcentro, CABA'
+        WHEN 1 THEN 'Palermo, CABA'
+        WHEN 2 THEN 'Recoleta'
+        WHEN 3 THEN 'Puerto Madero'
+        ELSE 'Villa Crespo'
     END,
-    CASE
-        WHEN random() < 0.4 THEN 200 + (random() * 800)::NUMERIC(10,2)
-        WHEN random() < 0.8 THEN 1000 + (random() * 3000)::NUMERIC(10,2)  
-        ELSE 4000 + (random() * 8000)::NUMERIC(10,2)
+    CASE (gs % 7)
+        WHEN 0 THEN 'COM001' WHEN 1 THEN 'COM002' WHEN 2 THEN 'COM003'
+        WHEN 3 THEN 'COM004' WHEN 4 THEN 'COM005' WHEN 5 THEN 'COM006'
+        ELSE 'COM007'
     END,
     CASE 
         WHEN random() < 0.6 THEN '08:00'::time
@@ -287,20 +282,18 @@ SELECT
         WHEN random() < 0.8 THEN '20:00'::time
         ELSE '22:00'::time  
     END,
-    CASE (gs % 5)
-        WHEN 0 THEN 'Microcentro, CABA'
-        WHEN 1 THEN 'Palermo, CABA'
-        WHEN 2 THEN 'Recoleta'
-        WHEN 3 THEN 'Puerto Madero'
-        ELSE 'Villa Crespo'
+    CASE
+        WHEN random() < 0.4 THEN 200 + (random() * 800)::NUMERIC(10,2)
+        WHEN random() < 0.8 THEN 1000 + (random() * 3000)::NUMERIC(10,2)  
+        ELSE 4000 + (random() * 8000)::NUMERIC(10,2)
     END,
-    CASE (gs % 7)
-        WHEN 0 THEN 'Alimentación' WHEN 1 THEN 'Gastronomía' WHEN 2 THEN 'Combustibles'
-        WHEN 3 THEN 'Salud' WHEN 4 THEN 'Tecnología' WHEN 5 THEN 'Entretenimiento'
-        ELSE 'E-commerce'
+    CASE 
+        WHEN random() < 0.3 THEN 0.17 + (random() * 0.33)::NUMERIC(4,2)  -- Usuarios poco activos (5-15 txn/mes)
+        WHEN random() < 0.7 THEN 0.50 + (random() * 0.67)::NUMERIC(4,2)  -- Usuarios normales (15-35 txn/mes)
+        ELSE 1.17 + (random() * 1.00)::NUMERIC(4,2)                       -- Usuarios muy activos (35-65 txn/mes)
     END,
-    CASE WHEN random() < 0.6 THEN 'Débito' ELSE 'Crédito' END,
-    random() < 0.3  -- 30% prefieren fin de semana
+    CASE WHEN random() < 0.3 THEN 0.25 + (random() * 0.15)::NUMERIC(4,3) ELSE 0.05 + (random() * 0.15)::NUMERIC(4,3) END,  -- 30% prefieren fin de semana
+    CASE WHEN random() < 0.2 THEN 0.10 + (random() * 0.20)::NUMERIC(4,3) ELSE 0.00 + (random() * 0.08)::NUMERIC(4,3) END   -- 20% activos de noche
 FROM generate_series(1, 500) gs;
 
 -- ===== ESTADÍSTICAS FINALES =====

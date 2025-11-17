@@ -59,15 +59,36 @@ case "${1:-menu}" in
     "full"|"all"|"a")
         log "🔄 Actualizando todo el stack..."
         git pull origin main
-        docker compose stop frontend stats-api fraude-api textosql-api
+        
+        # Detener servicios pero NO PostgreSQL
+        warn "Deteniendo servicios (manteniendo PostgreSQL)..."
+        docker compose stop stats-api fraude-api textosql-api frontend
+        
+        # Rebuild y levantar servicios
         docker compose build --no-cache frontend stats-api fraude-api textosql-api
-        docker compose up -d
+        docker compose up -d stats-api fraude-api textosql-api frontend
+        
         sleep 30
-        log "✅ Stack completo actualizado!"
+        log "✅ Stack actualizado manteniendo datos!"
         echo -e "${WHITE}🌐 Frontend: http://localhost:2012${NC}"
         echo -e "${WHITE}📊 Stats: http://localhost:8003/docs${NC}"
         echo -e "${WHITE}🛡️ Fraude: http://localhost:8001/docs${NC}"
         echo -e "${WHITE}🔍 TextSQL: http://localhost:8000/docs${NC}"
+        ;;
+        
+    "reset"|"r")
+        warn "🗑️ REINICIO COMPLETO - Eliminando todos los datos..."
+        read -p "¿Estás seguro? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            docker compose down -v
+            docker compose build --no-cache
+            docker compose up -d
+            sleep 60
+            log "✅ Sistema reiniciado con datos frescos!"
+        else
+            log "Operación cancelada"
+        fi
         ;;
         
     "test"|"t")
@@ -98,13 +119,15 @@ case "${1:-menu}" in
         echo -e "${WHITE}Uso:${NC}"
         echo -e "  ${GREEN}./quick-deploy.sh backend${NC}   # 🔧 Pull + restart APIs"
         echo -e "  ${GREEN}./quick-deploy.sh frontend${NC}  # 🌐 Pull + restart frontend"
-        echo -e "  ${GREEN}./quick-deploy.sh full${NC}      # 🔄 Pull + restart todo"
+        echo -e "  ${GREEN}./quick-deploy.sh full${NC}      # 🔄 Pull + restart todo (mantiene DB)"
+        echo -e "  ${GREEN}./quick-deploy.sh reset${NC}     # 🗑️ Reinicio completo (borra DB)"
         echo -e "  ${GREEN}./quick-deploy.sh test${NC}      # 🧪 Test servicios"
         echo ""
         echo -e "${WHITE}Aliases disponibles:${NC}"
         echo -e "  ${YELLOW}backend${NC} = back, b"
         echo -e "  ${YELLOW}frontend${NC} = front, f"  
         echo -e "  ${YELLOW}full${NC} = all, a"
+        echo -e "  ${YELLOW}reset${NC} = r"
         echo -e "  ${YELLOW}test${NC} = t"
         echo ""
         echo -e "${WHITE}💡 Para más opciones usa: ${GREEN}./deploy-manager.sh${NC}"

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     fecha_registro DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_estado_cliente CHECK (estado IN ('activo', 'suspendido', 'inactivo')),
+    CONSTRAINT chk_estado_cliente CHECK (estado IN ('activo', 'inactivo', 'suspendido', 'cerrado')),
     CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$')
 );
 
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS cuentas (
     estado VARCHAR(20) DEFAULT 'activa',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_estado_cuenta CHECK (estado IN ('activa', 'suspendida', 'cerrada'))
+    CONSTRAINT chk_estado_cuenta CHECK (estado IN ('activa', 'inactiva', 'suspendida', 'cerrada'))
 );
 
 -- ===== TABLA TIPOS DE TRANSACCIÓN =====
