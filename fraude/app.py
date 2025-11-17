@@ -22,6 +22,11 @@ import warnings
 from datetime import datetime, time, date
 from typing import Dict, List, Optional, Tuple, Any
 import json
+from pathlib import Path
+
+# Importar TOON encoder
+sys.path.append(str(Path(__file__).parent.parent))
+from shared.toon_encoder import encode, estimate_token_savings
 
 # FastAPI y dependencias web
 from fastapi import FastAPI, HTTPException, Depends
@@ -823,6 +828,70 @@ async def get_model_info():
             "medium_risk": config.MEDIUM_RISK_THRESHOLD
         }
     }
+
+@app.get("/fraud_report_toon")
+async def get_fraud_report_toon(limit: int = 100):
+    """
+    📊 Obtener reporte de fraudes en formato TOON (token-efficient)
+    
+    Útil para enviar a LLMs para análisis o generación de reportes.
+    Ahorra significativamente tokens comparado con JSON.
+    
+    Args:
+        limit: Número máximo de transacciones fraudulentas a incluir
+    """
+    try:
+        logger.info(f"📊 Generando reporte TOON de fraudes (limit={limit})...")
+        
+        # Obtener transacciones fraudulentas de la base de datos
+        result = fraud_detector.predict_database(limit=limit)
+        
+        if not result['transacciones_fraudulentas']:
+            return {
+                "toon_report": "fraud_transactions[0]: (no fraud detected)",
+                "statistics": result,
+                "format": "TOON"
+            }
+        
+        # Convertir a TOON
+        fraud_transactions = result['transacciones_fraudulentas']
+        
+        # Preparar datos para TOON
+        toon_data = {
+            "fraud_transactions": fraud_transactions
+        }
+        
+        # Generar TOON
+        toon_report = encode(toon_data, delimiter=",", length_marker=True)
+        
+        # Calcular ahorro vs JSON
+        json_report = json.dumps(toon_data, indent=2)
+        savings = estimate_token_savings(json_report, toon_report)
+        
+        logger.info(f"💾 Reporte TOON generado: {savings['tokens_saved']} tokens ahorrados ({savings['savings_percent']}%)")
+        
+        return {
+            "toon_report": toon_report,
+            "statistics": {
+                "total_analyzed": result['total_transacciones_analizadas'],
+                "fraud_detected": result['transacciones_fraudulentas_encontradas'],
+                "fraud_rate": f"{result['tasa_fraude_detectado']:.2%}",
+                "processing_time": result['tiempo_procesamiento']
+            },
+            "token_savings": {
+                "json_tokens": savings['json_tokens_approx'],
+                "toon_tokens": savings['toon_tokens_approx'],
+                "tokens_saved": savings['tokens_saved'],
+                "savings_percent": f"{savings['savings_percent']}%",
+                "compression_ratio": f"{savings['compression_ratio']}x"
+            },
+            "format": "TOON",
+            "usage_note": "Send this TOON report directly to LLMs. Format: fraud_transactions[N]{field1,field2,...}: ..."
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error generando reporte TOON: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 # =====================================================
 # EJECUCIÓN PRINCIPAL

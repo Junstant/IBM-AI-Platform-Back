@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir \
     --prefer-binary \
     -r requirements.txt
 
+# Copiar módulos compartidos (TOON encoder)
+COPY ../shared /shared
+
 # Copia el resto de tus archivos de la aplicación
 COPY . .
 

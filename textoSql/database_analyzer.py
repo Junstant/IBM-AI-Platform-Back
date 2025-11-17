@@ -2,6 +2,12 @@ import psycopg2
 import psycopg2.extras
 from typing import List, Dict, Any, Tuple, Optional
 import os
+import sys
+from pathlib import Path
+
+# Importar TOON encoder
+sys.path.append(str(Path(__file__).parent.parent))
+from shared.toon_encoder import encode
 
 class DatabaseAnalyzer:
     """Simplified class to analyze PostgreSQL database schema and execute queries."""
@@ -336,13 +342,76 @@ class DatabaseAnalyzer:
 
         return description
 
-    def generate_schema_for_llm(self) -> str:
+    def generate_schema_for_llm(self, use_toon: bool = True) -> str:
         """
-        Generate a schema description for the LLM with simple format.
+        Generate a schema description for the LLM.
+        
+        Args:
+            use_toon: Si True, usa formato TOON (más eficiente). Si False, usa Markdown.
         """
         if not self.schema_info:
             self.analyze_schema()
 
+        if use_toon:
+            return self._generate_schema_toon()
+        else:
+            return self._generate_schema_markdown()
+    
+    def _generate_schema_toon(self) -> str:
+        """✅ Genera esquema en formato TOON (token-efficient)"""
+        schema_parts = []
+        
+        schema_parts.append("# Database Schema (TOON format)\n")
+        
+        # Tablas y columnas en formato TOON
+        for table_name, table_info in self.schema_info["tables"].items():
+            # Header de tabla
+            table_comment = table_info.get("comment", "")
+            if table_comment:
+                schema_parts.append(f"## {table_name}: {table_comment}")
+            else:
+                schema_parts.append(f"## {table_name}")
+            
+            # Columnas en formato TOON
+            columns_data = []
+            for column in table_info["columns"]:
+                columns_data.append({
+                    "name": column['name'],
+                    "type": column['type'],
+                    "nullable": "Y" if column['nullable'] == "YES" else "N",
+                    "desc": column.get("comment", "")
+                })
+            
+            if columns_data:
+                columns_toon = encode({"columns": columns_data}, delimiter=",", length_marker=False)
+                schema_parts.append(columns_toon)
+            
+            # Primary keys
+            if table_name in self.schema_info.get("primary_keys", {}):
+                pk_columns = self.schema_info["primary_keys"][table_name]
+                schema_parts.append(f"PK: {','.join(pk_columns)}")
+            
+            schema_parts.append("")  # Línea en blanco entre tablas
+        
+        # Relaciones en formato TOON
+        if self.schema_info["relationships"]:
+            schema_parts.append("## Relationships")
+            
+            relationships_data = []
+            for rel in self.schema_info["relationships"]:
+                relationships_data.append({
+                    "from": f"{rel['table']}.{rel['column']}",
+                    "to": f"{rel['references_table']}.{rel['references_column']}"
+                })
+            
+            if relationships_data:
+                rel_toon = encode({"relations": relationships_data}, delimiter=" → ", length_marker=False)
+                schema_parts.append(rel_toon)
+        
+        return "\n".join(schema_parts)
+    
+    def _generate_schema_markdown(self) -> str:
+        """Genera esquema en formato Markdown (legacy)"""
         schema_text = "# Database Schema\n\n"
 
         # Describe each table and its columns
