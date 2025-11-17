@@ -152,7 +152,7 @@ services:
     networks:
       - ai_platform_network
 
-  #^ ======================== GEMMA 2B ========================
+  #^ ======================== GEMMA 2B (PRIORIDAD ALTA) ========================
   gemma-2b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
     container_name: gemma-2b
@@ -170,10 +170,15 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 120s
-      timeout: 120s
-      retries: 3
-      start_period: 600s
+      interval: 60s       # Menos frecuente
+      timeout: 10s        
+      retries: 3          # Menos reintentos
+      start_period: 300s  # Reducido a 5 minutos
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'     # Más CPUs = carga más rápida
+          memory: 8G
 
   # #^ ======================== GEMMA 4B ========================
   gemma-4b:
@@ -197,6 +202,13 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
+    profiles:
+      - full
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
 
   #^ ======================== GEMMA 12B ========================
   gemma-12b:
@@ -220,6 +232,13 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
+    profiles:
+      - full
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 12G
 
   #^ ======================== MISTRAL 7b ========================
   mistral-7b:
@@ -243,7 +262,13 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
-  
+    profiles:
+      - full
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
 
   #^ ======================== DEEPSEEK 8B ========================
   deepseek-8b:
@@ -267,6 +292,13 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
+    profiles:
+      - full
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 10G
 
   #^ ======================== DEEPSEEK 14B ========================
   deepseek-14b:
@@ -290,37 +322,13 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
-
-  #% ======================== FRAUDE API ========================
-  fraude-api:
-    build:
-      context: ./fraude
-      dockerfile: Dockerfile
-    container_name: fraude-api
-    restart: always
-    ports:
-      - "${FRAUDE_API_PORT:-8001}:8000"
-    env_file:
-      - .env
-    environment:
-      - DB_HOST=postgres_db
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-root}
-      - DB_NAME=${DB2_NAME:-bank_transactions}
-    volumes:
-      - ./fraude:/app
-    networks:
-      - ai_platform_network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s      # ← Más frecuente
-      timeout: 10s       # ← Timeout razonable
-      retries: 20        # ← Más reintentos
-      start_period: 300s # ← Más tiempo inicial (5 minutos)
+    profiles:
+      - full
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 12G
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
@@ -348,12 +356,45 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      gemma-2b:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s      # ← Más frecuente
-      timeout: 10s       # ← Timeout razonable
-      retries: 20        # ← Más reintentos
-      start_period: 300s # ← Más tiempo inicial (5 minutos)
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 330s  # 5.5 min (espera a gemma-2b)
+
+  #% ======================== FRAUDE API ========================
+  fraude-api:
+    build:
+      context: ./fraude
+      dockerfile: Dockerfile
+    container_name: fraude-api
+    restart: always
+    ports:
+      - "${FRAUDE_API_PORT:-8001}:8000"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres_db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-root}
+      - DB_NAME=${DB2_NAME:-bank_transactions}
+    volumes:
+      - ./fraude:/app
+    networks:
+      - ai_platform_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s   # Solo 1.5 min (no depende de LLMs)
 
   #📊 ======================== STATS API ========================
   stats-api:
@@ -391,12 +432,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # SOLO dependemos de postgres, NO de otros servicios
+      # El health checker interno ya maneja la verificación de modelos
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 15s      # ← Más frecuente
-      timeout: 10s       # ← Timeout razonable
-      retries: 20        # ← Más reintentos
-      start_period: 300s # ← Más tiempo inicial (5 minutos)
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s   # Solo 1 min (se conecta a BD)
 
 volumes:
   models_volume:
