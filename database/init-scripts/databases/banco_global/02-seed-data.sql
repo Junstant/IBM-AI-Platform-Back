@@ -15,7 +15,7 @@ INSERT INTO tipos_cuenta (nombre, descripcion, tasa_interes, monto_minimo, comis
 ('Cuenta Joven', 'Cuenta para menores de 25 años', 0.0300, 0.00, 0.00)
 ON CONFLICT (nombre) DO NOTHING;
 
--- ===== TIPOS DE TRANSACCIÓN BÁSICOS =====
+-- ===== TIPOS DE TRANSACCIÓN BÁSICOS (CÓDIGOS CORREGIDOS ≤10 chars) =====
 INSERT INTO tipos_transaccion (codigo, nombre, descripcion, requiere_autorizacion, comision) VALUES
 ('DEP', 'Depósito', 'Depósito en efectivo o cheque', FALSE, 0.00),
 ('RET', 'Retiro', 'Retiro en efectivo', FALSE, 2.00),
@@ -26,8 +26,8 @@ INSERT INTO tipos_transaccion (codigo, nombre, descripcion, requiere_autorizacio
 ('COMPRA', 'Compra con Tarjeta', 'Compra con tarjeta de débito/crédito', FALSE, 0.00),
 ('INTERES', 'Pago de Intereses', 'Pago de intereses de cuenta de ahorros', FALSE, 0.00),
 ('COMISION', 'Comisión Bancaria', 'Cobro de comisiones', FALSE, 0.00),
-('PREST_DESEM', 'Desembolso Préstamo', 'Desembolso de préstamo aprobado', FALSE, 0.00),
-('PREST_PAGO', 'Pago Préstamo', 'Pago de cuota de préstamo', FALSE, 0.00),
+('PREST_DES', 'Desembolso Préstamo', 'Desembolso de préstamo aprobado', FALSE, 0.00),  -- ✅ Reducido a 9 chars
+('PREST_PAG', 'Pago Préstamo', 'Pago de cuota de préstamo', FALSE, 0.00),              -- ✅ Reducido a 9 chars
 ('TC_PAGO', 'Pago Tarjeta Crédito', 'Pago de tarjeta de crédito', FALSE, 0.00)
 ON CONFLICT (codigo) DO NOTHING;
 
@@ -76,8 +76,6 @@ ON CONFLICT (codigo) DO NOTHING;
 DO $$
 DECLARE
     i INTEGER;
-    j INTEGER;
-    k INTEGER;
     cliente_id_var INTEGER;
     cuenta_id_var INTEGER;
     cuenta_destino_var INTEGER;
@@ -91,8 +89,6 @@ DECLARE
     saldo_anterior NUMERIC;
     saldo_nuevo NUMERIC;
     comision_var NUMERIC;
-    prestamo_id_var INTEGER;
-    cuota_num INTEGER;
     
     -- Arrays de datos realistas
     nombres TEXT[] := ARRAY['Juan', 'María', 'Carlos', 'Ana', 'Luis', 'Laura', 'Diego', 'Sofía', 'Miguel', 'Carmen', 
@@ -136,7 +132,6 @@ BEGIN
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day'
         );
         
-        -- Progreso cada 1000 clientes
         IF i % 1000 = 0 THEN
             RAISE NOTICE '   ✓ % clientes insertados...', i;
         END IF;
@@ -144,27 +139,27 @@ BEGIN
     
     RAISE NOTICE '✅ Total clientes insertados: %', (SELECT COUNT(*) FROM clientes);
 
-    -- ===== INSERTAR 8000 CUENTAS CON SALDOS INICIALES REALISTAS =====
+    -- ===== INSERTAR 8000 CUENTAS CON SALDOS INICIALES (FORMATO ÚNICO CORREGIDO) =====
     RAISE NOTICE '📊 Insertando 8000 cuentas con saldos iniciales...';
     FOR i IN 1..8000 LOOP
         cliente_id_var := 1 + (i % 5000);
         tipo_cuenta_var := 1 + (i % 6);
         sucursal_var := 1 + (i % 25);
         
-        -- Generar saldo inicial realista según tipo de cuenta
         saldo_cuenta := CASE tipo_cuenta_var
-            WHEN 1 THEN 1000 + (RANDOM() * 15000)::NUMERIC(12,2)      -- Cuenta Corriente: $1K-16K
-            WHEN 2 THEN 5000 + (RANDOM() * 50000)::NUMERIC(12,2)      -- Cuenta Ahorros: $5K-55K
-            WHEN 3 THEN 50000 + (RANDOM() * 200000)::NUMERIC(12,2)    -- Premium: $50K-250K
-            WHEN 4 THEN 10000 + (RANDOM() * 100000)::NUMERIC(12,2)    -- Empresarial: $10K-110K
-            WHEN 5 THEN 500000 + (RANDOM() * 2000000)::NUMERIC(12,2)  -- VIP: $500K-2.5M
-            ELSE 500 + (RANDOM() * 5000)::NUMERIC(12,2)               -- Joven: $500-5.5K
+            WHEN 1 THEN 1000 + (RANDOM() * 15000)::NUMERIC(12,2)
+            WHEN 2 THEN 5000 + (RANDOM() * 50000)::NUMERIC(12,2)
+            WHEN 3 THEN 50000 + (RANDOM() * 200000)::NUMERIC(12,2)
+            WHEN 4 THEN 10000 + (RANDOM() * 100000)::NUMERIC(12,2)
+            WHEN 5 THEN 500000 + (RANDOM() * 2000000)::NUMERIC(12,2)
+            ELSE 500 + (RANDOM() * 5000)::NUMERIC(12,2)
         END;
         
+        -- ✅ FORMATO CORREGIDO: Genera números únicos secuenciales
         INSERT INTO cuentas (
             numero_cuenta, cliente_id, tipo_cuenta_id, sucursal_id, saldo, fecha_apertura, estado
         ) VALUES (
-            '4' || LPAD((1000 + (i / 1000))::TEXT, 3, '0') || '-' || LPAD((i % 1000)::TEXT, 3, '0') || '-' || LPAD((i % 100)::TEXT, 3, '0'),
+            '40' || LPAD(i::TEXT, 10, '0'),  -- Formato: 4000000000001, 4000000000002, etc.
             cliente_id_var,
             tipo_cuenta_var,
             sucursal_var,
@@ -173,7 +168,6 @@ BEGIN
             CASE WHEN i % 100 = 0 THEN 'inactiva' ELSE 'activa' END
         );
         
-        -- Progreso cada 2000 cuentas
         IF i % 2000 = 0 THEN
             RAISE NOTICE '   ✓ % cuentas insertadas...', i;
         END IF;
@@ -181,26 +175,22 @@ BEGIN
     
     RAISE NOTICE '✅ Total cuentas insertadas: %', (SELECT COUNT(*) FROM cuentas);
 
-    -- ===== INSERTAR 50000 TRANSACCIONES REALISTAS (ÚLTIMOS 2 AÑOS) =====
+    -- ===== INSERTAR 50000 TRANSACCIONES REALISTAS =====
     RAISE NOTICE '📊 Insertando 50000 transacciones con saldos coherentes...';
     
     FOR i IN 1..50000 LOOP
-        -- Seleccionar cuenta aleatoria
         cuenta_id_var := 1 + (RANDOM() * 7999)::INTEGER;
         sucursal_var := 1 + (i % 25);
         
-        -- Obtener saldo actual de la cuenta
         SELECT saldo INTO saldo_cuenta FROM cuentas WHERE id = cuenta_id_var;
         saldo_anterior := saldo_cuenta;
         
-        -- Generar fecha/hora realista (más transacciones recientes)
         fecha_var := CASE 
             WHEN i % 10 < 7 THEN CURRENT_DATE - (RANDOM() * 180)::INTEGER
             WHEN i % 10 < 9 THEN CURRENT_DATE - (180 + (RANDOM() * 180)::INTEGER)
             ELSE CURRENT_DATE - (360 + (RANDOM() * 365)::INTEGER)
         END;
         
-        -- Horario bancario realista (8:00 - 20:00)
         hora_var := TIME '08:00:00' + (
             CASE 
                 WHEN i % 10 < 3 THEN (RANDOM() * 240)::INTEGER
@@ -209,7 +199,6 @@ BEGIN
             END
         ) * INTERVAL '1 minute';
         
-        -- Determinar tipo de transacción
         tipo_transaccion_var := CASE 
             WHEN i % 100 < 5 THEN 1
             WHEN i % 100 < 15 THEN 2
@@ -223,7 +212,6 @@ BEGIN
             ELSE 11
         END;
         
-        -- Generar montos realistas
         monto_var := CASE tipo_transaccion_var
             WHEN 1 THEN 500 + (RANDOM() * LEAST(50000, saldo_anterior * 0.5))::NUMERIC(12,2)
             WHEN 2 THEN 200 + (RANDOM() * LEAST(5000, saldo_anterior * 0.3))::NUMERIC(12,2)
@@ -242,10 +230,8 @@ BEGIN
             ELSE 2000 + (RANDOM() * 8000)::NUMERIC(12,2)
         END;
         
-        -- Obtener comisión
         SELECT comision INTO comision_var FROM tipos_transaccion WHERE id = tipo_transaccion_var;
         
-        -- Calcular nuevo saldo
         saldo_nuevo := CASE 
             WHEN tipo_transaccion_var IN (1, 6, 8) THEN saldo_anterior + monto_var
             WHEN tipo_transaccion_var IN (2, 3, 4, 5, 7, 9, 11) THEN 
@@ -253,7 +239,6 @@ BEGIN
             ELSE saldo_anterior
         END;
         
-        -- Solo insertar si la transacción es válida
         IF saldo_nuevo >= 0 OR tipo_transaccion_var IN (1, 6, 8) THEN
             cuenta_destino_var := CASE 
                 WHEN tipo_transaccion_var = 3 THEN 1 + (RANDOM() * 7999)::INTEGER
@@ -275,7 +260,7 @@ BEGIN
                 saldo_anterior_origen, 
                 saldo_nuevo_origen
             ) VALUES (
-                'TXN-' || TO_CHAR(fecha_var, 'YYYY-MM-DD') || '-' || LPAD(i::TEXT, 8, '0'),
+                'TXN-' || TO_CHAR(fecha_var, 'YYYYMMDD') || '-' || LPAD(i::TEXT, 8, '0'),
                 CASE WHEN tipo_transaccion_var IN (2, 3, 4, 5, 7, 9, 11) THEN cuenta_id_var ELSE NULL END,
                 cuenta_destino_var,
                 tipo_transaccion_var,
@@ -309,13 +294,11 @@ BEGIN
                 saldo_nuevo
             );
             
-            -- Actualizar saldo de la cuenta
             IF (i % 500 <> 0) AND (i % 1000 <> 0) THEN
                 UPDATE cuentas SET saldo = saldo_nuevo WHERE id = cuenta_id_var;
             END IF;
         END IF;
         
-        -- Progreso cada 10000 transacciones
         IF i % 10000 = 0 THEN
             RAISE NOTICE '   ✓ % transacciones insertadas...', i;
         END IF;
