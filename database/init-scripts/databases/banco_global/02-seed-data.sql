@@ -5,6 +5,32 @@
 
 \c banco_global;
 
+-- ===== LIMPIAR DATOS EXISTENTES (EN ORDEN INVERSO DE DEPENDENCIAS) =====
+\echo '🗑️ Limpiando datos existentes...';
+
+TRUNCATE TABLE tarjetas CASCADE;
+TRUNCATE TABLE transacciones_banco CASCADE;
+TRUNCATE TABLE prestamos CASCADE;
+TRUNCATE TABLE cuentas CASCADE;
+TRUNCATE TABLE clientes CASCADE;
+TRUNCATE TABLE productos_bancarios CASCADE;
+TRUNCATE TABLE sucursales CASCADE;
+TRUNCATE TABLE tipos_transaccion CASCADE;
+TRUNCATE TABLE tipos_cuenta CASCADE;
+
+-- Reiniciar secuencias
+ALTER SEQUENCE clientes_id_seq RESTART WITH 1;
+ALTER SEQUENCE cuentas_id_seq RESTART WITH 1;
+ALTER SEQUENCE transacciones_banco_id_seq RESTART WITH 1;
+ALTER SEQUENCE prestamos_id_seq RESTART WITH 1;
+ALTER SEQUENCE tarjetas_id_seq RESTART WITH 1;
+ALTER SEQUENCE tipos_cuenta_id_seq RESTART WITH 1;
+ALTER SEQUENCE tipos_transaccion_id_seq RESTART WITH 1;
+ALTER SEQUENCE sucursales_id_seq RESTART WITH 1;
+ALTER SEQUENCE productos_bancarios_id_seq RESTART WITH 1;
+
+\echo '✅ Datos anteriores eliminados';
+
 -- ===== TIPOS DE CUENTA BÁSICOS =====
 INSERT INTO tipos_cuenta (nombre, descripcion, tasa_interes, monto_minimo, comision_mantenimiento) VALUES
 ('Cuenta Corriente', 'Cuenta para movimientos diarios', 0.0000, 0.00, 15.00),
@@ -139,10 +165,11 @@ BEGIN
     
     RAISE NOTICE '✅ Total clientes insertados: %', (SELECT COUNT(*) FROM clientes);
 
-    -- ===== INSERTAR 8000 CUENTAS CON SALDOS INICIALES (FORMATO ÚNICO CORREGIDO) =====
+    -- ===== INSERTAR 8000 CUENTAS CON SALDOS INICIALES =====
     RAISE NOTICE '📊 Insertando 8000 cuentas con saldos iniciales...';
     FOR i IN 1..8000 LOOP
-        cliente_id_var := 1 + (i % 5000);
+        -- ✅ FIX: Usar módulo para asegurar que el cliente existe
+        cliente_id_var := 1 + ((i - 1) % 5000);  -- Genera valores 1-5000
         tipo_cuenta_var := 1 + (i % 6);
         sucursal_var := 1 + (i % 25);
         
@@ -155,11 +182,10 @@ BEGIN
             ELSE 500 + (RANDOM() * 5000)::NUMERIC(12,2)
         END;
         
-        -- ✅ FORMATO CORREGIDO: Genera números únicos secuenciales
         INSERT INTO cuentas (
             numero_cuenta, cliente_id, tipo_cuenta_id, sucursal_id, saldo, fecha_apertura, estado
         ) VALUES (
-            '40' || LPAD(i::TEXT, 10, '0'),  -- Formato: 4000000000001, 4000000000002, etc.
+            '40' || LPAD(i::TEXT, 10, '0'),
             cliente_id_var,
             tipo_cuenta_var,
             sucursal_var,
@@ -309,7 +335,7 @@ BEGIN
     -- ===== INSERTAR 3000 PRÉSTAMOS =====
     RAISE NOTICE '📊 Insertando 3000 préstamos...';
     FOR i IN 1..3000 LOOP
-        cliente_id_var := 1 + (i % 5000);
+        cliente_id_var := 1 + ((i - 1) % 5000);  -- ✅ FIX: Asegurar que el cliente existe
         
         monto_var := CASE 
             WHEN i % 4 = 0 THEN 50000 + (RANDOM() * 200000)::NUMERIC(12,2)
@@ -347,7 +373,7 @@ BEGIN
     -- ===== INSERTAR 6000 TARJETAS =====
     RAISE NOTICE '📊 Insertando 6000 tarjetas...';
     FOR i IN 1..6000 LOOP
-        cliente_id_var := 1 + (i % 5000);
+        cliente_id_var := 1 + ((i - 1) % 5000);  -- ✅ FIX: Asegurar que el cliente existe
         
         INSERT INTO tarjetas (
             numero, cliente_id, cuenta_id, tipo, fecha_emision, fecha_vencimiento, 
