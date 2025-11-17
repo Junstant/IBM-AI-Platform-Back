@@ -1,13 +1,9 @@
 import psycopg2
 import psycopg2.extras
 from typing import List, Dict, Any, Tuple, Optional
+from decimal import Decimal
+from datetime import datetime, date
 import os
-import sys
-from pathlib import Path
-
-# Importar TOON encoder
-sys.path.append(str(Path(__file__).parent.parent))
-from shared.toon_encoder import encode
 
 class DatabaseAnalyzer:
     """Simplified class to analyze PostgreSQL database schema and execute queries."""
@@ -223,7 +219,14 @@ class DatabaseAnalyzer:
             for row in cursor.fetchall():
                 result_dict = {}
                 for i, column in enumerate(columns):
-                    result_dict[column] = row[i]
+                    value = row[i]
+                    # ✅ Convert Decimal to float for JSON serialization
+                    if isinstance(value, Decimal):
+                        result_dict[column] = float(value)
+                    elif isinstance(value, (datetime, date)):
+                        result_dict[column] = value.isoformat()
+                    else:
+                        result_dict[column] = value
                 results.append(result_dict)
 
             return results
@@ -347,68 +350,12 @@ class DatabaseAnalyzer:
         Generate a schema description for the LLM.
         
         Args:
-            use_toon: Si True, usa formato TOON (más eficiente). Si False, usa Markdown.
+            use_toon: Ignorado, siempre usa Markdown (más compatible)
         """
         if not self.schema_info:
             self.analyze_schema()
 
-        if use_toon:
-            return self._generate_schema_toon()
-        else:
-            return self._generate_schema_markdown()
-    
-    def _generate_schema_toon(self) -> str:
-        """✅ Genera esquema en formato TOON (token-efficient)"""
-        schema_parts = []
-        
-        schema_parts.append("# Database Schema (TOON format)\n")
-        
-        # Tablas y columnas en formato TOON
-        for table_name, table_info in self.schema_info["tables"].items():
-            # Header de tabla
-            table_comment = table_info.get("comment", "")
-            if table_comment:
-                schema_parts.append(f"## {table_name}: {table_comment}")
-            else:
-                schema_parts.append(f"## {table_name}")
-            
-            # Columnas en formato TOON
-            columns_data = []
-            for column in table_info["columns"]:
-                columns_data.append({
-                    "name": column['name'],
-                    "type": column['type'],
-                    "nullable": "Y" if column['nullable'] == "YES" else "N",
-                    "desc": column.get("comment", "")
-                })
-            
-            if columns_data:
-                columns_toon = encode({"columns": columns_data}, delimiter=",", length_marker=False)
-                schema_parts.append(columns_toon)
-            
-            # Primary keys
-            if table_name in self.schema_info.get("primary_keys", {}):
-                pk_columns = self.schema_info["primary_keys"][table_name]
-                schema_parts.append(f"PK: {','.join(pk_columns)}")
-            
-            schema_parts.append("")  # Línea en blanco entre tablas
-        
-        # Relaciones en formato TOON
-        if self.schema_info["relationships"]:
-            schema_parts.append("## Relationships")
-            
-            relationships_data = []
-            for rel in self.schema_info["relationships"]:
-                relationships_data.append({
-                    "from": f"{rel['table']}.{rel['column']}",
-                    "to": f"{rel['references_table']}.{rel['references_column']}"
-                })
-            
-            if relationships_data:
-                rel_toon = encode({"relations": relationships_data}, delimiter=" → ", length_marker=False)
-                schema_parts.append(rel_toon)
-        
-        return "\n".join(schema_parts)
+        return self._generate_schema_markdown()
     
     def _generate_schema_markdown(self) -> str:
         """Genera esquema en formato Markdown (legacy)"""
@@ -475,12 +422,20 @@ class DatabaseAnalyzer:
             # Get column names
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
 
-            # Fetch all results
+            # Fetch all results and convert Decimals to float automatically
             results = []
             for row in cursor.fetchall():
                 result_dict = {}
                 for i, column in enumerate(columns):
-                    result_dict[column] = row[i]
+                    value = row[i]
+                    # ✅ Convert Decimal to float for JSON serialization
+                    if isinstance(value, Decimal):
+                        result_dict[column] = float(value)
+                    # ✅ Convert datetime/date to ISO string
+                    elif isinstance(value, (datetime, date)):
+                        result_dict[column] = value.isoformat()
+                    else:
+                        result_dict[column] = value
                 results.append(result_dict)
 
             # Explicitly commit the transaction if successful

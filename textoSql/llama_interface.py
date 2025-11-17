@@ -2,13 +2,7 @@ import json
 import httpx
 import asyncio
 import os
-import sys
 from typing import List, Dict, Any
-from pathlib import Path
-
-# Importar TOON encoder
-sys.path.append(str(Path(__file__).parent.parent))
-from shared.toon_encoder import encode, estimate_token_savings
 
 class LlamaInterface:
     """Minimal interface for LLM Runtime API."""
@@ -73,38 +67,25 @@ Please explain what went wrong with this query in simple terms and suggest how t
 Be specific about any syntax errors or invalid references.
 """
         else:
-            # ✅ Usar TOON para resultados (más eficiente)
+            # ✅ Formato JSON simple (sin TOON)
             if results:
-                # Limitar a 50 resultados (TOON es más compacto que JSON)
-                limited_results = results[:50]
-                
-                # Convertir a TOON
-                results_toon = encode({"results": limited_results}, delimiter=",", length_marker=True)
-                
-                # Calcular ahorro (solo para logging)
-                json_str = json.dumps({"results": limited_results})
-                savings = estimate_token_savings(json_str, results_toon)
-                print(f"💾 TOON savings: {savings['tokens_saved']} tokens ({savings['savings_percent']}%)")
-                
-                results_str = results_toon
+                # Limitar a 100 resultados máximo
+                limited_results = results[:100]
+                results_str = json.dumps(limited_results, indent=2)
             else:
-                results_str = "results[0]: (empty)"
+                results_str = "[]"
 
             prompt = f"""
 Question: {question}
 
 SQL Query: {sql_query}
 
-Results (TOON format):
+Results (JSON format):
 {results_str}
 
 Provide a natural language explanation of these results that directly answers the original question.
 Keep your explanation clear, concise, and focused on what the user actually asked.
 If the results contain a lot of data, summarize the key points.
-
-Note: Results are in TOON format (Tabular Object-Oriented Notation) for efficiency.
-Format: results[N]{field1,field2,...}:
-Each line after the header is a row with comma-separated values.
 """
 
         explanation = await self.get_llama_response_async(prompt)
