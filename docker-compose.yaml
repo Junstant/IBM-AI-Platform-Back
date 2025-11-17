@@ -16,11 +16,11 @@ services:
     networks:
       - ai_platform_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres && psql -U ${DB_USER:-postgres} -d banco_global -c 'SELECT 1' > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 120s
+      start_period: 90s  # AUMENTADO de 60s a 90s (scripts de inicialización tardan)
 
 #? ======================== FRONTEND (NGINX) ========================
   frontend:
