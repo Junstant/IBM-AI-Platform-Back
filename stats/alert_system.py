@@ -27,6 +27,9 @@ class AlertSystem:
             'response_time': 10.0,   # segundos
             'consecutive_errors': 5   # número de errores consecutivos
         }
+        
+        # Cache de alertas recientes para evitar duplicados
+        self._recent_alerts_cache = {}
     
     async def start_alert_monitoring(self):
         """Iniciar monitoreo de alertas"""
@@ -64,6 +67,9 @@ class AlertSystem:
             # Verificar errores consecutivos
             await self.check_consecutive_errors()
             
+            # Limpiar cache de alertas antiguas
+            self._clean_alerts_cache()
+            
             logger.debug("✅ Verificación de alertas completada")
             
         except Exception as e:
@@ -72,52 +78,81 @@ class AlertSystem:
     async def check_unresponsive_models(self):
         """Verificar modelos que no responden"""
         query = """
-        SELECT model_name, model_type, status, last_health_check, avg_response_time
+        SELECT 
+            model_name, 
+            model_type, 
+            status, 
+            last_health_check, 
+            avg_response_time,
+            last_error_message
         FROM ai_models_metrics
-        WHERE (
-            status = 'error' OR 
-            last_health_check < NOW() - INTERVAL '10 minutes' OR
-            avg_response_time > $1
-        ) AND status != 'maintenance'
+        WHERE status != 'maintenance'
         """
         
-        results = await self.db_manager.fetch_all(query, (self.thresholds['model_timeout'],))
+        results = await self.db_manager.fetch_all(query)
         
         for row in results:
             model_name = row['model_name']
             status = row['status']
             last_check = row['last_health_check']
             response_time = row['avg_response_time']
+            last_error = row.get('last_error_message')
             
-            # Verificar si ya existe una alerta similar reciente
-            if await self._alert_exists('model', model_name, 'unresponsive'):
-                continue
+            # Crear clave única para la alerta
+            alert_key = f"model_unresponsive_{model_name}"
             
-            # Determinar severidad y mensaje
-            if status == 'error':
+            # ✅ FIX 1: Solo crear alerta si el modelo realmente tiene problemas
+            should_alert = False
+            severity = None
+            title = None
+            message = None
+            
+            # Verificar si el modelo está realmente en error
+            if status == 'error' and last_error:
+                should_alert = True
                 severity = 4  # Crítico
-                title = f"Modelo {model_name} no responde"
-                message = f"El modelo {model_name} está en estado de error y no responde a health checks."
-            elif last_check and (datetime.now() - last_check).total_seconds() > 600:
-                severity = 3  # Alto
-                title = f"Modelo {model_name} sin health check reciente"
-                message = f"El modelo {model_name} no ha reportado estado en los últimos 10 minutos."
-            elif response_time and response_time > self.thresholds['model_timeout']:
+                title = f"Modelo {model_name} reporta error"
+                message = f"El modelo {model_name} está en estado de error: {last_error}"
+            
+            # Verificar si hace mucho que no reporta (más de 10 minutos)
+            elif last_check:
+                minutes_since_check = (datetime.now() - last_check).total_seconds() / 60
+                if minutes_since_check > 10:
+                    should_alert = True
+                    severity = 3  # Alto
+                    title = f"Modelo {model_name} sin health check reciente"
+                    message = f"El modelo {model_name} no ha reportado estado en {int(minutes_since_check)} minutos."
+            
+            # Verificar si tiene tiempos de respuesta muy altos (solo si está activo)
+            elif status == 'healthy' and response_time and response_time > self.thresholds['model_timeout']:
+                should_alert = True
                 severity = 2  # Medio
                 title = f"Modelo {model_name} con respuesta lenta"
-                message = f"El modelo {model_name} tiene tiempo de respuesta alto: {response_time:.2f}s"
-            else:
-                continue
+                message = f"El modelo {model_name} tiene tiempo de respuesta alto: {response_time:.2f}s (umbral: {self.thresholds['model_timeout']}s)"
             
-            await self._create_alert(
-                alert_type='error',
-                component='model',
-                component_name=model_name,
-                title=title,
-                message=message,
-                severity=severity,
-                metadata={'status': status, 'response_time': response_time}
-            )
+            # ✅ FIX 2: Verificar en cache si ya existe una alerta similar reciente
+            if should_alert:
+                if not self._should_create_alert(alert_key):
+                    logger.debug(f"⏭️ Saltando alerta duplicada para {model_name}")
+                    continue
+                
+                await self._create_alert(
+                    alert_type='error' if severity >= 4 else 'warning',
+                    component='model',
+                    component_name=model_name,
+                    title=title,
+                    message=message,
+                    severity=severity,
+                    metadata={
+                        'status': status, 
+                        'response_time': response_time,
+                        'last_check': last_check.isoformat() if last_check else None,
+                        'last_error': last_error
+                    }
+                )
+                
+                # Agregar a cache
+                self._recent_alerts_cache[alert_key] = datetime.now()
     
     async def check_high_error_rate_apis(self):
         """Verificar APIs con alta tasa de error"""
@@ -146,9 +181,11 @@ class AlertSystem:
             total_requests = row['total_requests']
             error_requests = row['error_requests']
             
-            # Verificar si ya existe alerta similar
-            alert_key = f"{functionality}_{endpoint}_error_rate"
-            if await self._alert_exists('api', alert_key, 'high_error_rate'):
+            # Crear clave única
+            alert_key = f"api_error_rate_{functionality}_{endpoint}"
+            
+            # Verificar cache
+            if not self._should_create_alert(alert_key):
                 continue
             
             severity = 4 if error_rate > 50 else 3
@@ -156,7 +193,7 @@ class AlertSystem:
             await self._create_alert(
                 alert_type='error',
                 component='api',
-                component_name=alert_key,
+                component_name=f"{functionality}_{endpoint}",
                 title=f"Alta tasa de error en {functionality}",
                 message=f"El endpoint {endpoint} tiene {error_rate}% de errores "
                        f"({error_requests}/{total_requests} requests) en la última hora.",
@@ -164,11 +201,13 @@ class AlertSystem:
                 metadata={
                     'functionality': functionality,
                     'endpoint': endpoint,
-                    'error_rate': error_rate,
+                    'error_rate': float(error_rate),
                     'total_requests': total_requests,
                     'error_requests': error_requests
                 }
             )
+            
+            self._recent_alerts_cache[alert_key] = datetime.now()
     
     async def check_system_resources(self):
         """Verificar uso de recursos del sistema"""
@@ -193,7 +232,8 @@ class AlertSystem:
         
         # Verificar memoria
         if memory_usage > self.thresholds['memory_usage']:
-            if not await self._alert_exists('system', 'memory', 'high_usage'):
+            alert_key = "system_memory_high"
+            if self._should_create_alert(alert_key):
                 severity = 5 if memory_usage > 95 else 4
                 await self._create_alert(
                     alert_type='critical',
@@ -202,12 +242,14 @@ class AlertSystem:
                     title=f"Uso de memoria crítico: {memory_usage:.1f}%",
                     message=f"El sistema está usando {memory_usage:.1f}% de la memoria disponible.",
                     severity=severity,
-                    metadata={'memory_usage_percent': memory_usage}
+                    metadata={'memory_usage_percent': float(memory_usage)}
                 )
+                self._recent_alerts_cache[alert_key] = datetime.now()
         
         # Verificar CPU
         if cpu_usage > self.thresholds['cpu_usage']:
-            if not await self._alert_exists('system', 'cpu', 'high_usage'):
+            alert_key = "system_cpu_high"
+            if self._should_create_alert(alert_key):
                 severity = 4 if cpu_usage > 95 else 3
                 await self._create_alert(
                     alert_type='warning',
@@ -216,12 +258,14 @@ class AlertSystem:
                     title=f"Uso de CPU alto: {cpu_usage:.1f}%",
                     message=f"El sistema está usando {cpu_usage:.1f}% de CPU.",
                     severity=severity,
-                    metadata={'cpu_usage_percent': cpu_usage}
+                    metadata={'cpu_usage_percent': float(cpu_usage)}
                 )
+                self._recent_alerts_cache[alert_key] = datetime.now()
         
         # Verificar disco
         if disk_usage > self.thresholds['disk_usage']:
-            if not await self._alert_exists('system', 'disk', 'high_usage'):
+            alert_key = "system_disk_high"
+            if self._should_create_alert(alert_key):
                 severity = 4 if disk_usage > 95 else 3
                 await self._create_alert(
                     alert_type='warning',
@@ -230,8 +274,9 @@ class AlertSystem:
                     title=f"Uso de disco alto: {disk_usage:.1f}%",
                     message=f"El sistema está usando {disk_usage:.1f}% del espacio en disco.",
                     severity=severity,
-                    metadata={'disk_usage_percent': disk_usage}
+                    metadata={'disk_usage_percent': float(disk_usage)}
                 )
+                self._recent_alerts_cache[alert_key] = datetime.now()
     
     async def check_high_response_times(self):
         """Verificar tiempos de respuesta altos"""
@@ -260,7 +305,8 @@ class AlertSystem:
             p95_response_time = row['p95_response_time']
             request_count = row['request_count']
             
-            if await self._alert_exists('api', functionality, 'slow_response'):
+            alert_key = f"api_slow_response_{functionality}"
+            if not self._should_create_alert(alert_key):
                 continue
             
             severity = 3 if avg_response_time > 20 else 2
@@ -276,11 +322,12 @@ class AlertSystem:
                 severity=severity,
                 metadata={
                     'functionality': functionality,
-                    'avg_response_time': avg_response_time,
-                    'p95_response_time': p95_response_time,
+                    'avg_response_time': float(avg_response_time),
+                    'p95_response_time': float(p95_response_time),
                     'request_count': request_count
                 }
             )
+            self._recent_alerts_cache[alert_key] = datetime.now()
     
     async def check_consecutive_errors(self):
         """Verificar errores consecutivos en APIs"""
@@ -316,14 +363,14 @@ class AlertSystem:
             endpoint = row['endpoint']
             consecutive_count = row['consecutive_count']
             
-            alert_key = f"{functionality}_{endpoint}_consecutive_errors"
-            if await self._alert_exists('api', alert_key, 'consecutive_errors'):
+            alert_key = f"api_consecutive_errors_{functionality}_{endpoint}"
+            if not self._should_create_alert(alert_key):
                 continue
             
             await self._create_alert(
                 alert_type='error',
                 component='api',
-                component_name=alert_key,
+                component_name=f"{functionality}_{endpoint}",
                 title=f"Errores consecutivos en {functionality}",
                 message=f"El endpoint {endpoint} ha fallado {consecutive_count} veces consecutivas.",
                 severity=4,
@@ -333,11 +380,46 @@ class AlertSystem:
                     'consecutive_count': consecutive_count
                 }
             )
+            self._recent_alerts_cache[alert_key] = datetime.now()
+    
+    def _should_create_alert(self, alert_key: str, cooldown_minutes: int = 30) -> bool:
+        """
+        ✅ FIX: Verificar si debe crear una alerta basándose en el cache local
+        Evita crear alertas duplicadas en el período de cooldown
+        """
+        if alert_key in self._recent_alerts_cache:
+            last_alert_time = self._recent_alerts_cache[alert_key]
+            minutes_since_last = (datetime.now() - last_alert_time).total_seconds() / 60
+            
+            if minutes_since_last < cooldown_minutes:
+                logger.debug(f"⏭️ Alerta '{alert_key}' en cooldown ({int(minutes_since_last)} min)")
+                return False
+        
+        return True
+    
+    def _clean_alerts_cache(self, max_age_minutes: int = 60):
+        """Limpiar cache de alertas antiguas"""
+        now = datetime.now()
+        keys_to_remove = []
+        
+        for key, timestamp in self._recent_alerts_cache.items():
+            age_minutes = (now - timestamp).total_seconds() / 60
+            if age_minutes > max_age_minutes:
+                keys_to_remove.append(key)
+        
+        for key in keys_to_remove:
+            del self._recent_alerts_cache[key]
+        
+        if keys_to_remove:
+            logger.debug(f"🧹 Limpiadas {len(keys_to_remove)} alertas del cache")
     
     async def _alert_exists(self, component: str, component_name: str, alert_subtype: str) -> bool:
-        """Verificar si ya existe una alerta similar en las últimas 2 horas"""
+        """
+        ⚠️ DEPRECATED: Usar _should_create_alert() en su lugar
+        Verificar si ya existe una alerta similar en las últimas 2 horas
+        """
         query = """
-        SELECT COUNT(*) 
+        SELECT COUNT(*) as count
         FROM system_alerts
         WHERE component = $1 
         AND component_name = $2
@@ -352,15 +434,21 @@ class AlertSystem:
             f"%{alert_subtype}%"
         ))
         
-        return result[0] > 0 if result else False
+        return result['count'] > 0 if result else False
     
     async def _create_alert(self, alert_type: str, component: str, component_name: str,
                            title: str, message: str, severity: int, metadata: dict = None):
-        """Crear nueva alerta"""
+        """Crear nueva alerta con timestamp correcto"""
         try:
             # Convertir Decimals a float para JSON serialization
             if metadata:
                 metadata = self._convert_decimals_to_float(metadata)
+            
+            # ✅ FIX 3: Agregar timestamp en metadata para tracking
+            if metadata is None:
+                metadata = {}
+            
+            metadata['alert_created_at'] = datetime.now().isoformat()
             
             alert_data = {
                 'alert_type': alert_type,
@@ -374,10 +462,11 @@ class AlertSystem:
             
             await self.db_manager.insert_alert(alert_data)
             
-            # Log de la alerta
+            # Log de la alerta con timestamp
             severity_emoji = {1: "ℹ️", 2: "⚠️", 3: "🔶", 4: "🔴", 5: "🚨"}
             emoji = severity_emoji.get(severity, "❓")
-            logger.warning(f"{emoji} ALERTA [{component}]: {title}")
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            logger.warning(f"{emoji} [{timestamp}] ALERTA [{component}]: {title}")
             
         except Exception as e:
             logger.error(f"Error creando alerta: {e}")
@@ -402,26 +491,104 @@ class AlertSystem:
             UPDATE system_alerts 
             SET resolved = TRUE, resolved_at = NOW(), resolved_by = $1
             WHERE id = $2 AND resolved = FALSE
+            RETURNING id
             """
             
-            result = await self.db_manager.execute_query(query, (resolved_by, alert_id))
-            return result > 0
+            result = await self.db_manager.fetch_one(query, (resolved_by, alert_id))
+            
+            if result:
+                logger.info(f"✅ Alerta #{alert_id} resuelta por {resolved_by}")
+                return True
+            return False
             
         except Exception as e:
             logger.error(f"Error resolviendo alerta {alert_id}: {e}")
             return False
     
+    async def auto_resolve_outdated_alerts(self):
+        """
+        ✅ NUEVO: Auto-resolver alertas que ya no son relevantes
+        Por ejemplo, si un modelo vuelve a estar healthy
+        """
+        try:
+            # Resolver alertas de modelos que ahora están healthy
+            query = """
+            UPDATE system_alerts sa
+            SET resolved = TRUE, resolved_at = NOW(), resolved_by = 'auto_system'
+            WHERE sa.component = 'model'
+            AND sa.resolved = FALSE
+            AND EXISTS (
+                SELECT 1 FROM ai_models_metrics m
+                WHERE m.model_name = sa.component_name
+                AND m.status = 'healthy'
+                AND m.last_health_check >= NOW() - INTERVAL '5 minutes'
+            )
+            RETURNING id, component_name
+            """
+            
+            resolved = await self.db_manager.fetch_all(query)
+            
+            if resolved:
+                for row in resolved:
+                    logger.info(f"✅ Auto-resuelto: Alerta de modelo {row['component_name']} (ID: {row['id']})")
+            
+            return len(resolved) if resolved else 0
+            
+        except Exception as e:
+            logger.error(f"Error auto-resolviendo alertas: {e}")
+            return 0
+    
     async def get_active_alerts(self, severity_min: int = 1) -> List[Dict]:
-        """Obtener alertas activas"""
+        """Obtener alertas activas con timestamps correctos"""
         query = """
-        SELECT * FROM system_alerts
+        SELECT 
+            id,
+            alert_type,
+            component,
+            component_name,
+            title,
+            message,
+            severity,
+            metadata,
+            created_at,
+            resolved,
+            resolved_at,
+            resolved_by
+        FROM system_alerts
         WHERE resolved = FALSE 
-        AND severity >= %s
+        AND severity >= $1
         ORDER BY severity DESC, created_at DESC
         """
         
         results = await self.db_manager.fetch_all(query, (severity_min,))
-        return [dict(row) for row in results]
+        
+        alerts = []
+        for row in results:
+            alert_dict = dict(row)
+            
+            # ✅ FIX 4: Formatear timestamps para el frontend
+            if alert_dict['created_at']:
+                alert_dict['created_at'] = alert_dict['created_at'].isoformat()
+            if alert_dict['resolved_at']:
+                alert_dict['resolved_at'] = alert_dict['resolved_at'].isoformat()
+            
+            # Calcular tiempo transcurrido
+            if isinstance(row['created_at'], datetime):
+                minutes_ago = (datetime.now() - row['created_at']).total_seconds() / 60
+                alert_dict['minutes_ago'] = int(minutes_ago)
+                
+                # Formato legible
+                if minutes_ago < 1:
+                    alert_dict['time_ago'] = "Ahora mismo"
+                elif minutes_ago < 60:
+                    alert_dict['time_ago'] = f"Hace {int(minutes_ago)} min"
+                else:
+                    hours = int(minutes_ago / 60)
+                    alert_dict['time_ago'] = f"Hace {hours}h"
+            
+            alerts.append(alert_dict)
+        
+        return alerts
     
     async def get_alert_summary(self) -> Dict:
         """Obtener resumen de alertas"""
