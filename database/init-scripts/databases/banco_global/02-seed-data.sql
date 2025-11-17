@@ -116,7 +116,7 @@ DECLARE
                              'Claro (Celular)', 'Movistar (Celular)', 'Personal (Celular)', 'Cablevisión', 'DirecTV'];
 BEGIN
     -- ===== INSERTAR 5000 CLIENTES =====
-    RAISE NOTICE 'Insertando 5000 clientes...';
+    RAISE NOTICE '📊 Insertando 5000 clientes...';
     FOR i IN 1..5000 LOOP
         INSERT INTO clientes (
             nombre, apellido, email, telefono, fecha_nacimiento, documento_identidad, 
@@ -135,12 +135,17 @@ BEGIN
             CASE WHEN i % 20 = 0 THEN 'inactivo' ELSE 'activo' END,
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day'
         );
+        
+        -- Progreso cada 1000 clientes
+        IF i % 1000 = 0 THEN
+            RAISE NOTICE '   ✓ % clientes insertados...', i;
+        END IF;
     END LOOP;
     
-    RAISE NOTICE 'Clientes insertados: %', (SELECT COUNT(*) FROM clientes);
+    RAISE NOTICE '✅ Total clientes insertados: %', (SELECT COUNT(*) FROM clientes);
 
     -- ===== INSERTAR 8000 CUENTAS CON SALDOS INICIALES REALISTAS =====
-    \echo 'Insertando 8000 cuentas con saldos iniciales...';
+    RAISE NOTICE '📊 Insertando 8000 cuentas con saldos iniciales...';
     FOR i IN 1..8000 LOOP
         cliente_id_var := 1 + (i % 5000);
         tipo_cuenta_var := 1 + (i % 6);
@@ -167,12 +172,17 @@ BEGIN
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day',
             CASE WHEN i % 100 = 0 THEN 'inactiva' ELSE 'activa' END
         );
+        
+        -- Progreso cada 2000 cuentas
+        IF i % 2000 = 0 THEN
+            RAISE NOTICE '   ✓ % cuentas insertadas...', i;
+        END IF;
     END LOOP;
     
-    RAISE NOTICE 'Cuentas insertadas: %', (SELECT COUNT(*) FROM cuentas);
+    RAISE NOTICE '✅ Total cuentas insertadas: %', (SELECT COUNT(*) FROM cuentas);
 
     -- ===== INSERTAR 50000 TRANSACCIONES REALISTAS (ÚLTIMOS 2 AÑOS) =====
-    \echo 'Insertando 50000 transacciones con saldos coherentes...';
+    RAISE NOTICE '📊 Insertando 50000 transacciones con saldos coherentes...';
     
     FOR i IN 1..50000 LOOP
         -- Seleccionar cuenta aleatoria
@@ -184,90 +194,67 @@ BEGIN
         saldo_anterior := saldo_cuenta;
         
         -- Generar fecha/hora realista (más transacciones recientes)
-        -- 70% en los últimos 6 meses, 20% en 6-12 meses, 10% en 12-24 meses
         fecha_var := CASE 
             WHEN i % 10 < 7 THEN CURRENT_DATE - (RANDOM() * 180)::INTEGER
             WHEN i % 10 < 9 THEN CURRENT_DATE - (180 + (RANDOM() * 180)::INTEGER)
             ELSE CURRENT_DATE - (360 + (RANDOM() * 365)::INTEGER)
         END;
         
-        -- Horario bancario realista (8:00 - 20:00, con picos en 12:00 y 18:00)
+        -- Horario bancario realista (8:00 - 20:00)
         hora_var := TIME '08:00:00' + (
             CASE 
-                WHEN i % 10 < 3 THEN (RANDOM() * 240)::INTEGER  -- 30% transacciones mañana (8-12)
-                WHEN i % 10 < 7 THEN (240 + (RANDOM() * 240)::INTEGER)  -- 40% mediodía-tarde (12-16)
-                ELSE (480 + (RANDOM() * 240)::INTEGER)  -- 30% tarde-noche (16-20)
+                WHEN i % 10 < 3 THEN (RANDOM() * 240)::INTEGER
+                WHEN i % 10 < 7 THEN (240 + (RANDOM() * 240)::INTEGER)
+                ELSE (480 + (RANDOM() * 240)::INTEGER)
             END
         ) * INTERVAL '1 minute';
         
-        -- Determinar tipo de transacción con distribución realista
+        -- Determinar tipo de transacción
         tipo_transaccion_var := CASE 
-            WHEN i % 100 < 5 THEN 1   -- 5% Depósitos
-            WHEN i % 100 < 15 THEN 2  -- 10% Retiros
-            WHEN i % 100 < 25 THEN 3  -- 10% Transferencias
-            WHEN i % 100 < 45 THEN 4  -- 20% Pagos servicios
-            WHEN i % 100 < 52 THEN 5  -- 7% Débitos automáticos
-            WHEN i % 100 < 55 THEN 6  -- 3% Acreditaciones (salarios)
-            WHEN i % 100 < 90 THEN 7  -- 35% Compras con tarjeta
-            WHEN i % 100 < 95 THEN 8  -- 5% Intereses
-            WHEN i % 100 < 98 THEN 9  -- 3% Comisiones
-            ELSE 11                    -- 2% Pagos préstamos
+            WHEN i % 100 < 5 THEN 1
+            WHEN i % 100 < 15 THEN 2
+            WHEN i % 100 < 25 THEN 3
+            WHEN i % 100 < 45 THEN 4
+            WHEN i % 100 < 52 THEN 5
+            WHEN i % 100 < 55 THEN 6
+            WHEN i % 100 < 90 THEN 7
+            WHEN i % 100 < 95 THEN 8
+            WHEN i % 100 < 98 THEN 9
+            ELSE 11
         END;
         
-        -- Generar montos realistas según tipo y saldo disponible
+        -- Generar montos realistas
         monto_var := CASE tipo_transaccion_var
-            -- Depósitos: variados
             WHEN 1 THEN 500 + (RANDOM() * LEAST(50000, saldo_anterior * 0.5))::NUMERIC(12,2)
-            
-            -- Retiros: máximo 30% del saldo
             WHEN 2 THEN 200 + (RANDOM() * LEAST(5000, saldo_anterior * 0.3))::NUMERIC(12,2)
-            
-            -- Transferencias: máximo 40% del saldo
             WHEN 3 THEN 500 + (RANDOM() * LEAST(20000, saldo_anterior * 0.4))::NUMERIC(12,2)
-            
-            -- Pagos servicios: montos típicos
             WHEN 4 THEN 100 + (RANDOM() * 3000)::NUMERIC(12,2)
-            
-            -- Débitos automáticos: montos fijos típicos
             WHEN 5 THEN CASE 
-                WHEN i % 4 = 0 THEN 5000 + (RANDOM() * 2000)::NUMERIC(12,2)  -- Tarjeta crédito
-                WHEN i % 4 = 1 THEN 1500 + (RANDOM() * 500)::NUMERIC(12,2)   -- Préstamo
-                WHEN i % 4 = 2 THEN 800 + (RANDOM() * 400)::NUMERIC(12,2)    -- Seguro
-                ELSE 300 + (RANDOM() * 200)::NUMERIC(12,2)                   -- Suscripciones
+                WHEN i % 4 = 0 THEN 5000 + (RANDOM() * 2000)::NUMERIC(12,2)
+                WHEN i % 4 = 1 THEN 1500 + (RANDOM() * 500)::NUMERIC(12,2)
+                WHEN i % 4 = 2 THEN 800 + (RANDOM() * 400)::NUMERIC(12,2)
+                ELSE 300 + (RANDOM() * 200)::NUMERIC(12,2)
             END
-            
-            -- Acreditaciones: salarios realistas
             WHEN 6 THEN 50000 + (RANDOM() * 150000)::NUMERIC(12,2)
-            
-            -- Compras: típicamente pequeñas
             WHEN 7 THEN 50 + (RANDOM() * 5000)::NUMERIC(12,2)
-            
-            -- Intereses: 0.5-2% del saldo
             WHEN 8 THEN (saldo_anterior * (0.005 + RANDOM() * 0.015))::NUMERIC(12,2)
-            
-            -- Comisiones: fijas según tipo cuenta
             WHEN 9 THEN 5 + (RANDOM() * 50)::NUMERIC(12,2)
-            
-            -- Pagos préstamos: cuotas fijas
             ELSE 2000 + (RANDOM() * 8000)::NUMERIC(12,2)
         END;
         
-        -- Obtener comisión del tipo de transacción
+        -- Obtener comisión
         SELECT comision INTO comision_var FROM tipos_transaccion WHERE id = tipo_transaccion_var;
         
         -- Calcular nuevo saldo
         saldo_nuevo := CASE 
-            -- Transacciones que AUMENTAN el saldo
             WHEN tipo_transaccion_var IN (1, 6, 8) THEN saldo_anterior + monto_var
-            -- Transacciones que DISMINUYEN el saldo
             WHEN tipo_transaccion_var IN (2, 3, 4, 5, 7, 9, 11) THEN 
                 GREATEST(0, saldo_anterior - monto_var - COALESCE(comision_var, 0))
             ELSE saldo_anterior
         END;
         
-        -- Solo insertar si la transacción es válida (no deja saldo negativo)
+        -- Solo insertar si la transacción es válida
         IF saldo_nuevo >= 0 OR tipo_transaccion_var IN (1, 6, 8) THEN
-            -- Determinar cuenta destino para transferencias
             cuenta_destino_var := CASE 
                 WHEN tipo_transaccion_var = 3 THEN 1 + (RANDOM() * 7999)::INTEGER
                 WHEN tipo_transaccion_var IN (1, 6, 8) THEN cuenta_id_var
@@ -294,19 +281,9 @@ BEGIN
                 tipo_transaccion_var,
                 monto_var,
                 CASE tipo_transaccion_var
-                    WHEN 1 THEN 'Depósito ' || CASE 
-                        WHEN i % 3 = 0 THEN 'en efectivo' 
-                        WHEN i % 3 = 1 THEN 'por transferencia' 
-                        ELSE 'por cheque' 
-                    END
-                    WHEN 2 THEN 'Retiro ' || CASE 
-                        WHEN i % 2 = 0 THEN 'en cajero automático' 
-                        ELSE 'en ventanilla' 
-                    END
-                    WHEN 3 THEN 'Transferencia ' || CASE 
-                        WHEN i % 2 = 0 THEN 'a terceros' 
-                        ELSE 'entre cuentas propias' 
-                    END
+                    WHEN 1 THEN 'Depósito ' || CASE WHEN i % 3 = 0 THEN 'en efectivo' WHEN i % 3 = 1 THEN 'por transferencia' ELSE 'por cheque' END
+                    WHEN 2 THEN 'Retiro ' || CASE WHEN i % 2 = 0 THEN 'en cajero automático' ELSE 'en ventanilla' END
+                    WHEN 3 THEN 'Transferencia ' || CASE WHEN i % 2 = 0 THEN 'a terceros' ELSE 'entre cuentas propias' END
                     WHEN 4 THEN 'Pago: ' || servicios[1 + (i % array_length(servicios, 1))]
                     WHEN 5 THEN 'Débito automático: ' || CASE 
                         WHEN i % 4 = 0 THEN 'Tarjeta de crédito VISA'
@@ -314,18 +291,10 @@ BEGIN
                         WHEN i % 4 = 2 THEN 'Seguro de vida'
                         ELSE 'Suscripción ' || CASE WHEN i % 3 = 0 THEN 'Netflix' WHEN i % 3 = 1 THEN 'Spotify' ELSE 'Amazon Prime' END
                     END
-                    WHEN 6 THEN 'Acreditación ' || CASE 
-                        WHEN i % 3 = 0 THEN 'salario' 
-                        WHEN i % 3 = 1 THEN 'jubilación'
-                        ELSE 'honorarios profesionales'
-                    END
+                    WHEN 6 THEN 'Acreditación ' || CASE WHEN i % 3 = 0 THEN 'salario' WHEN i % 3 = 1 THEN 'jubilación' ELSE 'honorarios profesionales' END
                     WHEN 7 THEN 'Compra: ' || comercios[1 + (i % array_length(comercios, 1))]
                     WHEN 8 THEN 'Pago de intereses - Cuenta de ahorros'
-                    WHEN 9 THEN 'Comisión ' || CASE 
-                        WHEN i % 3 = 0 THEN 'mantenimiento cuenta'
-                        WHEN i % 3 = 1 THEN 'uso cajero'
-                        ELSE 'transferencia'
-                    END
+                    WHEN 9 THEN 'Comisión ' || CASE WHEN i % 3 = 0 THEN 'mantenimiento cuenta' WHEN i % 3 = 1 THEN 'uso cajero' ELSE 'transferencia' END
                     ELSE 'Pago cuota préstamo #' || (1 + (i % 60))::TEXT
                 END,
                 fecha_var,
@@ -340,29 +309,30 @@ BEGIN
                 saldo_nuevo
             );
             
-            -- Actualizar saldo de la cuenta SOLO si la transacción fue completada
+            -- Actualizar saldo de la cuenta
             IF (i % 500 <> 0) AND (i % 1000 <> 0) THEN
                 UPDATE cuentas SET saldo = saldo_nuevo WHERE id = cuenta_id_var;
             END IF;
         END IF;
         
-        -- Mostrar progreso cada 10000 transacciones
+        -- Progreso cada 10000 transacciones
         IF i % 10000 = 0 THEN
-            \echo '   Procesadas ' || i || ' transacciones...';
+            RAISE NOTICE '   ✓ % transacciones insertadas...', i;
         END IF;
     END LOOP;
+    
+    RAISE NOTICE '✅ Total transacciones insertadas: %', (SELECT COUNT(*) FROM transacciones_banco);
 
-    -- ===== INSERTAR 3000 PRÉSTAMOS CON HISTORIAL REALISTA =====
-    \echo 'Insertando 3000 préstamos con cuotas...';
+    -- ===== INSERTAR 3000 PRÉSTAMOS =====
+    RAISE NOTICE '📊 Insertando 3000 préstamos...';
     FOR i IN 1..3000 LOOP
         cliente_id_var := 1 + (i % 5000);
         
-        -- Determinar tipo de préstamo y parámetros
         monto_var := CASE 
-            WHEN i % 4 = 0 THEN 50000 + (RANDOM() * 200000)::NUMERIC(12,2)    -- Personal
-            WHEN i % 4 = 1 THEN 500000 + (RANDOM() * 2000000)::NUMERIC(12,2)  -- Hipotecario
-            WHEN i % 4 = 2 THEN 100000 + (RANDOM() * 500000)::NUMERIC(12,2)   -- Automotor
-            ELSE 20000 + (RANDOM() * 100000)::NUMERIC(12,2)                   -- Prendario
+            WHEN i % 4 = 0 THEN 50000 + (RANDOM() * 200000)::NUMERIC(12,2)
+            WHEN i % 4 = 1 THEN 500000 + (RANDOM() * 2000000)::NUMERIC(12,2)
+            WHEN i % 4 = 2 THEN 100000 + (RANDOM() * 500000)::NUMERIC(12,2)
+            ELSE 20000 + (RANDOM() * 100000)::NUMERIC(12,2)
         END;
         
         INSERT INTO prestamos (
@@ -371,78 +341,28 @@ BEGIN
         ) VALUES (
             'PREST-' || EXTRACT(YEAR FROM CURRENT_DATE)::TEXT || '-' || LPAD(i::TEXT, 6, '0'),
             cliente_id_var,
-            1 + (i % 4),  -- ID producto
+            1 + (i % 4),
             monto_var,
-            CASE 
-                WHEN i % 4 = 0 THEN 0.25  -- Personal
-                WHEN i % 4 = 1 THEN 0.12  -- Hipotecario
-                WHEN i % 4 = 2 THEN 0.18  -- Automotor
-                ELSE 0.22                 -- Prendario
-            END,
-            CASE 
-                WHEN i % 4 = 0 THEN 12 + (i % 48)   -- Personal: 12-60 meses
-                WHEN i % 4 = 1 THEN 120 + (i % 240) -- Hipotecario: 120-360 meses
-                WHEN i % 4 = 2 THEN 12 + (i % 72)   -- Automotor: 12-84 meses
-                ELSE 12 + (i % 36)                  -- Prendario: 12-48 meses
-            END,
+            CASE WHEN i % 4 = 0 THEN 0.25 WHEN i % 4 = 1 THEN 0.12 WHEN i % 4 = 2 THEN 0.18 ELSE 0.22 END,
+            CASE WHEN i % 4 = 0 THEN 12 + (i % 48) WHEN i % 4 = 1 THEN 120 + (i % 240) WHEN i % 4 = 2 THEN 12 + (i % 72) ELSE 12 + (i % 36) END,
             (monto_var * (1 + CASE WHEN i % 4 = 0 THEN 0.25 WHEN i % 4 = 1 THEN 0.12 WHEN i % 4 = 2 THEN 0.18 ELSE 0.22 END) / 
                 CASE WHEN i % 4 = 0 THEN (12 + (i % 48)) WHEN i % 4 = 1 THEN (120 + (i % 240)) WHEN i % 4 = 2 THEN (12 + (i % 72)) ELSE (12 + (i % 36)) END)::NUMERIC(12,2),
             CURRENT_DATE - (i % 730) * INTERVAL '1 day',
             CURRENT_DATE + (1000 + (i % 2000)) * INTERVAL '1 day',
-            monto_var * (0.5 + RANDOM() * 0.5),  -- Saldo pendiente entre 50-100%
+            monto_var * (0.5 + RANDOM() * 0.5),
             1 + (i % 25),
-            CASE 
-                WHEN i % 100 = 0 THEN 'cancelado'
-                WHEN i % 200 = 0 THEN 'vencido'
-                WHEN i % 50 = 0 THEN 'en mora'
-                ELSE 'activo'
-            END
-        ) RETURNING id INTO prestamo_id_var;
+            CASE WHEN i % 100 = 0 THEN 'cancelado' WHEN i % 200 = 0 THEN 'vencido' WHEN i % 50 = 0 THEN 'en mora' ELSE 'activo' END
+        );
         
-        -- Generar historial de pagos (transacciones)
-        IF i % 2 = 0 THEN  -- 50% de préstamos con historial
-            FOR cuota_num IN 1..(1 + (RANDOM() * 12)::INTEGER) LOOP
-                SELECT saldo INTO saldo_cuenta FROM cuentas WHERE cliente_id = cliente_id_var ORDER BY saldo DESC LIMIT 1;
-                
-                IF saldo_cuenta IS NOT NULL THEN
-                    INSERT INTO transacciones_banco (
-                        numero_transaccion,
-                        cuenta_origen_id,
-                        tipo_transaccion_id,
-                        monto,
-                        descripcion,
-                        fecha_transaccion,
-                        hora_transaccion,
-                        sucursal_id,
-                        estado,
-                        saldo_anterior_origen,
-                        saldo_nuevo_origen
-                    ) 
-                    SELECT 
-                        'TXN-PREST-' || prestamo_id_var || '-' || LPAD(cuota_num::TEXT, 3, '0'),
-                        c.id,
-                        11,  -- Tipo: Pago Préstamo
-                        (SELECT cuota_mensual FROM prestamos WHERE id = prestamo_id_var),
-                        'Pago cuota #' || cuota_num || ' préstamo ' || (SELECT numero_prestamo FROM prestamos WHERE id = prestamo_id_var),
-                        (SELECT fecha_otorgamiento FROM prestamos WHERE id = prestamo_id_var) + (cuota_num * 30) * INTERVAL '1 day',
-                        TIME '10:00:00',
-                        1 + (cuota_num % 25),
-                        CASE WHEN cuota_num % 20 = 0 THEN 'rechazada' ELSE 'completada' END,
-                        c.saldo,
-                        c.saldo - (SELECT cuota_mensual FROM prestamos WHERE id = prestamo_id_var)
-                    FROM cuentas c
-                    WHERE c.cliente_id = cliente_id_var 
-                    ORDER BY c.saldo DESC 
-                    LIMIT 1;
-                END IF;
-            END LOOP;
+        IF i % 1000 = 0 THEN
+            RAISE NOTICE '   ✓ % préstamos insertados...', i;
         END IF;
     END LOOP;
     
-    RAISE NOTICE 'Préstamos insertados: %', (SELECT COUNT(*) FROM prestamos);
+    RAISE NOTICE '✅ Total préstamos insertados: %', (SELECT COUNT(*) FROM prestamos);
 
     -- ===== INSERTAR 6000 TARJETAS =====
-    \echo 'Insertando 6000 tarjetas...';
+    RAISE NOTICE '📊 Insertando 6000 tarjetas...';
     FOR i IN 1..6000 LOOP
         cliente_id_var := 1 + (i % 5000);
         
@@ -464,38 +384,39 @@ BEGIN
                     ELSE 20000 + (RANDOM() * 50000)::NUMERIC(12,2)
                 END
             ELSE NULL END,
-            CASE WHEN i % 3 = 0 THEN 
-                (RANDOM() * 30000)::NUMERIC(12,2)
-            ELSE 0 END,
-            CASE 
-                WHEN i % 100 = 0 THEN 'bloqueada'
-                WHEN i % 200 = 0 THEN 'vencida'
-                ELSE 'activa'
-            END,
+            CASE WHEN i % 3 = 0 THEN (RANDOM() * 30000)::NUMERIC(12,2) ELSE 0 END,
+            CASE WHEN i % 100 = 0 THEN 'bloqueada' WHEN i % 200 = 0 THEN 'vencida' ELSE 'activa' END,
             LPAD((100 + (i % 900))::TEXT, 3, '0')
         FROM cuentas c
         WHERE c.cliente_id = cliente_id_var
         ORDER BY c.saldo DESC
-        LIMIT 1
-        ON CONFLICT (numero) DO NOTHING;
+        LIMIT 1;
+        
+        IF i % 2000 = 0 THEN
+            RAISE NOTICE '   ✓ % tarjetas insertadas...', i;
+        END IF;
     END LOOP;
+    
+    RAISE NOTICE '✅ Total tarjetas insertadas: %', (SELECT COUNT(*) FROM tarjetas);
 
     -- ===== ACTUALIZAR ESTADÍSTICAS =====
-    \echo 'Actualizando estadísticas de la base de datos...';
+    RAISE NOTICE '📊 Actualizando estadísticas de la base de datos...';
     ANALYZE clientes;
     ANALYZE cuentas;
     ANALYZE transacciones_banco;
     ANALYZE prestamos;
     ANALYZE tarjetas;
     
+    RAISE NOTICE '🎉 ¡Proceso completado exitosamente!';
+    
 END $$;
 
-\echo '✅ Datos masivos insertados en banco_global';
 \echo '';
+\echo '✅ Datos masivos insertados en banco_global';
 \echo '📊 Resumen Final:';
 \echo '   ✓ 5,000 clientes (95% activos)';
 \echo '   ✓ 8,000 cuentas con saldos coherentes';
 \echo '   ✓ 50,000 transacciones realistas (últimos 2 años)';
-\echo '   ✓ 3,000 préstamos activos (con cuotas)';
-\echo '   ✓ 6,000 tarjetas emitidas (crédito y débito)';
-\echo '   ✓ Estadísticas de la base de datos actualizadas';
+\echo '   ✓ 3,000 préstamos con historial';
+\echo '   ✓ 6,000 tarjetas (débito y crédito)';
+\echo '';

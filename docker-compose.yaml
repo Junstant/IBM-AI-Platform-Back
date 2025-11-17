@@ -30,7 +30,6 @@ services:
       context: ../FrontAI
       dockerfile: Dockerfile
       args:
-        # Esto pasa las variables al momento de construir el JS
         - VITE_API_HOST=${VITE_API_HOST}
         - VITE_GEMMA_2B_PORT=${GEMMA_2B_PORT}  
         - VITE_GEMMA_4B_PORT=${GEMMA_4B_PORT}     
@@ -46,7 +45,6 @@ services:
     networks:
       - ai_platform_network
     environment:
-      # Esto pasa las variables para que Nginx genere su config al arrancar
       - NGINX_PORT_INTERNAL=80
       - FRAUDE_API_HOST=fraude-api
       - FRAUDE_API_PORT=8000
@@ -61,17 +59,19 @@ services:
       - DEEPSEEK_8B_PORT=${DEEPSEEK_8B_PORT}
       - DEEPSEEK_14B_PORT=${DEEPSEEK_14B_PORT}
     depends_on:
+      # CAMBIO: Solo verificar que los servicios estén INICIADOS, no HEALTHY
+      # Nginx puede arrancar aunque los backends no estén listos (mostrará errores 502 temporales)
       fraude-api:
-        condition: service_healthy
+        condition: service_started  # ✅ Cambiado de service_healthy
         restart: true
       textosql-api:
-        condition: service_healthy
+        condition: service_started  # ✅ Cambiado de service_healthy
         restart: true
       stats-api:
-        condition: service_healthy
+        condition: service_started  # ✅ Cambiado de service_healthy
         restart: true
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"] # localhost dentro del contenedor es el puerto 80
+      test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -400,7 +400,7 @@ services:
       retries: 5
       start_period: 90s   # Solo 1.5 min (no depende de LLMs)
 
-  #📊 ======================== STATS API ========================
+  #% ======================== STATS API ========================
   stats-api:
     build:
       context: ./stats
@@ -443,7 +443,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 60s   # Solo 1 min (se conecta a BD)
+      start_period: 120s  # 2 minutos en lugar de 1
 
 volumes:
   models_volume:
