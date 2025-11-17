@@ -30,6 +30,11 @@ error() { echo -e "[$(date +'%H:%M:%S')] ${RED}❌ $1${NC}"; exit 1; }
 # Verificar docker-compose.yaml
 [ ! -f "docker-compose.yaml" ] && error "Ejecutar desde el directorio raíz del proyecto"
 
+# Cargar variables de entorno
+if [ -f ".env" ]; then
+    source .env
+fi
+
 case "${1:-menu}" in
     "backend"|"back"|"b")
         log "🔧 Actualizando Backend..."
@@ -39,56 +44,128 @@ case "${1:-menu}" in
         docker compose up -d stats-api fraude-api textosql-api
         sleep 15
         log "✅ Backend actualizado!"
-        echo -e "${WHITE}📊 Stats: http://localhost:8003/docs${NC}"
-        echo -e "${WHITE}🛡️ Fraude: http://localhost:8001/docs${NC}"
-        echo -e "${WHITE}🔍 TextSQL: http://localhost:8000/docs${NC}"
+        echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
+        echo -e "${WHITE}🛡️ Fraude: http://localhost:${FRAUDE_API_PORT:-8001}/docs${NC}"
+        echo -e "${WHITE}🔍 TextSQL: http://localhost:${TEXTOSQL_API_PORT:-8000}/docs${NC}"
         ;;
         
     "frontend"|"front"|"f")
         log "🌐 Actualizando Frontend..."
-        # El frontend está en el mismo repo actualmente
-        git pull origin main
+        
+        # Verificar si el frontend está en el mismo repo o es externo
+        if [ -d "../FrontAI" ]; then
+            log "Actualizando desde repositorio externo..."
+            cd ../FrontAI
+            git pull origin main
+            cd -
+        else
+            log "Frontend en el mismo repositorio..."
+            git pull origin main
+        fi
+        
         docker compose stop frontend
         docker compose build --no-cache frontend
         docker compose up -d frontend
         sleep 20
         log "✅ Frontend actualizado!"
-        echo -e "${WHITE}🌐 URL: http://localhost:2012${NC}"
+        echo -e "${WHITE}🌐 URL: http://localhost:${NGINX_PORT:-2012}${NC}"
         ;;
         
     "full"|"all"|"a")
         log "🔄 Actualizando todo el stack..."
+        
+        # Pull backend (repositorio actual)
+        log "Actualizando Backend..."
         git pull origin main
         
-        # Detener servicios pero NO PostgreSQL
-        warn "Deteniendo servicios (manteniendo PostgreSQL)..."
+        # Pull frontend (repositorio externo si existe)
+        if [ -d "../FrontAI" ]; then
+            log "Actualizando Frontend externo..."
+            (cd ../FrontAI && git pull origin main)
+        else
+            log "Frontend en el mismo repositorio (ya actualizado)"
+        fi
+        
+        # Detener servicios pero NO PostgreSQL ni LLMs
+        warn "Deteniendo servicios (manteniendo PostgreSQL y LLMs)..."
         docker compose stop stats-api fraude-api textosql-api frontend
         
         # Rebuild y levantar servicios
-        docker compose build --no-cache frontend stats-api fraude-api textosql-api
+        log "Reconstruyendo imágenes..."
+        docker compose build --no-cache --parallel frontend stats-api fraude-api textosql-api
+        
+        log "Iniciando servicios..."
         docker compose up -d stats-api fraude-api textosql-api frontend
         
         sleep 30
         log "✅ Stack actualizado manteniendo datos!"
-        echo -e "${WHITE}🌐 Frontend: http://localhost:2012${NC}"
-        echo -e "${WHITE}📊 Stats: http://localhost:8003/docs${NC}"
-        echo -e "${WHITE}🛡️ Fraude: http://localhost:8001/docs${NC}"
-        echo -e "${WHITE}🔍 TextSQL: http://localhost:8000/docs${NC}"
+        echo ""
+        echo -e "${WHITE}🎯 URLs de acceso:${NC}"
+        echo -e "${WHITE}🌐 Frontend: http://localhost:${NGINX_PORT:-2012}${NC}"
+        echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
+        echo -e "${WHITE}🛡️ Fraude: http://localhost:${FRAUDE_API_PORT:-8001}/docs${NC}"
+        echo -e "${WHITE}🔍 TextSQL: http://localhost:${TEXTOSQL_API_PORT:-8000}/docs${NC}"
         ;;
         
     "reset"|"r")
         warn "🗑️ REINICIO COMPLETO - Eliminando todos los datos..."
-        read -p "¿Estás seguro? (y/N): " -n 1 -r
+        read -p "¿Estás seguro? Esto borrará PostgreSQL y todos los volúmenes (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
+            log "Deteniendo todos los contenedores..."
             docker compose down -v
+            
+            log "Reconstruyendo imágenes..."
             docker compose build --no-cache
+            
+            log "Iniciando sistema..."
             docker compose up -d
+            
+            log "Esperando inicialización (60s)..."
             sleep 60
+            
             log "✅ Sistema reiniciado con datos frescos!"
         else
             log "Operación cancelada"
         fi
+        ;;
+    
+    "models"|"llm"|"m")
+        log "🤖 Gestionando modelos LLM..."
+        echo ""
+        echo -e "${WHITE}1)${NC} Reiniciar modelo específico"
+        echo -e "${WHITE}2)${NC} Ver estado de modelos"
+        echo -e "${WHITE}3)${NC} Cargar todos los modelos (perfil full)"
+        echo -e "${WHITE}4)${NC} Detener modelos secundarios"
+        echo ""
+        read -p "Selecciona opción (1-4): " -n 1 -r
+        echo
+        
+        case $REPLY in
+            1)
+                echo -e "${WHITE}Modelos disponibles:${NC}"
+                echo "  • gemma-2b"
+                echo "  • gemma-4b"
+                echo "  • gemma-12b"
+                echo "  • mistral-7b"
+                echo "  • deepseek-8b"
+                echo "  • deepseek-14b"
+                read -p "Nombre del modelo: " model_name
+                log "Reiniciando $model_name..."
+                docker compose restart "$model_name"
+                ;;
+            2)
+                docker compose ps | grep -E "(gemma|mistral|deepseek)"
+                ;;
+            3)
+                log "Cargando todos los modelos..."
+                docker compose --profile full up -d
+                ;;
+            4)
+                log "Deteniendo modelos secundarios..."
+                docker compose stop gemma-4b gemma-12b mistral-7b deepseek-8b deepseek-14b
+                ;;
+        esac
         ;;
         
     "test"|"t")
@@ -104,13 +181,28 @@ case "${1:-menu}" in
             fi
         }
         
-        test_url "Frontend    " "http://localhost:2012"
-        test_url "Stats API   " "http://localhost:8003/health"
-        test_url "Fraude API  " "http://localhost:8001/health"
-        test_url "TextSQL API " "http://localhost:8000/health"
-        test_url "PostgreSQL  " "http://localhost:8070" 2>/dev/null || echo -e "${WHITE}PostgreSQL  :${NC} ${YELLOW}⚠️${NC}"
+        test_url "Frontend    " "http://localhost:${NGINX_PORT:-2012}"
+        test_url "Stats API   " "http://localhost:${STATS_PORT:-8003}/health"
+        test_url "Fraude API  " "http://localhost:${FRAUDE_API_PORT:-8001}/health"
+        test_url "TextSQL API " "http://localhost:${TEXTOSQL_API_PORT:-8000}/health"
+        test_url "Gemma 2B    " "http://localhost:${GEMMA_2B_PORT:-8085}/health"
         
-        log "✅ Test completado!"
+        echo ""
+        log "📊 Estado de contenedores:"
+        docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+        ;;
+        
+    "logs"|"l")
+        log "📋 Mostrando logs recientes..."
+        echo -e "${WHITE}Selecciona servicio:${NC}"
+        echo "  • frontend"
+        echo "  • stats-api"
+        echo "  • fraude-api"
+        echo "  • textosql-api"
+        echo "  • postgres"
+        echo "  • gemma-2b"
+        read -p "Nombre del servicio: " service_name
+        docker compose logs --tail=100 -f "$service_name"
         ;;
         
     "menu"|*)
@@ -122,6 +214,8 @@ case "${1:-menu}" in
         echo -e "  ${GREEN}./quick-deploy.sh full${NC}      # 🔄 Pull + restart todo (mantiene DB)"
         echo -e "  ${GREEN}./quick-deploy.sh reset${NC}     # 🗑️ Reinicio completo (borra DB)"
         echo -e "  ${GREEN}./quick-deploy.sh test${NC}      # 🧪 Test servicios"
+        echo -e "  ${GREEN}./quick-deploy.sh models${NC}    # 🤖 Gestionar modelos LLM"
+        echo -e "  ${GREEN}./quick-deploy.sh logs${NC}      # 📋 Ver logs de servicio"
         echo ""
         echo -e "${WHITE}Aliases disponibles:${NC}"
         echo -e "  ${YELLOW}backend${NC} = back, b"
@@ -129,6 +223,8 @@ case "${1:-menu}" in
         echo -e "  ${YELLOW}full${NC} = all, a"
         echo -e "  ${YELLOW}reset${NC} = r"
         echo -e "  ${YELLOW}test${NC} = t"
+        echo -e "  ${YELLOW}models${NC} = llm, m"
+        echo -e "  ${YELLOW}logs${NC} = l"
         echo ""
         echo -e "${WHITE}💡 Para más opciones usa: ${GREEN}./deploy-manager.sh${NC}"
         ;;
