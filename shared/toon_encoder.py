@@ -9,9 +9,39 @@ from datetime import datetime, date
 from decimal import Decimal
 
 
+def clean_sql_results(data: Union[Dict, List, Any]) -> Union[Dict, List, Any]:
+    """
+    ✅ NEW: Recursively convert Decimal and other non-serializable types
+    to JSON-safe types BEFORE encoding to TOON.
+    
+    This should be called on SQL query results before passing to encode().
+    
+    Args:
+        data: SQL query results (dict, list, or any value)
+    
+    Returns:
+        Cleaned data with all Decimals converted to float
+    """
+    if isinstance(data, Decimal):
+        return float(data)
+    elif isinstance(data, (datetime, date)):
+        return data.isoformat()
+    elif isinstance(data, dict):
+        return {key: clean_sql_results(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [clean_sql_results(item) for item in data]
+    elif isinstance(data, tuple):
+        return tuple(clean_sql_results(item) for item in data)
+    else:
+        return data
+
+
 def encode(data: Union[Dict, List], delimiter: str = ",", length_marker: bool = False) -> str:
     """
     Encode Python dict/list to TOON format (token-efficient).
+    
+    ⚠️ IMPORTANT: If data comes from SQL queries with Decimal columns,
+    call clean_sql_results(data) first!
     
     Args:
         data: Dictionary or list to encode
@@ -92,7 +122,7 @@ def _encode_tabular(key: str, items: List[Dict], delimiter: str, length_marker: 
 
 def _serialize_value(value: Any) -> str:
     """
-    ✅ FIXED: Serialize any Python value to string (handles Decimal, datetime, etc.)
+    Serialize any Python value to string (handles Decimal, datetime, etc.)
     """
     if value is None:
         return ""
@@ -101,7 +131,7 @@ def _serialize_value(value: Any) -> str:
     elif isinstance(value, (int, float)):
         return str(value)
     elif isinstance(value, Decimal):
-        # ✅ FIX: Convert Decimal to float string
+        # Convert Decimal to float string
         return str(float(value))
     elif isinstance(value, datetime):
         return value.isoformat()
@@ -119,7 +149,7 @@ def _serialize_value(value: Any) -> str:
 
 def _json_serializer(obj: Any) -> str:
     """
-    ✅ FIXED: Custom JSON serializer for non-standard types
+    Custom JSON serializer for non-standard types
     """
     if isinstance(obj, Decimal):
         return float(obj)
