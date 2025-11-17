@@ -2,13 +2,10 @@
 
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-import json
-from decimal import Decimal
-from datetime import datetime, date
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 # --- Importa tus clases y utilidades ---
 from database_analyzer import DatabaseAnalyzer
@@ -54,42 +51,6 @@ class QueryResponse(BaseModel):
     database_used: Optional[str] = None
     model_used: Optional[str] = None
 
-# ✅ Custom JSON Encoder para manejar Decimals automáticamente
-class CustomJSONEncoder(json.JSONEncoder):
-    """
-    Custom JSON encoder que maneja tipos no estándar:
-    - Decimal → float
-    - datetime/date → ISO string
-    """
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        elif isinstance(obj, (datetime, date)):
-            return obj.isoformat()
-        return super().default(obj)
-
-# ✅ Configurar FastAPI para usar el encoder personalizado
-app = FastAPI(
-    title="TextoSQL API",
-    description="API para convertir lenguaje natural a SQL y ejecutar consultas",
-    version="2.0.0"
-)
-
-# ✅ Sobrescribir el JSONResponse por defecto
-class CustomJSONResponse(JSONResponse):
-    def render(self, content: Any) -> bytes:
-        return json.dumps(
-            content,
-            ensure_ascii=False,
-            allow_nan=False,
-            indent=None,
-            separators=(",", ":"),
-            cls=CustomJSONEncoder  # ← Usar nuestro encoder
-        ).encode("utf-8")
-
-# ✅ Aplicar a toda la app
-app.router.default_response_class = CustomJSONResponse
-
 # --- Clase de ayuda para la generación de SQL ---
 
 class SQLGenerator:
@@ -124,6 +85,12 @@ Dada la siguiente base de datos PostgreSQL, tu tarea es generar una única consu
 
 # --- Aplicación FastAPI ---
 
+app = FastAPI(
+    title="🤖 API de Consulta a Base de Datos con IA",
+    description="Una API para interactuar con una base de datos PostgreSQL usando lenguaje natural.",
+    version="1.0.0",
+)
+
 # --- Gestión del Ciclo de Vida de la Aplicación ---
 
 @app.on_event("startup")
@@ -153,9 +120,7 @@ async def startup_event():
     
     print(f"--- ESQUEMA GENERADO PARA EL LLM ---\n{db_analyzer.generate_schema_for_llm()}\n--- FIN DEL ESQUEMA ---")
 
-    # 4. TAMBIÉN ELIMINAR EL SQL_GENERATOR FIJO (legacy)
-    
-    # 5. Solo guardar el analizador de BD por compatibilidad con endpoints legacy
+    # Solo guardar el analizador de BD por compatibilidad con endpoints legacy
     app.state.db_analyzer = db_analyzer
     print("🚀 Aplicación iniciada y lista para recibir peticiones.")
 
@@ -427,53 +392,3 @@ async def test_connections(database_id: str, model_id: str):
     results["overall_success"] = db_success and model_success
     
     return results
-
-@app.post("/query", response_class=CustomJSONResponse)
-async def execute_query(request: QueryRequest):
-    """
-    Ejecutar consulta SQL generada desde lenguaje natural.
-    
-    ✅ Ahora maneja Decimals automáticamente sin pre-procesamiento.
-    """
-    try:
-        # Conectar a la base de datos
-        db = DatabaseAnalyzer(
-            dbname=request.dbname,
-            user=request.user,
-            password=request.password,
-            host=request.host,
-            port=request.port
-        )
-        
-        success, message = db.connect()
-        if not success:
-            raise HTTPException(status_code=500, detail=f"Error de conexión: {message}")
-        
-        # Generar SQL desde lenguaje natural
-        sql_query = await llm.generate_sql_async(
-            user_question=request.question,
-            schema_info=db.analyze_schema()
-        )
-        
-        # Ejecutar consulta
-        cursor = db.cursor
-        cursor.execute(sql_query)
-        
-        # Obtener resultados
-        columns = [desc[0] for desc in cursor.description] if cursor.description else []
-        rows = cursor.fetchall()
-        
-        # ✅ NO necesitamos limpiar Decimals, FastAPI lo hace automáticamente
-        results = [dict(zip(columns, row)) for row in rows]
-        
-        db.close()
-        
-        # ✅ FastAPI convertirá Decimals a float automáticamente
-        return {
-            "sql_query": sql_query,
-            "results": results,
-            "row_count": len(results)
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
