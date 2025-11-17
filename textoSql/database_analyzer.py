@@ -2,11 +2,28 @@ import psycopg2
 import psycopg2.extras
 from typing import List, Dict, Any, Tuple, Optional
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import datetime, date, time
 import os
 
 class DatabaseAnalyzer:
     """Simplified class to analyze PostgreSQL database schema and execute queries."""
+
+    @staticmethod
+    def _convert_to_json_serializable(value: Any) -> Any:
+        """
+        ✅ Convert PostgreSQL types to JSON-serializable types.
+        Handles: Decimal, datetime, date, time, and other special types.
+        """
+        if isinstance(value, Decimal):
+            return float(value)
+        elif isinstance(value, datetime):
+            return value.isoformat()
+        elif isinstance(value, date):
+            return value.isoformat()
+        elif isinstance(value, time):
+            return value.isoformat()
+        else:
+            return value
 
     def __init__(self, dbname: str, user: str, password: str, host: str = "localhost", port: str = "5432"):
         """Initialize with database connection parameters."""
@@ -219,14 +236,8 @@ class DatabaseAnalyzer:
             for row in cursor.fetchall():
                 result_dict = {}
                 for i, column in enumerate(columns):
-                    value = row[i]
-                    # ✅ Convert Decimal to float for JSON serialization
-                    if isinstance(value, Decimal):
-                        result_dict[column] = float(value)
-                    elif isinstance(value, (datetime, date)):
-                        result_dict[column] = value.isoformat()
-                    else:
-                        result_dict[column] = value
+                    # ✅ Use centralized conversion helper
+                    result_dict[column] = self._convert_to_json_serializable(row[i])
                 results.append(result_dict)
 
             return results
@@ -427,15 +438,8 @@ class DatabaseAnalyzer:
             for row in cursor.fetchall():
                 result_dict = {}
                 for i, column in enumerate(columns):
-                    value = row[i]
-                    # ✅ Convert Decimal to float for JSON serialization
-                    if isinstance(value, Decimal):
-                        result_dict[column] = float(value)
-                    # ✅ Convert datetime/date to ISO string
-                    elif isinstance(value, (datetime, date)):
-                        result_dict[column] = value.isoformat()
-                    else:
-                        result_dict[column] = value
+                    # ✅ Use centralized conversion helper
+                    result_dict[column] = self._convert_to_json_serializable(row[i])
                 results.append(result_dict)
 
             # Explicitly commit the transaction if successful
