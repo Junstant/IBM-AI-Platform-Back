@@ -145,7 +145,7 @@ services:
         DEEPSEEK_PATH="/models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf";
         if [ ! -f "$$DEEPSEEK_PATH" ]; then
           echo "Modelo Deepseek 14B no encontrado. Descargando...";
-          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf" -O "$$DEEPSEEK_PATH";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_0.gguf?download=true" -O "$$DEEPSEEK_PATH";
           echo "✅ Modelo Deepseek 14B descargado.";
         else
           echo "✅ Modelo Deepseek 14B ya existe.";
