@@ -717,9 +717,9 @@ deploy_services() {
         exit 1
     fi
     
-    # Parar servicios existentes
+    # Parar servicios existentes (incluyendo perfil full)
     log "🛑 Deteniendo servicios existentes..."
-    $DOCKER_COMPOSE down || true
+    $DOCKER_COMPOSE --profile full down || true
     
     # Limpiar recursos Docker
     log "🧹 Limpiando recursos Docker..."
@@ -733,11 +733,32 @@ deploy_services() {
         exit 1
     fi
     
-    # Construir e iniciar servicios
-    log "🚀 Construyendo y levantando servicios..."
-    $DOCKER_COMPOSE up --build -d
+    # ✅ CONSTRUIR E INICIAR SERVICIOS CON PERFIL FULL (TODOS LOS MODELOS)
+    log "🚀 Construyendo y levantando TODOS los servicios (perfil full)..."
+    log "📊 Esto incluye:"
+    log "   • Gemma 2B (siempre activo)"
+    log "   • Gemma 4B"
+    log "   • Gemma 12B"
+    log "   • Mistral 7B"
+    log "   • DeepSeek 8B"
+    log "   • DeepSeek 14B"
+    log "   • APIs (Fraude, TextoSQL, Stats)"
+    log "   • Frontend (Nginx)"
+    log "   • PostgreSQL"
+    echo ""
+    warn "⚠️  IMPORTANTE: Levantar todos los modelos requiere ~50GB RAM"
+    warn "⏱️  El inicio completo puede tomar 10-15 minutos"
+    echo ""
     
-    log "✅ Servicios iniciados desde $BACK_DIR"
+    # Usar --profile full para levantar todos los servicios
+    if $DOCKER_COMPOSE --profile full up --build -d; then
+        log "✅ Servicios iniciados exitosamente con perfil full desde $BACK_DIR"
+    else
+        error "❌ Error al iniciar servicios"
+        log "📋 Mostrando logs de error:"
+        $DOCKER_COMPOSE --profile full logs --tail=50
+        exit 1
+    fi
 }
 
 # ===== VERIFICAR SERVICIOS =====

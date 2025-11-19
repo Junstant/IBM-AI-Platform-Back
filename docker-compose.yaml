@@ -167,7 +167,7 @@ services:
       - models_volume:/models
     networks:
       - ai_platform_network
-    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/gemma-2-2b-it-Q4_K_S.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/gemma-2-2b-it-Q4_K_S.gguf", "--prio", "3", "-c", "8192", "-b", "512", "-t", "40", "-n", "-1", "--mlock"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
@@ -195,7 +195,7 @@ services:
       - models_volume:/models
     networks:
       - ai_platform_network
-    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-4b-it-Q4_K_S.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-4b-it-Q4_K_S.gguf", "--prio", "3", "-c", "8192", "-b", "512", "-t", "40", "-n", "-1", "--mlock"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
@@ -225,7 +225,7 @@ services:
       - models_volume:/models
     networks:
       - ai_platform_network
-    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-12b-it-Q4_K_S.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/google_gemma-3-12b-it-Q4_K_S.gguf", "--prio", "3", "-c", "8192", "-b", "512", "-t", "40", "-n", "-1", "--mlock"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
@@ -255,7 +255,7 @@ services:
       - models_volume:/models
     networks:
       - ai_platform_network
-    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/Mistral-7B-Instruct-v0.3-Q4_K_S.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/Mistral-7B-Instruct-v0.3-Q4_K_S.gguf", "--prio", "3", "-c", "8192", "-b", "512", "-t", "40", "-n", "-1", "--mlock"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
@@ -285,7 +285,7 @@ services:
       - models_volume:/models
     networks:
       - ai_platform_network
-    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/DeepSeek-R1-Distill-Qwen-7B-Q4_K_L.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/DeepSeek-R1-Distill-Qwen-7B-Q4_K_L.gguf", "--prio", "3", "-c", "8192", "-b", "512", "-t", "40", "-n", "-1", "--mlock"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
@@ -315,7 +315,7 @@ services:
       - models_volume:/models
     networks:
       - ai_platform_network
-    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf", "--prio", "3", "-c", "4096", "-b", "32", "-t", "32", "-n", "-1"]
+    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf", "--prio", "3", "-c", "8192", "-b", "512", "-t", "40", "-n", "-1", "--mlock"]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
