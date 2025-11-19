@@ -36,7 +36,6 @@ services:
         - VITE_GEMMA_12B_PORT=${GEMMA_12B_PORT}   
         - VITE_MISTRAL_PORT=${MISTRAL_PORT}        
         - VITE_DEEPSEEK_8B_PORT=${DEEPSEEK_8B_PORT}
-        - VITE_DEEPSEEK_14B_PORT=${DEEPSEEK_14B_PORT} 
         - VITE_FRAUD_DETECTION_PORT=${FRAUDE_API_PORT}
         - VITE_TEXTOSQL_API_PORT=${TEXTOSQL_API_PORT}
         - VITE_STATS_API_PORT=${STATS_PORT}
@@ -57,7 +56,6 @@ services:
       - GEMMA_12B_PORT=${GEMMA_12B_PORT}
       - MISTRAL_PORT=${MISTRAL_PORT}
       - DEEPSEEK_8B_PORT=${DEEPSEEK_8B_PORT}
-      - DEEPSEEK_14B_PORT=${DEEPSEEK_14B_PORT}
     depends_on:
       # CAMBIO: Solo verificar que los servicios estén INICIADOS, no HEALTHY
       # Nginx puede arrancar aunque los backends no estén listos (mostrará errores 502 temporales)
@@ -140,17 +138,6 @@ services:
         else
           echo "✅ Modelo Deepseek 8B ya existe.";
         fi
-
-        # Deepseek 14B
-        DEEPSEEK_PATH="/models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf";
-        if [ ! -f "$$DEEPSEEK_PATH" ]; then
-          echo "Modelo Deepseek 14B no encontrado. Descargando...";
-          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_0.gguf?download=true" -O "$$DEEPSEEK_PATH";
-          echo "✅ Modelo Deepseek 14B descargado.";
-        else
-          echo "✅ Modelo Deepseek 14B ya existe.";
-        fi
-
       '
     networks:
       - ai_platform_network
@@ -303,36 +290,6 @@ services:
           cpus: '4.0'
           memory: 10G
 
-  #^ ======================== DEEPSEEK 14B ========================
-  deepseek-14b:
-    image: quay.io/daniel_casali/llama.cpp-mma:v8
-    container_name: deepseek-14b
-    user: "root"
-    restart: always
-    ports:
-      - "${DEEPSEEK_14B_PORT:-8090}:8080"
-    volumes:
-      - models_volume:/models
-    networks:
-      - ai_platform_network
-    command: ["--host", "0.0.0.0", "--port", "8080", "-m", "/models/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf", "--prio", "3", "-c", "8192", "-b", "512", "-t", "40", "-n", "-1", "--mlock"]
-    depends_on:
-      model-downloader:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 120s
-      timeout: 120s
-      retries: 3
-      start_period: 600s
-    profiles:
-      - full
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 12G
-
   #% ======================== TEXTOSQL API ========================
   textosql-api:
     build:
@@ -425,7 +382,6 @@ services:
       - GEMMA_12B_URL=http://gemma-12b:8080
       - MISTRAL_7B_URL=http://mistral-7b:8080
       - DEEPSEEK_8B_URL=http://deepseek-8b:8080
-      - DEEPSEEK_14B_URL=http://deepseek-14b:8080
       - FRAUD_API_URL=http://fraude-api:8000
       - TEXTOSQL_API_URL=http://textosql-api:8000
     volumes:
