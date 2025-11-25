@@ -384,6 +384,8 @@ services:
       - DEEPSEEK_8B_URL=http://deepseek-8b:8080
       - FRAUD_API_URL=http://fraude-api:8000
       - TEXTOSQL_API_URL=http://textosql-api:8000
+      - RAG_API_HOST=rag-api
+      - RAG_API_PORT=8004
     volumes:
       - ./stats:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro
