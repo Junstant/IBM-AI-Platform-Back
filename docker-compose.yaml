@@ -44,18 +44,21 @@ services:
     networks:
       - ai_platform_network
     environment:
-      - NGINX_PORT_INTERNAL=80
-      - FRAUDE_API_HOST=fraude-api
-      - FRAUDE_API_PORT=8000
-      - TEXTOSQL_API_HOST=textosql-api
-      - TEXTOSQL_API_PORT=8000
-      - STATS_API_HOST=stats-api
-      - STATS_API_PORT=8003
-      - GEMMA_2B_PORT=${GEMMA_2B_PORT}
-      - GEMMA_4B_PORT=${GEMMA_4B_PORT}
-      - GEMMA_12B_PORT=${GEMMA_12B_PORT}
-      - MISTRAL_PORT=${MISTRAL_PORT}
-      - DEEPSEEK_8B_PORT=${DEEPSEEK_8B_PORT}
+      - NGINX_PORT_INTERNAL=${NGINX_INTERNAL_PORT:-80}
+      - FRAUDE_API_HOST=${FRAUDE_API_HOST:-fraude-api}
+      - FRAUDE_API_PORT=${API_INTERNAL_PORT:-8000}
+      - TEXTOSQL_API_HOST=${TEXTOSQL_API_HOST:-textosql-api}
+      - TEXTOSQL_API_PORT=${API_INTERNAL_PORT:-8000}
+      - STATS_API_HOST=${STATS_API_HOST:-stats-api}
+      - STATS_API_PORT=${STATS_PORT:-8003}
+      - RAG_API_HOST=${RAG_API_HOST:-rag-api}
+      - RAG_API_PORT=${RAG_API_PORT:-8004}
+      - GEMMA_2B_PORT=${GEMMA_2B_PORT:-8085}
+      - GEMMA_4B_PORT=${GEMMA_4B_PORT:-8086}
+      - GEMMA_12B_PORT=${GEMMA_12B_PORT:-8087}
+      - MISTRAL_PORT=${MISTRAL_PORT:-8088}
+      - DEEPSEEK_8B_PORT=${DEEPSEEK_8B_PORT:-8089}
+
     depends_on:
       # CAMBIO: Solo verificar que los servicios estén INICIADOS, no HEALTHY
       # Nginx puede arrancar aunque los backends no estén listos (mostrará errores 502 temporales)
@@ -384,8 +387,6 @@ services:
       - DEEPSEEK_8B_URL=http://deepseek-8b:8080
       - FRAUD_API_URL=http://fraude-api:8000
       - TEXTOSQL_API_URL=http://textosql-api:8000
-      - RAG_API_HOST=rag-api
-      - RAG_API_PORT=8004
     volumes:
       - ./stats:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro
