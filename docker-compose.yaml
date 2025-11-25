@@ -58,7 +58,6 @@ services:
       - GEMMA_12B_PORT=${GEMMA_12B_PORT:-8087}
       - MISTRAL_PORT=${MISTRAL_PORT:-8088}
       - DEEPSEEK_8B_PORT=${DEEPSEEK_8B_PORT:-8089}
-
     depends_on:
       # CAMBIO: Solo verificar que los servicios estén INICIADOS, no HEALTHY
       # Nginx puede arrancar aunque los backends no estén listos (mostrará errores 502 temporales)
