@@ -11,11 +11,26 @@ ENV POSTGRES_USER=postgres
 ENV POSTGRES_PASSWORD=root
 ENV PGDATA=/var/lib/postgresql/data
 
-# Instalar herramientas adicionales
+# Instalar herramientas adicionales y pgvector
 RUN apk add --no-cache \
     curl \
     bash \
-    postgresql-contrib
+    postgresql-contrib \
+    git \
+    make \
+    gcc \
+    g++ \
+    musl-dev \
+    postgresql-dev
+
+# Compilar e instalar pgvector
+RUN cd /tmp && \
+    git clone --branch v0.5.1 https://github.com/pgvector/pgvector.git && \
+    cd pgvector && \
+    make && \
+    make install && \
+    cd / && \
+    rm -rf /tmp/pgvector
 
 # Crear directorio para scripts de inicialización
 RUN mkdir -p /docker-entrypoint-initdb.d

@@ -23,9 +23,14 @@ psql -U postgres -f /docker-entrypoint-initdb.d/databases/bank_transactions/03-f
 echo "📊 Configurando ai_platform_stats..."
 psql -U postgres -f /docker-entrypoint-initdb.d/databases/ai_platform_stats/01-schema.sql
 
+# Paso 5: Configurar ai_platform_rag con pgvector
+echo "🧠 Configurando ai_platform_rag (RAG con pgvector)..."
+psql -U postgres -f /docker-entrypoint-initdb.d/databases/ai_platform_rag/01-schema.sql
+
 echo "✅ Configuración completa finalizada exitosamente"
 echo ""
 echo "📋 Bases de datos configuradas:"
 echo "  🏦 banco_global (TextoSQL) - Esquema limpio + datos básicos"
 echo "  🔍 bank_transactions (Detección de Fraude) - Esquema + muestras de fraude"
 echo "  📊 ai_platform_stats (Stats API) - Esquema de métricas"
+echo "  🧠 ai_platform_rag (RAG API) - Pgvector para embeddings"
