@@ -10,12 +10,9 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)),
 class Config:
     """Configuración centralizada para RAG"""
     
-    # PostgreSQL (usa el existente)
-    DB_HOST = os.getenv("DB_HOST", "postgres")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    DB_USER = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "root")
-    DB_NAME = "ai_platform_rag"  # Nueva base de datos para RAG
+    # Milvus Vector Database
+    MILVUS_HOST = os.getenv("MILVUS_HOST", "milvus-standalone")
+    MILVUS_PORT = int(os.getenv("MILVUS_PORT", "19530"))
     
     # Modelos de embeddings disponibles (API externa)
     AVAILABLE_EMBEDDING_MODELS = {
@@ -63,10 +60,5 @@ class Config:
     
     # Paths
     UPLOAD_DIR = "/app/documents"
-    
-    @classmethod
-    def get_database_url(cls):
-        """Construir URL de conexión a PostgreSQL"""
-        return f"postgresql://{cls.DB_USER}:{cls.DB_PASSWORD}@{cls.DB_HOST}:{cls.DB_PORT}/{cls.DB_NAME}"
 
 config = Config()
