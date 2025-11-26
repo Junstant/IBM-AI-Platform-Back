@@ -144,7 +144,7 @@ async def get_models():
             {
                 "id": model_id,
                 "name": model_info["name"],
-                "description": model_info["description"]
+                "description": model_info.get("description", "")  # ✅ Usar .get() para evitar KeyError
             }
             for model_id, model_info in config.AVAILABLE_LLM_MODELS.items()
         ],
