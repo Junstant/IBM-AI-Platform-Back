@@ -148,9 +148,9 @@ async def upload_document(file: UploadFile = File(...)):
         with open(temp_path, 'wb') as f:
             f.write(content)
         
-        # Procesar documento
+        # Procesar documento - FIX: Convertir Path a string
         processor = DocumentProcessor()
-        text_content = processor.extract_text(temp_path)
+        text_content = processor.extract_text(str(temp_path))
         chunks = processor.chunk_text(text_content)
         
         # Preparar chunks sin embeddings
