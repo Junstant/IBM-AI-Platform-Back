@@ -21,6 +21,13 @@ Usuario → Upload PDF → [Extracción de Texto] → [Chunking] → [Embeddings
 Usuario → Query → [Query Embedding] → [Vector Search] → [Top-K Chunks] → [LLM] → Respuesta
 ```
 
+### 💻 **Soporte PowerPC (ppc64le)**
+
+✅ **pgvector está oficialmente disponible para PowerPC**
+- Fedora 43 ppc64le: `dnf install pgvector`
+- Debian/Ubuntu ppc64el: `apt-get install postgresql-17-pgvector`
+- Ver [`PGVECTOR_PPC64LE_INSTALL.md`](../PGVECTOR_PPC64LE_INSTALL.md) para detalles
+
 ## 📡 Endpoints
 
 ### 📤 Upload Document

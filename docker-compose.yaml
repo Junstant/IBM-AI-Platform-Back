@@ -1,7 +1,10 @@
 services:
   #? ======================== POSTGRES ========================
   postgres:
-    image: postgres:15-alpine
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+    image: postgres-pgvector:17-alpine
     container_name: postgres_db
     restart: always
     ports:

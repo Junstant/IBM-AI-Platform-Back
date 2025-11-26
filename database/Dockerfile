@@ -23,14 +23,18 @@ RUN apk add --no-cache \
     musl-dev \
     postgresql-dev
 
-# Compilar e instalar pgvector
+# Compilar e instalar pgvector (v0.8.1 con soporte ppc64le)
 RUN cd /tmp && \
-    git clone --branch v0.5.1 https://github.com/pgvector/pgvector.git && \
+    git clone --branch v0.8.1 https://github.com/pgvector/pgvector.git && \
     cd pgvector && \
     make && \
     make install && \
     cd / && \
-    rm -rf /tmp/pgvector
+    rm -rf /tmp/pgvector && \
+    echo "✅ pgvector v0.8.1 compilado exitosamente"
+
+# Verificar instalación de pgvector
+RUN ls -la $(pg_config --pkglibdir) | grep vector || echo "⚠️ pgvector no encontrado en $(pg_config --pkglibdir)"
 
 # Crear directorio para scripts de inicialización
 RUN mkdir -p /docker-entrypoint-initdb.d

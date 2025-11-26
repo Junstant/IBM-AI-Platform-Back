@@ -826,6 +826,7 @@ show_final_info() {
     echo "🗄️ BASE DE DATOS:"
     echo "   PostgreSQL: $IP:${DB_PORT:-8070}"
     echo "   Usuario: ${DB_USER:-postgres} / Contraseña: [Ver archivo .env]"
+    echo "   pgvector: v0.8.1 (compilado automáticamente)"
     echo ""
     echo "🧠 MODELOS LLM:"
     echo "   Gemma 2B: http://$IP:${GEMMA_2B_PORT:-8085}"
