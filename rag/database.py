@@ -90,6 +90,8 @@ class RAGDatabase:
         metadata: Optional[Dict] = None
     ) -> int:
         """Insertar documento en la base de datos"""
+        import json
+        
         with self.engine.connect() as conn:
             result = conn.execute(
                 text("""
@@ -101,7 +103,7 @@ class RAGDatabase:
                     "filename": filename,
                     "content_type": content_type,
                     "file_size": file_size,
-                    "metadata": metadata or {}
+                    "metadata": json.dumps(metadata or {})  # ✅ FIX: Convertir dict a JSON string
                 }
             )
             conn.commit()
@@ -115,6 +117,8 @@ class RAGDatabase:
         chunks: List[Tuple[int, str, List[float], Dict]]
     ):
         """Insertar chunks SIN embeddings (modo básico)"""
+        import json
+        
         with self.engine.connect() as conn:
             for chunk_index, content, embedding, metadata in chunks:
                 # Ignorar embedding (no se almacena en modo básico)
@@ -128,7 +132,7 @@ class RAGDatabase:
                         "doc_id": document_id,
                         "idx": chunk_index,
                         "content": content,
-                        "metadata": metadata or {}
+                        "metadata": json.dumps(metadata or {})  # ✅ FIX: Convertir dict a JSON string
                     }
                 )
             
