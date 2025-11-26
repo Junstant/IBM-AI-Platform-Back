@@ -4,10 +4,11 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 pydantic==2.5.0
 
-# Document Processing
+# Document Processing (numpy MUST be installed before pandas)
+numpy==1.24.2
+pandas==1.5.3
 PyPDF2==3.0.1
 python-docx==1.1.0
-pandas==1.5.3
 openpyxl==3.1.2
 
 # Database
