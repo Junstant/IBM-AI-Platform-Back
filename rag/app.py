@@ -153,21 +153,20 @@ async def get_models():
 
 @app.get("/health")
 async def health_check():
-    """Health check con información de PostgreSQL + pgvector"""
+    """Health check con información de Milvus Vector Database"""
     return {
         "status": "healthy",
-        "service": "RAG API v2 with PostgreSQL + pgvector",
-        "version": "2.0.0",
+        "service": "RAG API v3 with Milvus Vector Database",
+        "version": "3.0.0",
         "features": {
-            "vector_database": "PostgreSQL + pgvector v0.8.1",
+            "vector_database": "Milvus v2.3.1 with HNSW index",
             "embeddings": "enabled" if embeddings_gen else "disabled",
             "llm": "enabled" if llm_client else "disabled",
-            "vector_search": "IVFFlat (semantic search with cosine similarity)"
+            "vector_search": "HNSW (high-performance similarity search)"
         },
-        "database": "PostgreSQL connected" if db else "disconnected",
-        "db_host": f"{config.DB_HOST}:{config.DB_PORT}",
-        "db_name": config.DB_NAME,
-        "embedding_model": current_embedding_model,
+        "milvus": "connected" if db else "disconnected",
+        "milvus_host": f"{config.MILVUS_HOST}:{config.MILVUS_PORT}",
+        "embedding_model": config.EMBEDDING_MODEL,
         "embedding_dimension": config.EMBEDDING_DIMENSION,
         "llm_model": current_llm_model
     }
