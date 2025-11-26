@@ -16,8 +16,9 @@ from pydantic import BaseModel, Field
 from config import config
 from database import RAGDatabase
 from document_processor import DocumentProcessor
-from embeddings import get_embeddings_generator
-from llm_client import get_llm_client
+# embeddings y llm_client deshabilitados (requieren ML libraries no disponibles en PowerPC)
+# from embeddings import get_embeddings_generator
+# from llm_client import get_llm_client
 
 # Configurar logging
 logging.basicConfig(
@@ -103,14 +104,14 @@ async def startup():
         db = RAGDatabase()
         logger.info("✅ Base de datos inicializada")
         
-        # Pre-cargar modelo de embeddings
-        get_embeddings_generator()
-        logger.info("✅ Modelo de embeddings cargado")
+        # Pre-cargar modelo de embeddings (DESHABILITADO - no disponible en PowerPC)
+        # get_embeddings_generator()
+        logger.info("⚠️ Embeddings deshabilitados (PowerPC - sin ML libraries)")
         
         # Crear directorio de uploads
         os.makedirs(config.UPLOAD_DIR, exist_ok=True)
         
-        logger.info("✅ RAG API lista!")
+        logger.info("✅ RAG API lista (modo básico sin embeddings)!")
         
     except Exception as e:
         logger.error(f"❌ Error en startup: {e}")
@@ -132,10 +133,11 @@ async def health_check():
         stats = db.get_document_stats()
         return {
             "status": "healthy",
-            "service": "RAG API",
+            "service": "RAG API (Basic Mode)",
+            "mode": "document_storage_only",
+            "note": "Embeddings disabled (PowerPC compatibility)",
             "database": "connected",
-            "documents": stats.get("total_documents", 0),
-            "embeddings_model": config.EMBEDDING_MODEL
+            "documents": stats.get("total_documents", 0)
         }
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
@@ -186,24 +188,26 @@ async def upload_document(
         
         logger.info(f"Documento dividido en {len(chunks)} chunks")
         
-        # Generar embeddings
-        embeddings_gen = get_embeddings_generator()
-        embeddings = embeddings_gen.generate_embeddings_batch(chunks)
+        # Generar embeddings (DESHABILITADO - PowerPC sin ML)
+        # embeddings_gen = get_embeddings_generator()
+        # embeddings = embeddings_gen.generate_embeddings_batch(chunks)
+        logger.info(f"⚠️ Embeddings deshabilitados (modo básico)")
         
-        logger.info(f"Embeddings generados: {len(embeddings)}")
+        # Crear embeddings vacíos como placeholder
+        empty_embeddings = [[0.0] * config.EMBEDDING_DIMENSION for _ in chunks]
         
         # Guardar en base de datos
         doc_id = db.insert_document(
             filename=file.filename,
             content_type=file.content_type,
             file_size=file_size,
-            metadata={"original_metadata": metadata} if metadata else {}
+            metadata={"original_metadata": metadata, "mode": "basic_no_embeddings"} if metadata else {"mode": "basic_no_embeddings"}
         )
         
-        # Insertar chunks con embeddings
+        # Insertar chunks con embeddings vacíos
         chunks_data = [
             (i, chunk, emb, {"chunk_size": len(chunk)})
-            for i, (chunk, emb) in enumerate(zip(chunks, embeddings))
+            for i, (chunk, emb) in enumerate(zip(chunks, empty_embeddings))
         ]
         db.insert_chunks(doc_id, chunks_data)
         
@@ -225,55 +229,13 @@ async def upload_document(
 
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
-    """Consultar documentos usando RAG"""
-    try:
-        logger.info(f"Consulta: {request.question}")
-        
-        # Generar embedding de la pregunta
-        embeddings_gen = get_embeddings_generator()
-        query_embedding = embeddings_gen.generate_embedding(request.question)
-        
-        # Búsqueda de similitud
-        results = db.similarity_search(query_embedding, top_k=request.top_k)
-        
-        if not results:
-            return QueryResponse(
-                answer="No encontré documentos relevantes para tu pregunta.",
-                sources=[],
-                context_used="",
-                num_sources=0
-            )
-        
-        # Construir contexto
-        context_parts = []
-        for i, result in enumerate(results, 1):
-            context_parts.append(
-                f"[Documento {i}: {result['filename']}]\n{result['content']}"
-            )
-        
-        context = "\n\n".join(context_parts)
-        
-        # Generar respuesta con LLM
-        llm = get_llm_client()
-        answer = await llm.generate_rag_response(request.question, context)
-        
-        # Preparar fuentes
-        sources = [
-            {
-                "document_id": r["document_id"],
-                "filename": r["filename"],
-                "chunk_index": r["chunk_index"],
-                "similarity": float(r["similarity"]),
-                "preview": r["content"][:200] + "..."
-            }
-            for r in results
-        ]
-        
-        return QueryResponse(
-            answer=answer,
-            sources=sources,
-            context_used=context[:500] + "...",
-            num_sources=len(results)
+    """Consultar documentos (DESHABILITADO - requiere embeddings)"""
+    # Esta funcionalidad requiere sentence-transformers que no está disponible en PowerPC
+    return QueryResponse(
+        answer="❌ Función de búsqueda deshabilitada: requiere embeddings ML no disponibles en PowerPC. Use endpoints /documents para gestión básica de documentos.",
+        sources=[],
+        context_used="",
+        num_sources=0
         )
         
     except Exception as e:
@@ -325,8 +287,8 @@ async def get_stats():
             total_documents=stats.get("total_documents", 0),
             total_chunks=stats.get("total_chunks", 0),
             total_size_mb=round(stats.get("total_size_bytes", 0) / (1024 * 1024), 2),
-            embedding_model=config.EMBEDDING_MODEL,
-            embedding_dimension=config.EMBEDDING_DIMENSION
+            embedding_model="disabled (PowerPC compatibility)",
+            embedding_dimension=0
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -339,12 +301,14 @@ async def get_stats():
 async def root():
     """Información del servicio"""
     return {
-        "service": "RAG API",
+        "service": "RAG API (Basic Mode)",
         "version": "1.0.0",
-        "description": "Retrieval-Augmented Generation con pgvector",
+        "mode": "document_storage_only",
+        "note": "Embeddings & query disabled (PowerPC compatibility - ML libraries unavailable)",
+        "description": "Document storage and management (RAG features disabled)",
         "endpoints": {
-            "upload": "POST /documents/upload",
-            "query": "POST /query",
+            "upload": "POST /documents/upload (stores documents without embeddings)",
+            "query": "POST /query (DISABLED - requires ML)",
             "list": "GET /documents",
             "delete": "DELETE /documents/{id}",
             "stats": "GET /stats",
