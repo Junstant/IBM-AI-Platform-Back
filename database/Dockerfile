@@ -52,10 +52,6 @@ COPY pg_hba.conf /etc/postgresql/pg_hba.conf
 # Crear directorio para backups
 RUN mkdir -p /backups && chmod 755 /backups
 
-# Script personalizado de entrada
-COPY docker-entrypoint-custom.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint-custom.sh
-
 # Exponer puerto estándar de PostgreSQL
 EXPOSE 5432
 
@@ -66,6 +62,6 @@ VOLUME ["/var/lib/postgresql/data", "/backups"]
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD pg_isready -U $POSTGRES_USER -d $POSTGRES_DB || exit 1
 
-# Usar el script personalizado como punto de entrada
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint-custom.sh"]
-CMD ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+# Usar el entrypoint por defecto de PostgreSQL (no custom script)
+# El entrypoint original de postgres:17-alpine maneja correctamente los permisos
+CMD ["postgres"]
