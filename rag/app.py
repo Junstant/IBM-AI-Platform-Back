@@ -1,12 +1,12 @@
 """
-🧠 RAG API - Retrieval-Augmented Generation con pgvector
-=======================================================
-Sistema de consulta de documentos usando RAG con PostgreSQL
+🧠 RAG API - Retrieval-Augmented Generation (Modo Básico)
+==========================================================
+Sistema de gestión de documentos SIN embeddings (PowerPC compatible)
 """
-import os
 import logging
 from typing import List, Optional
 from pathlib import Path
+from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,9 +16,6 @@ from pydantic import BaseModel, Field
 from config import config
 from database import RAGDatabase
 from document_processor import DocumentProcessor
-# embeddings y llm_client deshabilitados (requieren ML libraries no disponibles en PowerPC)
-# from embeddings import get_embeddings_generator
-# from llm_client import get_llm_client
 
 # Configurar logging
 logging.basicConfig(
@@ -32,17 +29,15 @@ logger = logging.getLogger(__name__)
 # =====================================================
 
 class QueryRequest(BaseModel):
-    """Modelo para consulta RAG"""
-    question: str = Field(..., min_length=3, description="Pregunta del usuario")
-    top_k: int = Field(5, ge=1, le=20, description="Número de documentos a recuperar")
-    model: Optional[str] = Field(None, description="Modelo LLM a usar (opcional)")
+    """Solicitud de consulta"""
+    query: str = Field(..., description="Pregunta o consulta del usuario")
+    top_k: int = Field(5, ge=1, le=20, description="Número de resultados")
 
 class QueryResponse(BaseModel):
-    """Respuesta de consulta RAG"""
-    answer: str
-    sources: List[dict]
-    context_used: str
-    num_sources: int
+    """Respuesta de consulta"""
+    answer: str = Field(..., description="Respuesta generada")
+    sources: List[dict] = Field(..., description="Chunks relevantes encontrados")
+    query: str = Field(..., description="Consulta original")
 
 class DocumentInfo(BaseModel):
     """Información de documento"""
@@ -51,28 +46,25 @@ class DocumentInfo(BaseModel):
     content_type: str
     file_size: int
     total_chunks: int
-    metadata: dict
-    uploaded_at: str
+    uploaded_at: datetime
 
 class StatsResponse(BaseModel):
     """Estadísticas del sistema"""
     total_documents: int
     total_chunks: int
-    total_size_mb: float
-    embedding_model: str
-    embedding_dimension: int
+    total_size_bytes: int
 
 # =====================================================
 # APLICACIÓN FASTAPI
 # =====================================================
 
 app = FastAPI(
-    title="🧠 RAG API - Retrieval-Augmented Generation",
-    description="Sistema de consulta de documentos usando embeddings vectoriales y LLM",
+    title="🧠 RAG API (Modo Básico)",
+    description="Gestión de documentos sin embeddings (PowerPC compatible)",
     version="1.0.0"
 )
 
-# Configurar CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -82,11 +74,10 @@ app.add_middleware(
 )
 
 # =====================================================
-# GESTORES GLOBALES
+# VARIABLES GLOBALES
 # =====================================================
 
-db: Optional[RAGDatabase] = None
-processor = DocumentProcessor()
+db = None
 
 # =====================================================
 # EVENTOS DE CICLO DE VIDA
@@ -94,33 +85,22 @@ processor = DocumentProcessor()
 
 @app.on_event("startup")
 async def startup():
-    """Inicializar componentes al arrancar"""
+    """Inicializar base de datos al arrancar"""
     global db
-    
-    logger.info("🚀 Iniciando RAG API...")
-    
     try:
-        # Inicializar base de datos
+        logger.info("🚀 Iniciando RAG API...")
         db = RAGDatabase()
         logger.info("✅ Base de datos inicializada")
-        
-        # Pre-cargar modelo de embeddings (DESHABILITADO - no disponible en PowerPC)
-        # get_embeddings_generator()
         logger.info("⚠️ Embeddings deshabilitados (PowerPC - sin ML libraries)")
-        
-        # Crear directorio de uploads
-        os.makedirs(config.UPLOAD_DIR, exist_ok=True)
-        
         logger.info("✅ RAG API lista (modo básico sin embeddings)!")
-        
     except Exception as e:
         logger.error(f"❌ Error en startup: {e}")
         raise
 
 @app.on_event("shutdown")
 async def shutdown():
-    """Limpiar recursos al cerrar"""
-    logger.info("🛑 Cerrando RAG API...")
+    """Limpieza al cerrar"""
+    logger.info("👋 Cerrando RAG API...")
 
 # =====================================================
 # ENDPOINTS
@@ -128,165 +108,172 @@ async def shutdown():
 
 @app.get("/health")
 async def health_check():
-    """Verificar estado del servicio"""
-    try:
-        stats = db.get_document_stats()
-        return {
-            "status": "healthy",
-            "service": "RAG API (Basic Mode)",
-            "mode": "document_storage_only",
-            "note": "Embeddings disabled (PowerPC compatibility)",
-            "database": "connected",
-            "documents": stats.get("total_documents", 0)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
+    """Health check"""
+    return {
+        "status": "healthy",
+        "service": "RAG API",
+        "mode": "básico (sin embeddings)",
+        "database": "connected" if db else "disconnected"
+    }
 
-@app.post("/documents/upload")
-async def upload_document(
-    file: UploadFile = File(...),
-    metadata: Optional[str] = Form(None)
-):
-    """Subir y procesar documento"""
+@app.post("/upload", response_model=DocumentInfo)
+async def upload_document(file: UploadFile = File(...)):
+    """
+    📤 Subir documento y procesarlo en chunks
+    
+    Soporta: PDF, DOCX, TXT, CSV, XLSX
+    """
     try:
-        # Validar extensión
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in config.ALLOWED_EXTENSIONS:
+        logger.info(f"📤 Subiendo documento: {file.filename}")
+        
+        # Validar tipo de archivo
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Nombre de archivo inválido")
+        
+        file_extension = Path(file.filename).suffix.lower()
+        if file_extension not in ['.pdf', '.docx', '.txt', '.csv', '.xlsx']:
             raise HTTPException(
                 status_code=400,
-                detail=f"Tipo de archivo no permitido. Permitidos: {config.ALLOWED_EXTENSIONS}"
+                detail=f"Tipo de archivo no soportado: {file_extension}"
             )
         
-        # Leer contenido
+        # Leer contenido del archivo
         content = await file.read()
         file_size = len(content)
         
-        # Validar tamaño
-        if file_size > config.MAX_FILE_SIZE_MB * 1024 * 1024:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Archivo muy grande. Máximo: {config.MAX_FILE_SIZE_MB}MB"
-            )
+        # Guardar temporalmente
+        temp_path = Path(config.UPLOAD_DIR) / file.filename
+        temp_path.parent.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Procesando documento: {file.filename} ({file_size} bytes)")
+        with open(temp_path, 'wb') as f:
+            f.write(content)
         
-        # Extraer texto
-        text = processor.extract_text(content, file.filename)
+        # Procesar documento
+        processor = DocumentProcessor()
+        text_content = processor.extract_text(temp_path)
+        chunks = processor.chunk_text(text_content)
         
-        # Dividir en chunks
-        chunks = processor.chunk_text(
-            text,
-            chunk_size=config.CHUNK_SIZE,
-            overlap=config.CHUNK_OVERLAP
-        )
+        # Preparar chunks sin embeddings
+        chunk_data = []
+        for idx, chunk in enumerate(chunks):
+            chunk_data.append((idx, chunk, [], {}))  # Sin embedding
         
-        if not chunks:
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudo extraer texto del documento"
-            )
-        
-        logger.info(f"Documento dividido en {len(chunks)} chunks")
-        
-        # Generar embeddings (DESHABILITADO - PowerPC sin ML)
-        # embeddings_gen = get_embeddings_generator()
-        # embeddings = embeddings_gen.generate_embeddings_batch(chunks)
-        logger.info(f"⚠️ Embeddings deshabilitados (modo básico)")
-        
-        # Crear embeddings vacíos como placeholder
-        empty_embeddings = [[0.0] * config.EMBEDDING_DIMENSION for _ in chunks]
-        
-        # Guardar en base de datos
+        # Insertar en base de datos
         doc_id = db.insert_document(
             filename=file.filename,
-            content_type=file.content_type,
+            content_type=file.content_type or "application/octet-stream",
             file_size=file_size,
-            metadata={"original_metadata": metadata, "mode": "basic_no_embeddings"} if metadata else {"mode": "basic_no_embeddings"}
+            metadata={"chunks_count": len(chunks)}
         )
         
-        # Insertar chunks con embeddings vacíos
-        chunks_data = [
-            (i, chunk, emb, {"chunk_size": len(chunk)})
-            for i, (chunk, emb) in enumerate(zip(chunks, empty_embeddings))
-        ]
-        db.insert_chunks(doc_id, chunks_data)
+        db.insert_chunks(doc_id, chunk_data)
         
-        logger.info(f"✅ Documento {doc_id} guardado con {len(chunks)} chunks")
+        # Limpiar archivo temporal
+        temp_path.unlink(missing_ok=True)
         
-        return {
-            "status": "success",
-            "document_id": doc_id,
-            "filename": file.filename,
-            "chunks_created": len(chunks),
-            "file_size": file_size
-        }
+        logger.info(f"✅ Documento {doc_id} procesado: {len(chunks)} chunks")
         
-    except HTTPException:
-        raise
+        return DocumentInfo(
+            id=doc_id,
+            filename=file.filename,
+            content_type=file.content_type or "application/octet-stream",
+            file_size=file_size,
+            total_chunks=len(chunks),
+            uploaded_at=datetime.now()
+        )
+        
     except Exception as e:
-        logger.error(f"Error procesando documento: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Error subiendo documento: {e}")
+        raise HTTPException(status_code=500, detail=f"Error procesando documento: {str(e)}")
 
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
-    """Consultar documentos (DESHABILITADO - requiere embeddings)"""
-    # Esta funcionalidad requiere sentence-transformers que no está disponible en PowerPC
-    return QueryResponse(
-        answer="❌ Función de búsqueda deshabilitada: requiere embeddings ML no disponibles en PowerPC. Use endpoints /documents para gestión básica de documentos.",
-        sources=[],
-        context_used="",
-        num_sources=0
-    )
+    """
+    🔍 Buscar en documentos usando búsqueda de texto completo
+    
+    Nota: Sin embeddings, usa búsqueda de texto PostgreSQL
+    """
+    try:
+        logger.info(f"🔍 Consultando: {request.query}")
+        
+        # Búsqueda de texto completo (sin embeddings)
+        results = db.text_search(request.query, top_k=request.top_k)
+        
+        if not results:
+            return QueryResponse(
+                answer="No se encontraron documentos relevantes para tu consulta.",
+                sources=[],
+                query=request.query
+            )
+        
+        # Generar respuesta básica (sin LLM)
+        context = "\n\n".join([r['content'][:500] for r in results[:3]])
+        answer = f"Encontré {len(results)} resultado(s) relacionado(s):\n\n{context}"
+        
+        sources = [
+            {
+                "filename": r['filename'],
+                "content": r['content'][:300],
+                "rank": float(r['rank'])
+            }
+            for r in results
+        ]
+        
+        logger.info(f"✅ {len(results)} resultados encontrados")
+        
+        return QueryResponse(
+            answer=answer,
+            sources=sources,
+            query=request.query
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error en consulta: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/documents", response_model=List[DocumentInfo])
 async def list_documents():
-    """Listar todos los documentos"""
+    """📚 Listar todos los documentos"""
     try:
         docs = db.get_all_documents()
         return [
             DocumentInfo(
-                id=doc["id"],
-                filename=doc["filename"],
-                content_type=doc["content_type"],
-                file_size=doc["file_size"],
-                total_chunks=doc["total_chunks"],
-                metadata=doc["metadata"],
-                uploaded_at=str(doc["uploaded_at"])
+                id=doc['id'],
+                filename=doc['filename'],
+                content_type=doc['content_type'],
+                file_size=doc['file_size'],
+                total_chunks=doc['total_chunks'],
+                uploaded_at=doc['uploaded_at']
             )
             for doc in docs
         ]
     except Exception as e:
+        logger.error(f"❌ Error listando documentos: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/documents/{document_id}")
 async def delete_document(document_id: int):
-    """Eliminar documento"""
+    """🗑️ Eliminar documento"""
     try:
-        success = db.delete_document(document_id)
-        if not success:
+        deleted = db.delete_document(document_id)
+        if not deleted:
             raise HTTPException(status_code=404, detail="Documento no encontrado")
         
-        return {"status": "success", "message": f"Documento {document_id} eliminado"}
-        
+        return {"message": f"Documento {document_id} eliminado correctamente"}
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"❌ Error eliminando documento: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/stats", response_model=StatsResponse)
 async def get_stats():
-    """Obtener estadísticas del sistema"""
+    """📊 Obtener estadísticas del sistema"""
     try:
         stats = db.get_document_stats()
-        
-        return StatsResponse(
-            total_documents=stats.get("total_documents", 0),
-            total_chunks=stats.get("total_chunks", 0),
-            total_size_mb=round(stats.get("total_size_bytes", 0) / (1024 * 1024), 2),
-            embedding_model="disabled (PowerPC compatibility)",
-            embedding_dimension=0
-        )
+        return StatsResponse(**stats)
     except Exception as e:
+        logger.error(f"❌ Error obteniendo estadísticas: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # =====================================================
@@ -295,19 +282,19 @@ async def get_stats():
 
 @app.get("/")
 async def root():
-    """Información del servicio"""
+    """Información de la API"""
     return {
-        "service": "RAG API (Basic Mode)",
+        "service": "RAG API",
         "version": "1.0.0",
-        "mode": "document_storage_only",
-        "note": "Embeddings & query disabled (PowerPC compatibility - ML libraries unavailable)",
-        "description": "Document storage and management (RAG features disabled)",
+        "mode": "básico (sin embeddings)",
+        "status": "running",
         "endpoints": {
-            "upload": "POST /documents/upload (stores documents without embeddings)",
-            "query": "POST /query (DISABLED - requires ML)",
-            "list": "GET /documents",
+            "health": "/health",
+            "upload": "POST /upload",
+            "query": "POST /query",
+            "documents": "GET /documents",
             "delete": "DELETE /documents/{id}",
             "stats": "GET /stats",
-            "health": "GET /health"
+            "docs": "/docs"
         }
     }
