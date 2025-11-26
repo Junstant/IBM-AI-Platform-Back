@@ -3,18 +3,23 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-# Instalar solo dependencias esenciales
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     curl \
     gcc \
+    libpq-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements
 COPY requirements.txt .
 
-# Instalar dependencias Python
+# Instalar dependencias Python desde repositorio IBM Power
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir \
+    --extra-index-url https://repo.fury.io/mgiessing \
+    --prefer-binary \
+    -r requirements.txt
 
 # Copiar código de la aplicación
 COPY . .
