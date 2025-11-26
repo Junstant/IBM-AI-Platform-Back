@@ -183,12 +183,14 @@ async def query_documents(request: QueryRequest):
     Nota: Sin embeddings, usa búsqueda de texto PostgreSQL
     """
     try:
-        logger.info(f"🔍 Consultando: {request.query}")
+        logger.info(f"🔍 Consultando: '{request.query}' (top_k={request.top_k})")
         
         # Búsqueda de texto completo (sin embeddings)
         results = db.text_search(request.query, top_k=request.top_k)
+        logger.info(f"📊 Búsqueda completada: {len(results)} resultados")
         
         if not results:
+            logger.warning("⚠️ No se encontraron resultados")
             return QueryResponse(
                 answer="No se encontraron documentos relevantes para tu consulta.",
                 sources=[],
@@ -196,19 +198,23 @@ async def query_documents(request: QueryRequest):
             )
         
         # Generar respuesta básica (sin LLM)
-        context = "\n\n".join([r['content'][:500] for r in results[:3]])
-        answer = f"Encontré {len(results)} resultado(s) relacionado(s):\n\n{context}"
+        context_parts = []
+        for i, r in enumerate(results[:3], 1):
+            context_parts.append(f"[Fragmento {i} de '{r['filename']}']\n{r['content'][:500]}")
+        
+        context = "\n\n".join(context_parts)
+        answer = f"✅ Encontré {len(results)} resultado(s) relacionado(s):\n\n{context}"
         
         sources = [
             {
                 "filename": r['filename'],
-                "content": r['content'][:300],
+                "content": r['content'][:300] + "...",
                 "rank": float(r['rank'])
             }
             for r in results
         ]
         
-        logger.info(f"✅ {len(results)} resultados encontrados")
+        logger.info(f"✅ Respuesta generada con {len(sources)} fuentes")
         
         return QueryResponse(
             answer=answer,
@@ -217,7 +223,7 @@ async def query_documents(request: QueryRequest):
         )
         
     except Exception as e:
-        logger.error(f"❌ Error en consulta: {e}")
+        logger.error(f"❌ Error en consulta: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/documents", response_model=List[DocumentInfo])

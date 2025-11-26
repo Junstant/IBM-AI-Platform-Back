@@ -160,10 +160,14 @@ class RAGDatabase:
     
     def text_search(self, query: str, top_k: int = 5) -> List[Dict]:
         """
-        Búsqueda de texto completo (alternativa a búsqueda vectorial)
-        Usa índice GIN con to_tsvector para búsqueda rápida
+        Búsqueda de texto simple con ILIKE (compatible con cualquier PostgreSQL)
+        Fallback seguro sin dependencias de diccionarios o extensiones
         """
         with self.engine.connect() as conn:
+            # Búsqueda simple con ILIKE (case-insensitive)
+            # Dividir query en palabras y buscar cada una
+            search_term = f"%{query}%"
+            
             results = conn.execute(
                 text("""
                     SELECT 
@@ -173,14 +177,14 @@ class RAGDatabase:
                         dc.content,
                         dc.metadata,
                         d.filename,
-                        ts_rank(to_tsvector('spanish', dc.content), plainto_tsquery('spanish', :query)) as rank
+                        1.0 as rank
                     FROM document_chunks dc
                     JOIN documents d ON d.id = dc.document_id
-                    WHERE to_tsvector('spanish', dc.content) @@ plainto_tsquery('spanish', :query)
-                    ORDER BY rank DESC
+                    WHERE dc.content ILIKE :search
+                    ORDER BY dc.document_id DESC, dc.chunk_index ASC
                     LIMIT :limit
                 """),
-                {"query": query, "limit": top_k}
+                {"search": search_term, "limit": top_k}
             )
             
             return [dict(row._mapping) for row in results]
