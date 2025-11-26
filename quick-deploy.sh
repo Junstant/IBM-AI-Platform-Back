@@ -39,9 +39,9 @@ case "${1:-menu}" in
     "backend"|"back"|"b")
         log "🔧 Actualizando Backend..."
         git pull origin main
-        docker compose stop stats-api fraude-api textosql-api
-        docker compose build --no-cache stats-api fraude-api textosql-api
-        docker compose up -d stats-api fraude-api textosql-api
+        docker compose stop stats-api fraude-api textosql-api rag-api
+        docker compose build --no-cache stats-api fraude-api textosql-api rag-api
+        docker compose up -d stats-api fraude-api textosql-api rag-api
         sleep 15
         log "✅ Backend actualizado!"
         echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
