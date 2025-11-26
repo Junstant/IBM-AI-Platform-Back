@@ -41,6 +41,8 @@ class RAGDatabase:
                     pgvector_available = True
                     logger.info("✅ Extensión pgvector habilitada")
                 except Exception as e:
+                    # ✅ FIX: Hacer rollback explícito para limpiar estado de transacción
+                    conn.rollback()
                     logger.warning(f"⚠️ pgvector no disponible: {e}")
                     logger.info("📝 Usando modo básico sin embeddings vectoriales")
                 
@@ -116,6 +118,7 @@ class RAGDatabase:
                 
             except Exception as e:
                 logger.error(f"❌ Error inicializando esquema: {e}")
+                conn.rollback()  # ✅ Rollback en caso de error general
                 raise
     
     def insert_document(
