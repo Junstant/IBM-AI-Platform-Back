@@ -3,9 +3,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-# Instalar dependencias del sistema para procesamiento de documentos
+# Instalar dependencias del sistema (compiladores + herramientas)
 RUN apt-get update && apt-get install -y \
     curl \
+    gcc \
+    g++ \
+    gfortran \
+    build-essential \
+    libopenblas-dev \
+    liblapack-dev \
     poppler-utils \
     tesseract-ocr \
     libreoffice \
@@ -14,8 +20,9 @@ RUN apt-get update && apt-get install -y \
 # Copiar requirements
 COPY requirements.txt .
 
-# Instalar dependencias Python
+# Instalar dependencias Python (primero numpy, luego el resto)
 RUN pip install --upgrade pip && \
+    pip install --no-cache-dir numpy==1.24.3 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación
