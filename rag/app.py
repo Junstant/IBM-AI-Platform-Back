@@ -14,10 +14,10 @@ from pydantic import BaseModel, Field
 
 # Importar componentes locales
 from config import config
-from database import RAGDatabase
+from milvus_database import MilvusRAGDatabase
 from document_processor import DocumentProcessor
-from embeddings import get_embeddings_generator
-from llm_client import get_llm_client
+from embeddings import EmbeddingsGenerator, get_embeddings_generator
+from llm_client import LLMClient, get_llm_client
 
 # Configurar logging
 logging.basicConfig(
@@ -94,24 +94,21 @@ async def startup():
     """Inicializar componentes al arrancar"""
     global db, embeddings_gen, llm_client
     try:
-        logger.info("🚀 Iniciando RAG API...")
+        logger.info("🚀 Iniciando RAG API con Milvus...")
         
-        # Inicializar base de datos
-        db = RAGDatabase()
-        logger.info("✅ Base de datos inicializada")
+        # Inicializar Milvus
+        db = MilvusRAGDatabase()
+        logger.info("✅ Milvus inicializado y listo")
         
-        # Inicializar generador de embeddings
-        if config.ENABLE_EMBEDDINGS:
-            embeddings_gen = get_embeddings_generator()
-            logger.info("✅ Generador de embeddings inicializado")
-        else:
-            logger.warning("⚠️ Embeddings deshabilitados (config.ENABLE_EMBEDDINGS=false)")
+        # Inicializar generador de embeddings (REQUERIDO para Milvus)
+        embeddings_gen = get_embeddings_generator()
+        logger.info("✅ Generador de embeddings inicializado")
         
         # Inicializar cliente LLM
         llm_client = get_llm_client()
         logger.info("✅ Cliente LLM inicializado")
         
-        logger.info("🎉 RAG API lista con todas las funcionalidades!")
+        logger.info("🎉 RAG API lista con Milvus + Embeddings + LLM!")
     except Exception as e:
         logger.error(f"❌ Error en startup: {e}")
         raise
@@ -156,18 +153,20 @@ async def get_models():
 
 @app.get("/health")
 async def health_check():
-    """Health check"""
+    """Health check con información de Milvus"""
     return {
         "status": "healthy",
-        "service": "RAG API",
+        "service": "RAG API v2 with Milvus",
         "version": "2.0.0",
         "features": {
-            "embeddings": "enabled" if (embeddings_gen and config.ENABLE_EMBEDDINGS) else "disabled",
+            "vector_database": "Milvus",
+            "embeddings": "enabled" if embeddings_gen else "disabled",
             "llm": "enabled" if llm_client else "disabled",
-            "vector_search": "enabled" if config.ENABLE_EMBEDDINGS else "text_search"
+            "vector_search": "HNSW (ultra-fast semantic search)"
         },
-        "database": "connected" if db else "disconnected",
-        "embedding_model": current_embedding_model if config.ENABLE_EMBEDDINGS else "N/A",
+        "database": "Milvus connected" if db else "disconnected",
+        "milvus_host": f"{config.MILVUS_HOST}:{config.MILVUS_PORT}",
+        "embedding_model": current_embedding_model,
         "embedding_dimension": config.EMBEDDING_DIMENSION,
         "llm_model": current_llm_model
     }
@@ -244,19 +243,23 @@ async def upload_document(
         chunks = DocumentProcessor.chunk_text(text_content)
         logger.info(f"✂️ Documento dividido en {len(chunks)} chunks")
         
-        # Generar embeddings para cada chunk
-        logger.info("🔮 Generando embeddings...")
-        if embeddings_gen and config.ENABLE_EMBEDDINGS:
-            embeddings = embeddings_gen.generate_embeddings_batch(chunks)
-        else:
-            embeddings = [[] for _ in chunks]  # Sin embeddings
+        # Generar embeddings para cada chunk (REQUERIDO para Milvus)
+        logger.info("🔮 Generando embeddings vectoriales...")
+        if not embeddings_gen:
+            raise HTTPException(
+                status_code=500,
+                detail="Servicio de embeddings no disponible"
+            )
+        
+        embeddings = embeddings_gen.generate_embeddings_batch(chunks)
+        logger.info(f"✅ {len(embeddings)} embeddings generados (dim: {config.EMBEDDING_DIMENSION})")
         
         # Preparar chunks con embeddings
         chunk_data = []
         for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             chunk_data.append((idx, chunk, embedding, {}))
         
-        # Insertar en base de datos
+        # Insertar en Milvus
         doc_id = db.insert_document(
             filename=file.filename,
             content_type=file.content_type or "application/octet-stream",
@@ -266,7 +269,7 @@ async def upload_document(
         
         db.insert_chunks(doc_id, chunk_data)
         
-        logger.info(f"✅ Documento {doc_id} procesado: {len(chunks)} chunks con embeddings")
+        logger.info(f"✅ Documento {doc_id} almacenado en Milvus: {len(chunks)} chunks vectorizados")
         
         return DocumentInfo(
             id=doc_id,
@@ -294,18 +297,19 @@ async def query_documents(request: QueryRequest):
     try:
         logger.info(f"🔍 Consultando: '{request.query}' (top_k={request.top_k})")
         
-        # Generar embedding de la consulta
-        if embeddings_gen and config.ENABLE_EMBEDDINGS:
-            logger.info("🔮 Generando embedding de consulta...")
-            query_embedding = embeddings_gen.generate_embedding(request.query)
-            
-            # Búsqueda vectorial (semántica)
-            results = db.similarity_search(query_embedding, top_k=request.top_k)
-            logger.info(f"📊 Búsqueda vectorial: {len(results)} resultados")
-        else:
-            # Fallback: búsqueda de texto tradicional
-            logger.warning("⚠️ Usando búsqueda de texto (embeddings deshabilitados)")
-            results = db.text_search(request.query, top_k=request.top_k)
+        # Generar embedding de la consulta (REQUERIDO para Milvus)
+        if not embeddings_gen:
+            raise HTTPException(
+                status_code=500,
+                detail="Servicio de embeddings no disponible"
+            )
+        
+        logger.info("🔮 Generando embedding de consulta...")
+        query_embedding = embeddings_gen.generate_embedding(request.query)
+        
+        # Búsqueda vectorial semántica en Milvus
+        results = db.similarity_search(query_embedding, top_k=request.top_k)
+        logger.info(f"📊 Búsqueda vectorial Milvus: {len(results)} resultados")
         
         if not results:
             logger.warning("⚠️ No se encontraron resultados")
@@ -401,30 +405,41 @@ async def get_stats():
 
 @app.get("/")
 async def root():
-    """Información de la API"""
+    """Información de la API RAG con Milvus"""
     return {
-        "service": "🧠 RAG API - Retrieval-Augmented Generation",
+        "service": "🧠 RAG API v2 - Retrieval-Augmented Generation with Milvus",
         "version": "2.0.0",
-        "description": "Sistema RAG completo con embeddings vectoriales y LLM",
+        "description": "Sistema RAG de alta performance con Milvus vector database",
         "status": "running",
-        "features": {
-            "vector_search": config.ENABLE_EMBEDDINGS,
-            "semantic_embeddings": config.ENABLE_EMBEDDINGS,
-            "llm_generation": True,
-            "supported_formats": ["PDF", "DOCX", "TXT", "CSV", "XLSX"]
+        "technology": {
+            "vector_database": "Milvus (production-grade)",
+            "search_algorithm": "HNSW (ultra-fast)",
+            "embeddings": f"{config.EMBEDDING_MODEL} ({config.EMBEDDING_DIMENSION}D)",
+            "llm": f"{config.LLM_HOST}",
+            "performance": "Billions of vectors @ < 10ms latency"
         },
-        "models": {
-            "embeddings": config.EMBEDDING_MODEL if config.ENABLE_EMBEDDINGS else "disabled",
-            "llm": f"{config.LLM_HOST}:{config.LLM_PORT}"
+        "features": {
+            "semantic_search": "✅ Búsqueda semántica avanzada",
+            "vector_similarity": "✅ Cosine similarity HNSW indexed",
+            "llm_generation": "✅ Respuestas contextualizadas",
+            "supported_formats": ["PDF", "DOCX", "TXT", "CSV", "XLSX", "MD"]
         },
         "endpoints": {
-            "health": "GET /health",
-            "upload": "POST /upload - Subir documento con generación automática de embeddings",
-            "query": "POST /query - Búsqueda vectorial + respuesta LLM",
-            "documents": "GET /documents - Listar todos los documentos",
+            "health": "GET /health - Estado del sistema",
+            "models": "GET /models - Modelos disponibles",
+            "upload": "POST /upload - Subir documento + vectorización automática",
+            "query": "POST /query - Búsqueda semántica + respuesta LLM",
+            "documents": "GET /documents - Listar documentos",
             "delete": "DELETE /documents/{id} - Eliminar documento",
-            "stats": "GET /stats - Estadísticas del sistema",
-            "docs": "GET /docs - Documentación interactiva (Swagger)"
+            "stats": "GET /stats - Estadísticas Milvus",
+            "docs": "GET /docs - Documentación Swagger"
+        },
+        "milvus_info": {
+            "host": config.MILVUS_HOST,
+            "port": config.MILVUS_PORT,
+            "collection": "rag_chunks",
+            "index_type": "HNSW",
+            "metric": "COSINE"
         }
     }
 

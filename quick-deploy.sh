@@ -39,6 +39,15 @@ case "${1:-menu}" in
     "backend"|"back"|"b")
         log "🔧 Actualizando Backend..."
         git pull origin main
+        
+        # Verificar si Milvus está corriendo (necesario para RAG)
+        if ! docker ps | grep -q milvus-standalone; then
+            warn "Milvus no está corriendo. Iniciando servicios Milvus..."
+            docker compose up -d etcd minio milvus-standalone
+            log "⏳ Esperando que Milvus esté listo (20s)..."
+            sleep 20
+        fi
+        
         docker compose stop stats-api fraude-api textosql-api rag-api
         docker compose build --no-cache stats-api fraude-api textosql-api rag-api
         docker compose up -d stats-api fraude-api textosql-api rag-api
@@ -47,7 +56,7 @@ case "${1:-menu}" in
         echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
         echo -e "${WHITE}🛡️ Fraude: http://localhost:${FRAUDE_API_PORT:-8001}/docs${NC}"
         echo -e "${WHITE}🔍 TextSQL: http://localhost:${TEXTOSQL_API_PORT:-8000}/docs${NC}"
-        echo -e "${WHITE}📚 RAG: http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
+        echo -e "${WHITE}📚 RAG (Milvus): http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
         ;;
         
     "frontend"|"front"|"f")
@@ -81,14 +90,24 @@ case "${1:-menu}" in
         
         # Pull frontend (repositorio externo si existe)
         if [ -d "../FrontAI" ]; then
-            log "Actualizando Frontend externo..."
+            log "Actualizando Frontend..."
             (cd ../FrontAI && git pull origin main)
         else
             log "Frontend en el mismo repositorio (ya actualizado)"
         fi
         
-        # Detener servicios pero NO PostgreSQL ni LLMs
-        warn "Deteniendo servicios (manteniendo PostgreSQL y LLMs)..."
+        # Verificar y levantar Milvus si no está corriendo
+        if ! docker ps | grep -q milvus-standalone; then
+            log "🗄️ Iniciando servicios Milvus..."
+            docker compose up -d etcd minio milvus-standalone
+            log "⏳ Esperando que Milvus esté listo (20s)..."
+            sleep 20
+        else
+            log "✅ Milvus ya está corriendo"
+        fi
+        
+        # Detener servicios pero NO PostgreSQL, LLMs ni Milvus
+        warn "Deteniendo servicios (manteniendo PostgreSQL, LLMs y Milvus)..."
         docker compose stop stats-api fraude-api textosql-api rag-api frontend
         
         # Rebuild y levantar servicios
@@ -184,6 +203,8 @@ case "${1:-menu}" in
         }
         
         test_url "Frontend    " "http://localhost:${NGINX_PORT:-2012}"
+        test_url "PostgreSQL  " "http://localhost:${DB_PORT:-8070}"
+        test_url "Milvus      " "http://localhost:9091/healthz"
         test_url "Stats API   " "http://localhost:${STATS_PORT:-8003}/health"
         test_url "Fraude API  " "http://localhost:${FRAUDE_API_PORT:-8001}/health"
         test_url "TextSQL API " "http://localhost:${TEXTOSQL_API_PORT:-8000}/health"
@@ -203,6 +224,7 @@ case "${1:-menu}" in
         echo "  • fraude-api"
         echo "  • textosql-api"
         echo "  • rag-api"
+        echo "  • milvus-standalone"
         echo "  • postgres"
         echo "  • gemma-2b"
         read -p "Nombre del servicio: " service_name

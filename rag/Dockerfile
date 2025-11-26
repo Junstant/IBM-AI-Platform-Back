@@ -7,8 +7,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     gcc \
-    libpq-dev \
-    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements
