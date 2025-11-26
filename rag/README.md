@@ -1,33 +1,39 @@
 # 🧠 RAG API - Retrieval-Augmented Generation
 
-Sistema de consulta de documentos usando embeddings vectoriales con **pgvector** y generación de respuestas con LLM.
+Sistema de consulta de documentos usando embeddings vectoriales con **Milvus** y generación de respuestas con LLM.
 
 ## 🚀 Características
 
 - ✅ **Procesamiento de múltiples formatos**: PDF, DOCX, TXT, CSV, XLSX, MD
-- ✅ **Embeddings multilingües**: sentence-transformers (MiniLM 384-dim)
-- ✅ **Búsqueda vectorial eficiente**: pgvector con índice IVFFlat
+- ✅ **Embeddings multilingües**: nomic-embed-text (768-dim)
+- ✅ **Búsqueda vectorial ultra rápida**: Milvus con índice HNSW
 - ✅ **Generación de respuestas**: Integración con Gemma-2B
 - ✅ **API REST completa**: Upload, query, list, delete
 - ✅ **Chunking inteligente**: División automática con overlap
+- ✅ **Escalabilidad**: Arquitectura distribuida con etcd + MinIO
 
 ## 📋 Arquitectura
 
 ```
-Documento → Extracción de texto → Chunking → Embeddings → pgvector
+Documento → Extracción de texto → Chunking → Embeddings → Milvus (HNSW)
                                                               ↓
 Usuario → Pregunta → Embedding → Búsqueda similitud → Contexto → LLM → Respuesta
 ```
+
+### Stack de Milvus
+- **etcd**: Almacenamiento de metadata y coordinación
+- **MinIO**: Object storage para datos vectoriales
+- **Milvus**: Motor de búsqueda vectorial (índice HNSW)
 
 ## 🔧 Configuración
 
 ### Variables de entorno (.env)
 ```bash
 RAG_API_PORT=8004
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=root
+MILVUS_HOST=milvus
+MILVUS_PORT=19530
+MINIO_PORT=9000
+MINIO_CONSOLE_PORT=9001
 ```
 
 ### Recursos asignados

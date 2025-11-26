@@ -40,7 +40,17 @@ case "${1:-menu}" in
         log "🔧 Actualizando Backend..."
         git pull origin main
         
-        # Verificar PostgreSQL (necesario para RAG con pgvector)
+        # Verificar stack de Milvus (necesario para RAG)
+        if ! docker ps | grep -q milvus; then
+            warn "Stack de Milvus no está corriendo. Iniciando..."
+            docker compose up -d etcd minio
+            sleep 15
+            docker compose up -d milvus
+            log "⏳ Esperando que Milvus esté listo (30s)..."
+            sleep 30
+        fi
+        
+        # Verificar PostgreSQL (necesario para Stats/TextoSQL/Fraude)
         if ! docker ps | grep -q postgres_db; then
             warn "PostgreSQL no está corriendo. Iniciando..."
             docker compose up -d postgres
@@ -56,7 +66,7 @@ case "${1:-menu}" in
         echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
         echo -e "${WHITE}🛡️ Fraude: http://localhost:${FRAUDE_API_PORT:-8001}/docs${NC}"
         echo -e "${WHITE}🔍 TextSQL: http://localhost:${TEXTOSQL_API_PORT:-8000}/docs${NC}"
-        echo -e "${WHITE}📚 RAG (PostgreSQL+pgvector): http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
+        echo -e "${WHITE}🧠 RAG (Milvus): http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
         ;;
         
     "frontend"|"front"|"f")
@@ -96,6 +106,18 @@ case "${1:-menu}" in
             log "Frontend en el mismo repositorio (ya actualizado)"
         fi
         
+        # Verificar y levantar stack de Milvus si no está corriendo
+        if ! docker ps | grep -q milvus; then
+            log "🗄️ Iniciando stack de Milvus (etcd + MinIO + Milvus)..."
+            docker compose up -d etcd minio
+            sleep 15
+            docker compose up -d milvus
+            log "⏳ Esperando que Milvus esté listo (30s)..."
+            sleep 30
+        else
+            log "✅ Milvus ya está corriendo"
+        fi
+        
         # Verificar y levantar PostgreSQL si no está corriendo
         if ! docker ps | grep -q postgres_db; then
             log "🗄️ Iniciando PostgreSQL..."
@@ -106,8 +128,8 @@ case "${1:-menu}" in
             log "✅ PostgreSQL ya está corriendo"
         fi
         
-        # Detener servicios pero NO PostgreSQL ni LLMs
-        warn "Deteniendo servicios (manteniendo PostgreSQL y LLMs)..."
+        # Detener servicios pero NO bases de datos ni LLMs
+        warn "Deteniendo servicios (manteniendo PostgreSQL, Milvus y LLMs)..."
         docker compose stop stats-api fraude-api textosql-api rag-api frontend
         
         # Rebuild y levantar servicios
@@ -149,6 +171,90 @@ case "${1:-menu}" in
         else
             log "Operación cancelada"
         fi
+        ;;
+    
+    "rag"|"milvus")
+        log "🧠 Desplegando RAG API con Milvus..."
+        
+        # Paso 1: Verificar Gemma-2B
+        if ! docker ps | grep -q gemma-2b; then
+            warn "Gemma-2B no está corriendo, levantándolo..."
+            docker compose up -d gemma-2b
+            log "⏳ Esperando a que Gemma-2B esté listo (60s)..."
+            sleep 60
+        fi
+        
+        # Paso 2: Levantar stack de Milvus
+        log "🚀 Desplegando stack de Milvus..."
+        log "   1️⃣ etcd (metadata storage)..."
+        docker compose up -d etcd
+        sleep 10
+        
+        log "   2️⃣ MinIO (object storage)..."
+        docker compose up -d minio
+        sleep 15
+        
+        log "   3️⃣ Milvus (vector database)..."
+        docker compose up -d milvus
+        log "   ⏳ Esperando a que Milvus esté completamente listo..."
+        sleep 30
+        
+        # Paso 3: Verificar salud de Milvus
+        log "🔍 Verificando salud de Milvus..."
+        for i in {1..12}; do
+            if docker exec milvus curl -f http://localhost:9091/healthz > /dev/null 2>&1; then
+                log "   ✅ Milvus está saludable"
+                break
+            else
+                warn "   Intento $i/12: Milvus no está listo aún..."
+                sleep 10
+            fi
+            if [ $i -eq 12 ]; then
+                error "Milvus no respondió después de 2 minutos"
+            fi
+        done
+        
+        # Paso 4: Rebuildar y levantar RAG API
+        log "🔧 Construyendo RAG API..."
+        docker compose build --no-cache rag-api
+        
+        log "🚀 Levantando RAG API..."
+        docker compose up -d rag-api
+        
+        log "⏳ Esperando a que RAG API esté listo..."
+        sleep 20
+        
+        # Paso 5: Verificar salud de RAG API
+        log "🔍 Verificando salud de RAG API..."
+        for i in {1..10}; do
+            if curl -f http://localhost:${RAG_API_PORT:-8004}/health > /dev/null 2>&1; then
+                log "   ✅ RAG API está saludable"
+                break
+            else
+                warn "   Intento $i/10: RAG API no está listo aún..."
+                sleep 5
+            fi
+            if [ $i -eq 10 ]; then
+                error "RAG API no respondió después de 50 segundos"
+            fi
+        done
+        
+        # Mostrar información
+        echo ""
+        echo -e "${CYAN}================================================================${NC}"
+        echo -e "${GREEN}✅ RAG API CON MILVUS DESPLEGADO${NC}"
+        echo -e "${CYAN}================================================================${NC}"
+        echo ""
+        echo -e "${WHITE}📊 Servicios:${NC}"
+        echo -e "   🔹 etcd:       Metadata storage"
+        echo -e "   🔹 MinIO:      Object storage (Console: ${CYAN}http://localhost:9001${NC})"
+        echo -e "   🔹 Milvus:     Vector database (gRPC: ${CYAN}localhost:19530${NC})"
+        echo -e "   🔹 RAG API:    REST API (Docs: ${CYAN}http://localhost:${RAG_API_PORT:-8004}/docs${NC})"
+        echo ""
+        echo -e "${WHITE}🔗 URLs:${NC}"
+        echo -e "   📚 API Docs:      ${CYAN}http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
+        echo -e "   ❤️  Health:        ${CYAN}http://localhost:${RAG_API_PORT:-8004}/health${NC}"
+        echo -e "   🗄️  MinIO Console: ${CYAN}http://localhost:9001${NC} (minioadmin/minioadmin)"
         ;;
     
     "models"|"llm"|"m")
@@ -238,6 +344,7 @@ case "${1:-menu}" in
         echo -e "  ${GREEN}./quick-deploy.sh backend${NC}   # 🔧 Pull + restart APIs"
         echo -e "  ${GREEN}./quick-deploy.sh frontend${NC}  # 🌐 Pull + restart frontend"
         echo -e "  ${GREEN}./quick-deploy.sh full${NC}      # 🔄 Pull + restart todo (mantiene DB)"
+        echo -e "  ${GREEN}./quick-deploy.sh rag${NC}       # 🧠 Deploy RAG con Milvus"
         echo -e "  ${GREEN}./quick-deploy.sh reset${NC}     # 🗑️ Reinicio completo (borra DB)"
         echo -e "  ${GREEN}./quick-deploy.sh test${NC}      # 🧪 Test servicios"
         echo -e "  ${GREEN}./quick-deploy.sh models${NC}    # 🤖 Gestionar modelos LLM"
@@ -247,11 +354,13 @@ case "${1:-menu}" in
         echo -e "  ${YELLOW}backend${NC} = back, b"
         echo -e "  ${YELLOW}frontend${NC} = front, f"  
         echo -e "  ${YELLOW}full${NC} = all, a"
+        echo -e "  ${YELLOW}rag${NC} = milvus"
         echo -e "  ${YELLOW}reset${NC} = r"
         echo -e "  ${YELLOW}test${NC} = t"
         echo -e "  ${YELLOW}models${NC} = llm, m"
         echo -e "  ${YELLOW}logs${NC} = l"
         echo ""
-        echo -e "${WHITE}💡 Para más opciones usa: ${GREEN}./deploy-manager.sh${NC}"
+        echo -e "${WHITE}💡 Ejemplo de uso:${NC}"
+        echo -e "  ${CYAN}./quick-deploy.sh rag${NC}  → Despliega RAG API con Milvus Vector DB"
         ;;
 esac

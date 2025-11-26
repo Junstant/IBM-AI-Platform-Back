@@ -741,16 +741,28 @@ deploy_services() {
     log "   • Gemma 12B"
     log "   • Mistral 7B"
     log "   • DeepSeek 8B"
-    log "   • APIs (Fraude, TextoSQL, Stats)"
+    log "   • APIs (Fraude, TextoSQL, Stats, RAG)"
     log "   • Frontend (Nginx)"
     log "   • PostgreSQL"
+    log "   • Milvus Stack (etcd + MinIO + Milvus)"
     echo ""
     warn "⚠️  IMPORTANTE: Levantar todos los modelos requiere ~50GB RAM"
     warn "⏱️  El inicio completo puede tomar 10-15 minutos"
     echo ""
     
-    # Usar --profile full para levantar todos los servicios
-    if $DOCKER_COMPOSE --profile full up --build -d; then
+    # Paso 1: Levantar infraestructura base (PostgreSQL y Milvus)
+    log "🗄️ Iniciando bases de datos (PostgreSQL y Milvus Stack)..."
+    $DOCKER_COMPOSE up -d postgres etcd minio
+    sleep 20
+    $DOCKER_COMPOSE up -d milvus
+    log "⏳ Esperando que las bases de datos estén listas (30s)..."
+    sleep 30
+    
+    # Paso 2: Levantar modelos LLM (con perfil full)
+    log "🤖 Iniciando modelos LLM (esto puede tomar varios minutos)..."
+    $DOCKER_COMPOSE --profile full up --build -d
+    
+    if [ $? -eq 0 ]; then
         log "✅ Servicios iniciados exitosamente con perfil full desde $BACK_DIR"
     else
         error "❌ Error al iniciar servicios"
@@ -822,11 +834,17 @@ show_final_info() {
     echo "🔌 APIs DISPONIBLES:"
     echo "   TextoSQL API: http://$IP:${TEXTOSQL_API_PORT:-8000}/docs"
     echo "   Fraude API: http://$IP:${FRAUDE_API_PORT:-8001}/docs"
+    echo "   Stats API: http://$IP:${STATS_PORT:-8003}/docs"
+    echo "   RAG API (Milvus): http://$IP:${RAG_API_PORT:-8004}/docs"
     echo ""
-    echo "🗄️ BASE DE DATOS:"
+    echo "🗄️ BASES DE DATOS:"
     echo "   PostgreSQL: $IP:${DB_PORT:-8070}"
     echo "   Usuario: ${DB_USER:-postgres} / Contraseña: [Ver archivo .env]"
     echo "   pgvector: v0.8.1 (compilado automáticamente)"
+    echo ""
+    echo "   Milvus Vector DB: $IP:${MILVUS_PORT:-19530} (gRPC)"
+    echo "   MinIO Console: http://$IP:${MINIO_CONSOLE_PORT:-9001}"
+    echo "   MinIO Usuario: minioadmin / minioadmin"
     echo ""
     echo "🧠 MODELOS LLM:"
     echo "   Gemma 2B: http://$IP:${GEMMA_2B_PORT:-8085}"

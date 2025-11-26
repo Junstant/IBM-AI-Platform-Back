@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 # Importar componentes locales
 from config import config
-from database import RAGDatabase  # PostgreSQL + pgvector
+from milvus_database import MilvusRAGDatabase  # Milvus Vector Database
 from document_processor import DocumentProcessor
 from embeddings import EmbeddingsGenerator, get_embeddings_generator
 from llm_client import LLMClient, get_llm_client
@@ -94,11 +94,11 @@ async def startup():
     """Inicializar componentes al arrancar"""
     global db, embeddings_gen, llm_client
     try:
-        logger.info("🚀 Iniciando RAG API con PostgreSQL + pgvector...")
+        logger.info("🚀 Iniciando RAG API con Milvus Vector Database...")
         
-        # Inicializar PostgreSQL + pgvector
-        db = RAGDatabase()
-        logger.info("✅ PostgreSQL + pgvector inicializado y listo")
+        # Inicializar Milvus Vector Database
+        db = MilvusRAGDatabase()
+        logger.info("✅ Milvus Vector Database inicializado y listo")
         
         # Inicializar generador de embeddings (REQUERIDO para embeddings vectoriales)
         embeddings_gen = get_embeddings_generator()
@@ -108,7 +108,7 @@ async def startup():
         llm_client = get_llm_client()
         logger.info("✅ Cliente LLM inicializado")
         
-        logger.info("🎉 RAG API lista con PostgreSQL + pgvector + Embeddings + LLM!")
+        logger.info("🎉 RAG API lista con Milvus + Embeddings + LLM!")
     except Exception as e:
         logger.error(f"❌ Error en startup: {e}")
         raise
