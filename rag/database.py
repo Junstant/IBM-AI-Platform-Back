@@ -19,8 +19,9 @@ class RAGDatabase:
     
     def __init__(self):
         """Inicializar conexión a PostgreSQL"""
+        # ✅ FIX: Usar el método get_database_url() en lugar del atributo
         self.engine = create_engine(
-            config.DATABASE_URL,
+            config.get_database_url(),
             poolclass=NullPool,
             echo=False
         )
