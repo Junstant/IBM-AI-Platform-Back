@@ -17,6 +17,17 @@ class Config:
     DB_PASSWORD = os.getenv("DB_PASSWORD", "root")
     DB_NAME = "ai_platform_rag"  # Nueva base de datos para RAG
     
+    # Modelos de embeddings disponibles (API externa)
+    AVAILABLE_EMBEDDING_MODELS = {
+        "nomic-embed-text": {
+            "host": "gemma-2b", 
+            "port": "8080", 
+            "name": "Nomic Embed Text",
+            "description": "Modelo de embeddings optimizado para búsqueda semántica",
+            "dimensions": 768
+        }
+    }
+    
     # Modelos LLM disponibles (mismos que TextoSQL)
     AVAILABLE_LLM_MODELS = {
         "gemma-2b": {"host": "gemma-2b", "port": "8080", "name": "Gemma 2B"},
