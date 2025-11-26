@@ -11,8 +11,10 @@ PyPDF2==3.0.1
 python-docx==1.1.0
 openpyxl==3.1.2
 
-# Milvus Vector Database
+# Milvus Vector Database (with compatible dependencies)
 pymilvus==2.3.1
+marshmallow==3.20.1
+environs==9.5.0
 
 # Utilities
 httpx==0.25.2

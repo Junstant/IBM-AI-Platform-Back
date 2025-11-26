@@ -15,12 +15,15 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Instalar dependencias Python desde repositorio IBM Power
-# Instalar numpy primero para evitar incompatibilidades con pandas
+# Orden crítico: numpy → marshmallow/environs → resto de dependencias
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir \
     --extra-index-url https://repo.fury.io/mgiessing \
     --prefer-binary \
     numpy==1.24.2 && \
+    pip install --no-cache-dir \
+    marshmallow==3.20.1 \
+    environs==9.5.0 && \
     pip install --no-cache-dir \
     --extra-index-url https://repo.fury.io/mgiessing \
     --prefer-binary \
