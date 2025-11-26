@@ -40,12 +40,12 @@ case "${1:-menu}" in
         log "🔧 Actualizando Backend..."
         git pull origin main
         
-        # Verificar si Milvus está corriendo (necesario para RAG)
-        if ! docker ps | grep -q milvus-standalone; then
-            warn "Milvus no está corriendo. Iniciando servicios Milvus..."
-            docker compose up -d etcd minio milvus-standalone
-            log "⏳ Esperando que Milvus esté listo (20s)..."
-            sleep 20
+        # Verificar PostgreSQL (necesario para RAG con pgvector)
+        if ! docker ps | grep -q postgres_db; then
+            warn "PostgreSQL no está corriendo. Iniciando..."
+            docker compose up -d postgres
+            log "⏳ Esperando que PostgreSQL esté listo (15s)..."
+            sleep 15
         fi
         
         docker compose stop stats-api fraude-api textosql-api rag-api
@@ -56,7 +56,7 @@ case "${1:-menu}" in
         echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
         echo -e "${WHITE}🛡️ Fraude: http://localhost:${FRAUDE_API_PORT:-8001}/docs${NC}"
         echo -e "${WHITE}🔍 TextSQL: http://localhost:${TEXTOSQL_API_PORT:-8000}/docs${NC}"
-        echo -e "${WHITE}📚 RAG (Milvus): http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
+        echo -e "${WHITE}📚 RAG (PostgreSQL+pgvector): http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
         ;;
         
     "frontend"|"front"|"f")
@@ -96,18 +96,18 @@ case "${1:-menu}" in
             log "Frontend en el mismo repositorio (ya actualizado)"
         fi
         
-        # Verificar y levantar Milvus si no está corriendo
-        if ! docker ps | grep -q milvus-standalone; then
-            log "🗄️ Iniciando servicios Milvus..."
-            docker compose up -d etcd minio milvus-standalone
-            log "⏳ Esperando que Milvus esté listo (20s)..."
-            sleep 20
+        # Verificar y levantar PostgreSQL si no está corriendo
+        if ! docker ps | grep -q postgres_db; then
+            log "🗄️ Iniciando PostgreSQL..."
+            docker compose up -d postgres
+            log "⏳ Esperando que PostgreSQL esté listo (15s)..."
+            sleep 15
         else
-            log "✅ Milvus ya está corriendo"
+            log "✅ PostgreSQL ya está corriendo"
         fi
         
-        # Detener servicios pero NO PostgreSQL, LLMs ni Milvus
-        warn "Deteniendo servicios (manteniendo PostgreSQL, LLMs y Milvus)..."
+        # Detener servicios pero NO PostgreSQL ni LLMs
+        warn "Deteniendo servicios (manteniendo PostgreSQL y LLMs)..."
         docker compose stop stats-api fraude-api textosql-api rag-api frontend
         
         # Rebuild y levantar servicios

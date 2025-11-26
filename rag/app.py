@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 # Importar componentes locales
 from config import config
-from milvus_database import MilvusRAGDatabase
+from database import RAGDatabase  # PostgreSQL + pgvector
 from document_processor import DocumentProcessor
 from embeddings import EmbeddingsGenerator, get_embeddings_generator
 from llm_client import LLMClient, get_llm_client
@@ -94,13 +94,13 @@ async def startup():
     """Inicializar componentes al arrancar"""
     global db, embeddings_gen, llm_client
     try:
-        logger.info("🚀 Iniciando RAG API con Milvus...")
+        logger.info("🚀 Iniciando RAG API con PostgreSQL + pgvector...")
         
-        # Inicializar Milvus
-        db = MilvusRAGDatabase()
-        logger.info("✅ Milvus inicializado y listo")
+        # Inicializar PostgreSQL + pgvector
+        db = RAGDatabase()
+        logger.info("✅ PostgreSQL + pgvector inicializado y listo")
         
-        # Inicializar generador de embeddings (REQUERIDO para Milvus)
+        # Inicializar generador de embeddings (REQUERIDO para embeddings vectoriales)
         embeddings_gen = get_embeddings_generator()
         logger.info("✅ Generador de embeddings inicializado")
         
@@ -108,7 +108,7 @@ async def startup():
         llm_client = get_llm_client()
         logger.info("✅ Cliente LLM inicializado")
         
-        logger.info("🎉 RAG API lista con Milvus + Embeddings + LLM!")
+        logger.info("🎉 RAG API lista con PostgreSQL + pgvector + Embeddings + LLM!")
     except Exception as e:
         logger.error(f"❌ Error en startup: {e}")
         raise
@@ -153,19 +153,20 @@ async def get_models():
 
 @app.get("/health")
 async def health_check():
-    """Health check con información de Milvus"""
+    """Health check con información de PostgreSQL + pgvector"""
     return {
         "status": "healthy",
-        "service": "RAG API v2 with Milvus",
+        "service": "RAG API v2 with PostgreSQL + pgvector",
         "version": "2.0.0",
         "features": {
-            "vector_database": "Milvus",
+            "vector_database": "PostgreSQL + pgvector v0.8.1",
             "embeddings": "enabled" if embeddings_gen else "disabled",
             "llm": "enabled" if llm_client else "disabled",
-            "vector_search": "HNSW (ultra-fast semantic search)"
+            "vector_search": "IVFFlat (semantic search with cosine similarity)"
         },
-        "database": "Milvus connected" if db else "disconnected",
-        "milvus_host": f"{config.MILVUS_HOST}:{config.MILVUS_PORT}",
+        "database": "PostgreSQL connected" if db else "disconnected",
+        "db_host": f"{config.DB_HOST}:{config.DB_PORT}",
+        "db_name": config.DB_NAME,
         "embedding_model": current_embedding_model,
         "embedding_dimension": config.EMBEDDING_DIMENSION,
         "llm_model": current_llm_model
@@ -243,7 +244,7 @@ async def upload_document(
         chunks = DocumentProcessor.chunk_text(text_content)
         logger.info(f"✂️ Documento dividido en {len(chunks)} chunks")
         
-        # Generar embeddings para cada chunk (REQUERIDO para Milvus)
+        # Generar embeddings para cada chunk (REQUERIDO para búsqueda vectorial)
         logger.info("🔮 Generando embeddings vectoriales...")
         if not embeddings_gen:
             raise HTTPException(
@@ -259,7 +260,7 @@ async def upload_document(
         for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             chunk_data.append((idx, chunk, embedding, {}))
         
-        # Insertar en Milvus
+        # Insertar en PostgreSQL + pgvector
         doc_id = db.insert_document(
             filename=file.filename,
             content_type=file.content_type or "application/octet-stream",
@@ -269,7 +270,7 @@ async def upload_document(
         
         db.insert_chunks(doc_id, chunk_data)
         
-        logger.info(f"✅ Documento {doc_id} almacenado en Milvus: {len(chunks)} chunks vectorizados")
+        logger.info(f"✅ Documento {doc_id} almacenado en PostgreSQL: {len(chunks)} chunks vectorizados")
         
         return DocumentInfo(
             id=doc_id,
@@ -297,7 +298,7 @@ async def query_documents(request: QueryRequest):
     try:
         logger.info(f"🔍 Consultando: '{request.query}' (top_k={request.top_k})")
         
-        # Generar embedding de la consulta (REQUERIDO para Milvus)
+        # Generar embedding de la consulta (REQUERIDO para búsqueda vectorial)
         if not embeddings_gen:
             raise HTTPException(
                 status_code=500,
@@ -307,9 +308,9 @@ async def query_documents(request: QueryRequest):
         logger.info("🔮 Generando embedding de consulta...")
         query_embedding = embeddings_gen.generate_embedding(request.query)
         
-        # Búsqueda vectorial semántica en Milvus
+        # Búsqueda vectorial semántica en pgvector (cosine similarity)
         results = db.similarity_search(query_embedding, top_k=request.top_k)
-        logger.info(f"📊 Búsqueda vectorial Milvus: {len(results)} resultados")
+        logger.info(f"📊 Búsqueda vectorial pgvector: {len(results)} resultados")
         
         if not results:
             logger.warning("⚠️ No se encontraron resultados")
