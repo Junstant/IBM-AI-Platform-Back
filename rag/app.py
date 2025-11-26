@@ -236,11 +236,7 @@ async def query_documents(request: QueryRequest):
         sources=[],
         context_used="",
         num_sources=0
-        )
-        
-    except Exception as e:
-        logger.error(f"Error en consulta: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    )
 
 @app.get("/documents", response_model=List[DocumentInfo])
 async def list_documents():
