@@ -30,12 +30,19 @@ class RAGDatabase:
         self._initialize_schema()
     
     def _initialize_schema(self):
-        """Inicializar esquema con pgvector para embeddings vectoriales"""
+        """Inicializar esquema con detección automática de pgvector"""
         with self.engine.connect() as conn:
             try:
-                # ✅ Crear extensión pgvector
-                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-                logger.info("✅ Extensión pgvector habilitada")
+                # Intentar crear extensión pgvector
+                pgvector_available = False
+                try:
+                    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                    conn.commit()
+                    pgvector_available = True
+                    logger.info("✅ Extensión pgvector habilitada")
+                except Exception as e:
+                    logger.warning(f"⚠️ pgvector no disponible: {e}")
+                    logger.info("📝 Usando modo básico sin embeddings vectoriales")
                 
                 # ✅ Tabla de documentos
                 conn.execute(text("""
@@ -51,39 +58,61 @@ class RAGDatabase:
                     )
                 """))
                 
-                # ✅ Tabla de chunks CON campo embedding vectorial
-                conn.execute(text(f"""
-                    CREATE TABLE IF NOT EXISTS document_chunks (
-                        id SERIAL PRIMARY KEY,
-                        document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
-                        chunk_index INTEGER NOT NULL,
-                        content TEXT NOT NULL,
-                        embedding vector({config.EMBEDDING_DIMENSION}),
-                        metadata JSONB DEFAULT '{{}}'::jsonb,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """))
+                # ✅ Tabla de chunks (con o sin embedding según disponibilidad)
+                if pgvector_available:
+                    conn.execute(text(f"""
+                        CREATE TABLE IF NOT EXISTS document_chunks (
+                            id SERIAL PRIMARY KEY,
+                            document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+                            chunk_index INTEGER NOT NULL,
+                            content TEXT NOT NULL,
+                            embedding vector({config.EMBEDDING_DIMENSION}),
+                            metadata JSONB DEFAULT '{{}}'::jsonb,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS document_chunks (
+                            id SERIAL PRIMARY KEY,
+                            document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+                            chunk_index INTEGER NOT NULL,
+                            content TEXT NOT NULL,
+                            metadata JSONB DEFAULT '{}'::jsonb,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
                 
-                # ✅ Índices para búsqueda eficiente
+                # ✅ Índices
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_chunks_document 
                     ON document_chunks(document_id)
                 """))
                 
-                # Índice HNSW para búsqueda vectorial rápida
-                conn.execute(text("""
-                    CREATE INDEX IF NOT EXISTS idx_chunks_embedding 
-                    ON document_chunks USING hnsw (embedding vector_cosine_ops)
-                """))
+                if pgvector_available:
+                    # Índice HNSW para búsqueda vectorial rápida
+                    try:
+                        conn.execute(text("""
+                            CREATE INDEX IF NOT EXISTS idx_chunks_embedding 
+                            ON document_chunks USING hnsw (embedding vector_cosine_ops)
+                        """))
+                    except:
+                        logger.warning("⚠️ No se pudo crear índice HNSW, usando tabla sin índice vectorial")
                 
-                # Índice para búsqueda de texto completo (fallback)
+                # Índice para búsqueda de texto completo (siempre útil)
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_chunks_content 
                     ON document_chunks USING gin(to_tsvector('spanish', content))
                 """))
                 
                 conn.commit()
-                logger.info(f"✅ Esquema RAG con pgvector inicializado (dim: {config.EMBEDDING_DIMENSION})")
+                
+                if pgvector_available:
+                    logger.info(f"✅ Esquema RAG con pgvector inicializado (dim: {config.EMBEDDING_DIMENSION})")
+                else:
+                    logger.info("✅ Esquema RAG inicializado en modo básico (sin embeddings)")
+                    # Deshabilitar embeddings en config
+                    config.ENABLE_EMBEDDINGS = False
                 
             except Exception as e:
                 logger.error(f"❌ Error inicializando esquema: {e}")
@@ -123,26 +152,43 @@ class RAGDatabase:
         document_id: int,
         chunks: List[Tuple[int, str, List[float], Dict]]
     ):
-        """Insertar chunks CON embeddings vectoriales"""
+        """Insertar chunks (con embeddings si están disponibles)"""
         import json
         
         with self.engine.connect() as conn:
             for chunk_index, content, embedding, metadata in chunks:
-                # Insertar con embedding vectorial
-                conn.execute(
-                    text("""
-                        INSERT INTO document_chunks 
-                        (document_id, chunk_index, content, embedding, metadata)
-                        VALUES (:doc_id, :idx, :content, :embedding::vector, CAST(:metadata AS jsonb))
-                    """),
-                    {
-                        "doc_id": document_id,
-                        "idx": chunk_index,
-                        "content": content,
-                        "embedding": str(embedding),  # pgvector acepta string "[1.0, 2.0, ...]"
-                        "metadata": json.dumps(metadata or {})
-                    }
-                )
+                # Detectar si hay embeddings
+                if embedding and len(embedding) > 0 and config.ENABLE_EMBEDDINGS:
+                    # Insertar CON embedding vectorial
+                    conn.execute(
+                        text("""
+                            INSERT INTO document_chunks 
+                            (document_id, chunk_index, content, embedding, metadata)
+                            VALUES (:doc_id, :idx, :content, :embedding::vector, CAST(:metadata AS jsonb))
+                        """),
+                        {
+                            "doc_id": document_id,
+                            "idx": chunk_index,
+                            "content": content,
+                            "embedding": str(embedding),  # pgvector acepta string "[1.0, 2.0, ...]"
+                            "metadata": json.dumps(metadata or {})
+                        }
+                    )
+                else:
+                    # Insertar SIN embedding (modo básico)
+                    conn.execute(
+                        text("""
+                            INSERT INTO document_chunks 
+                            (document_id, chunk_index, content, metadata)
+                            VALUES (:doc_id, :idx, :content, CAST(:metadata AS jsonb))
+                        """),
+                        {
+                            "doc_id": document_id,
+                            "idx": chunk_index,
+                            "content": content,
+                            "metadata": json.dumps(metadata or {})
+                        }
+                    )
             
             # Actualizar contador de chunks
             conn.execute(
@@ -150,7 +196,11 @@ class RAGDatabase:
                 {"count": len(chunks), "id": document_id}
             )
             conn.commit()
-            logger.info(f"✅ {len(chunks)} chunks con embeddings insertados para documento {document_id}")
+            
+            if config.ENABLE_EMBEDDINGS and chunks and chunks[0][2]:
+                logger.info(f"✅ {len(chunks)} chunks con embeddings insertados para documento {document_id}")
+            else:
+                logger.info(f"✅ {len(chunks)} chunks insertados para documento {document_id} (sin embeddings)")
     
     def similarity_search(
         self,
