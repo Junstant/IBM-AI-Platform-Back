@@ -21,9 +21,13 @@ class Config:
     LLM_HOST = os.getenv("LLM_HOST", "gemma-2b")
     LLM_PORT = os.getenv("LLM_PORT", "8080")
     
-    # Embeddings Model
-    EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    EMBEDDING_DIMENSION = 384  # Dimensión del modelo elegido
+    # Embeddings Service (API externa compatible con OpenAI)
+    EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "gemma-2b")  # Usa el mismo LLM server
+    EMBEDDING_SERVICE_PORT = os.getenv("EMBEDDING_SERVICE_PORT", "8080")
+    EMBEDDING_MODEL = "nomic-embed-text"  # Modelo de embeddings
+    EMBEDDING_DIMENSION = 768  # Dimensión estándar para nomic-embed
+    EMBEDDING_MAX_TOKENS = 8192  # Tokens máximos por embedding
+    ENABLE_EMBEDDINGS = os.getenv("ENABLE_EMBEDDINGS", "true").lower() == "true"
     
     # Document Processing
     MAX_FILE_SIZE_MB = 50

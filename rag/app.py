@@ -1,7 +1,7 @@
 """
-🧠 RAG API - Retrieval-Augmented Generation (Modo Básico)
-==========================================================
-Sistema de gestión de documentos SIN embeddings (PowerPC compatible)
+🧠 RAG API - Retrieval-Augmented Generation
+===========================================
+Sistema completo de RAG con embeddings vectoriales y LLM
 """
 import logging
 from typing import List, Optional
@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field
 from config import config
 from database import RAGDatabase
 from document_processor import DocumentProcessor
+from embeddings import get_embeddings_generator
+from llm_client import get_llm_client
 
 # Configurar logging
 logging.basicConfig(
@@ -59,9 +61,9 @@ class StatsResponse(BaseModel):
 # =====================================================
 
 app = FastAPI(
-    title="🧠 RAG API (Modo Básico)",
-    description="Gestión de documentos sin embeddings (PowerPC compatible)",
-    version="1.0.0"
+    title="🧠 RAG API - Retrieval-Augmented Generation",
+    description="Sistema RAG completo con embeddings vectoriales y LLM para respuestas inteligentes",
+    version="2.0.0"
 )
 
 # CORS
@@ -78,6 +80,8 @@ app.add_middleware(
 # =====================================================
 
 db = None
+embeddings_gen = None
+llm_client = None
 
 # =====================================================
 # EVENTOS DE CICLO DE VIDA
@@ -85,14 +89,27 @@ db = None
 
 @app.on_event("startup")
 async def startup():
-    """Inicializar base de datos al arrancar"""
-    global db
+    """Inicializar componentes al arrancar"""
+    global db, embeddings_gen, llm_client
     try:
         logger.info("🚀 Iniciando RAG API...")
+        
+        # Inicializar base de datos
         db = RAGDatabase()
         logger.info("✅ Base de datos inicializada")
-        logger.info("⚠️ Embeddings deshabilitados (PowerPC - sin ML libraries)")
-        logger.info("✅ RAG API lista (modo básico sin embeddings)!")
+        
+        # Inicializar generador de embeddings
+        if config.ENABLE_EMBEDDINGS:
+            embeddings_gen = get_embeddings_generator()
+            logger.info("✅ Generador de embeddings inicializado")
+        else:
+            logger.warning("⚠️ Embeddings deshabilitados (config.ENABLE_EMBEDDINGS=false)")
+        
+        # Inicializar cliente LLM
+        llm_client = get_llm_client()
+        logger.info("✅ Cliente LLM inicializado")
+        
+        logger.info("🎉 RAG API lista con todas las funcionalidades!")
     except Exception as e:
         logger.error(f"❌ Error en startup: {e}")
         raise
@@ -112,14 +129,21 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "RAG API",
-        "mode": "básico (sin embeddings)",
-        "database": "connected" if db else "disconnected"
+        "version": "2.0.0",
+        "features": {
+            "embeddings": "enabled" if (embeddings_gen and config.ENABLE_EMBEDDINGS) else "disabled",
+            "llm": "enabled" if llm_client else "disabled",
+            "vector_search": "enabled" if config.ENABLE_EMBEDDINGS else "text_search"
+        },
+        "database": "connected" if db else "disconnected",
+        "embedding_model": config.EMBEDDING_MODEL if config.ENABLE_EMBEDDINGS else "N/A",
+        "embedding_dimension": config.EMBEDDING_DIMENSION
     }
 
 @app.post("/upload", response_model=DocumentInfo)
 async def upload_document(file: UploadFile = File(...)):
     """
-    📤 Subir documento y procesarlo en chunks
+    📤 Subir documento y procesarlo en chunks con embeddings
     
     Soporta: PDF, DOCX, TXT, CSV, XLSX
     """
@@ -141,14 +165,23 @@ async def upload_document(file: UploadFile = File(...)):
         content = await file.read()
         file_size = len(content)
         
-        # ✅ FIX: Procesar documento directamente desde memoria (sin archivo temporal)
+        # Extraer texto del documento
+        logger.info("📄 Extrayendo texto...")
         text_content = DocumentProcessor.extract_text(content, file.filename)
         chunks = DocumentProcessor.chunk_text(text_content)
+        logger.info(f"✂️ Documento dividido en {len(chunks)} chunks")
         
-        # Preparar chunks sin embeddings
+        # Generar embeddings para cada chunk
+        logger.info("🔮 Generando embeddings...")
+        if embeddings_gen and config.ENABLE_EMBEDDINGS:
+            embeddings = embeddings_gen.generate_embeddings_batch(chunks)
+        else:
+            embeddings = [[] for _ in chunks]  # Sin embeddings
+        
+        # Preparar chunks con embeddings
         chunk_data = []
-        for idx, chunk in enumerate(chunks):
-            chunk_data.append((idx, chunk, [], {}))  # Sin embedding
+        for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            chunk_data.append((idx, chunk, embedding, {}))
         
         # Insertar en base de datos
         doc_id = db.insert_document(
@@ -160,7 +193,7 @@ async def upload_document(file: UploadFile = File(...)):
         
         db.insert_chunks(doc_id, chunk_data)
         
-        logger.info(f"✅ Documento {doc_id} procesado: {len(chunks)} chunks")
+        logger.info(f"✅ Documento {doc_id} procesado: {len(chunks)} chunks con embeddings")
         
         return DocumentInfo(
             id=doc_id,
@@ -178,41 +211,59 @@ async def upload_document(file: UploadFile = File(...)):
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
     """
-    🔍 Buscar en documentos usando búsqueda de texto completo
+    🔍 Búsqueda inteligente con embeddings vectoriales y respuesta generada por LLM
     
-    Nota: Sin embeddings, usa búsqueda de texto PostgreSQL
+    Proceso:
+    1. Genera embedding de la consulta
+    2. Búsqueda vectorial de chunks similares
+    3. LLM genera respuesta contextualizada
     """
     try:
         logger.info(f"🔍 Consultando: '{request.query}' (top_k={request.top_k})")
         
-        # Búsqueda de texto completo (sin embeddings)
-        results = db.text_search(request.query, top_k=request.top_k)
-        logger.info(f"📊 Búsqueda completada: {len(results)} resultados")
+        # Generar embedding de la consulta
+        if embeddings_gen and config.ENABLE_EMBEDDINGS:
+            logger.info("🔮 Generando embedding de consulta...")
+            query_embedding = embeddings_gen.generate_embedding(request.query)
+            
+            # Búsqueda vectorial (semántica)
+            results = db.similarity_search(query_embedding, top_k=request.top_k)
+            logger.info(f"📊 Búsqueda vectorial: {len(results)} resultados")
+        else:
+            # Fallback: búsqueda de texto tradicional
+            logger.warning("⚠️ Usando búsqueda de texto (embeddings deshabilitados)")
+            results = db.text_search(request.query, top_k=request.top_k)
         
         if not results:
             logger.warning("⚠️ No se encontraron resultados")
             return QueryResponse(
-                answer="No se encontraron documentos relevantes para tu consulta.",
+                answer="No encontré información relevante en los documentos para responder tu pregunta.",
                 sources=[],
                 query=request.query
             )
         
-        # Generar respuesta básica (sin LLM)
+        # Construir contexto para el LLM
         context_parts = []
-        for i, r in enumerate(results[:3], 1):
-            context_parts.append(f"[Fragmento {i} de '{r['filename']}']\n{r['content'][:500]}")
+        for i, r in enumerate(results, 1):
+            source_info = f"[Fuente {i}: {r['filename']}]"
+            context_parts.append(f"{source_info}\n{r['content']}")
         
-        context = "\n\n".join(context_parts)
-        answer = f"✅ Encontré {len(results)} resultado(s) relacionado(s):\n\n{context}"
+        context = "\n\n---\n\n".join(context_parts)
         
-        sources = [
-            {
+        # Generar respuesta usando LLM
+        logger.info("🤖 Generando respuesta con LLM...")
+        answer = await llm_client.generate_rag_response(request.query, context)
+        
+        # Preparar fuentes
+        sources = []
+        for i, r in enumerate(results, 1):
+            similarity_key = 'similarity' if 'similarity' in r else 'rank'
+            sources.append({
                 "filename": r['filename'],
-                "content": r['content'][:300] + "...",
-                "rank": float(r['rank'])
-            }
-            for r in results
-        ]
+                "content": r['content'][:400] + "..." if len(r['content']) > 400 else r['content'],
+                "similarity": float(r.get(similarity_key, 0.0)),
+                "chunk_index": r.get('chunk_index', i - 1)
+            })
         
         logger.info(f"✅ Respuesta generada con {len(sources)} fuentes")
         
@@ -279,18 +330,28 @@ async def get_stats():
 async def root():
     """Información de la API"""
     return {
-        "service": "RAG API",
-        "version": "1.0.0",
-        "mode": "básico (sin embeddings)",
+        "service": "🧠 RAG API - Retrieval-Augmented Generation",
+        "version": "2.0.0",
+        "description": "Sistema RAG completo con embeddings vectoriales y LLM",
         "status": "running",
+        "features": {
+            "vector_search": config.ENABLE_EMBEDDINGS,
+            "semantic_embeddings": config.ENABLE_EMBEDDINGS,
+            "llm_generation": True,
+            "supported_formats": ["PDF", "DOCX", "TXT", "CSV", "XLSX"]
+        },
+        "models": {
+            "embeddings": config.EMBEDDING_MODEL if config.ENABLE_EMBEDDINGS else "disabled",
+            "llm": f"{config.LLM_HOST}:{config.LLM_PORT}"
+        },
         "endpoints": {
-            "health": "/health",
-            "upload": "POST /upload",
-            "query": "POST /query",
-            "documents": "GET /documents",
-            "delete": "DELETE /documents/{id}",
-            "stats": "GET /stats",
-            "docs": "/docs"
+            "health": "GET /health",
+            "upload": "POST /upload - Subir documento con generación automática de embeddings",
+            "query": "POST /query - Búsqueda vectorial + respuesta LLM",
+            "documents": "GET /documents - Listar todos los documentos",
+            "delete": "DELETE /documents/{id} - Eliminar documento",
+            "stats": "GET /stats - Estadísticas del sistema",
+            "docs": "GET /docs - Documentación interactiva (Swagger)"
         }
     }
 

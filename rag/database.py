@@ -30,13 +30,12 @@ class RAGDatabase:
         self._initialize_schema()
     
     def _initialize_schema(self):
-        """Inicializar esquema SIN pgvector (modo básico PowerPC)"""
+        """Inicializar esquema con pgvector para embeddings vectoriales"""
         with self.engine.connect() as conn:
             try:
-                # ❌ NO crear extensión vector (no disponible en PowerPC)
-                # conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-                
-                logger.info("⚠️ Iniciando esquema RAG en MODO BÁSICO (sin pgvector)")
+                # ✅ Crear extensión pgvector
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                logger.info("✅ Extensión pgvector habilitada")
                 
                 # ✅ Tabla de documentos
                 conn.execute(text("""
@@ -52,31 +51,39 @@ class RAGDatabase:
                     )
                 """))
                 
-                # ✅ Tabla de chunks SIN campo embedding
-                conn.execute(text("""
+                # ✅ Tabla de chunks CON campo embedding vectorial
+                conn.execute(text(f"""
                     CREATE TABLE IF NOT EXISTS document_chunks (
                         id SERIAL PRIMARY KEY,
                         document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
                         chunk_index INTEGER NOT NULL,
                         content TEXT NOT NULL,
-                        metadata JSONB DEFAULT '{}'::jsonb,
+                        embedding vector({config.EMBEDDING_DIMENSION}),
+                        metadata JSONB DEFAULT '{{}}'::jsonb,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """))
                 
-                # ✅ Índices básicos
+                # ✅ Índices para búsqueda eficiente
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_chunks_document 
                     ON document_chunks(document_id)
                 """))
                 
+                # Índice HNSW para búsqueda vectorial rápida
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_chunks_embedding 
+                    ON document_chunks USING hnsw (embedding vector_cosine_ops)
+                """))
+                
+                # Índice para búsqueda de texto completo (fallback)
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_chunks_content 
                     ON document_chunks USING gin(to_tsvector('spanish', content))
                 """))
                 
                 conn.commit()
-                logger.info("✅ Esquema RAG inicializado en MODO BÁSICO (almacenamiento sin embeddings)")
+                logger.info(f"✅ Esquema RAG con pgvector inicializado (dim: {config.EMBEDDING_DIMENSION})")
                 
             except Exception as e:
                 logger.error(f"❌ Error inicializando esquema: {e}")
@@ -116,22 +123,23 @@ class RAGDatabase:
         document_id: int,
         chunks: List[Tuple[int, str, List[float], Dict]]
     ):
-        """Insertar chunks SIN embeddings (modo básico)"""
+        """Insertar chunks CON embeddings vectoriales"""
         import json
         
         with self.engine.connect() as conn:
             for chunk_index, content, embedding, metadata in chunks:
-                # Ignorar embedding (no se almacena en modo básico)
+                # Insertar con embedding vectorial
                 conn.execute(
                     text("""
                         INSERT INTO document_chunks 
-                        (document_id, chunk_index, content, metadata)
-                        VALUES (:doc_id, :idx, :content, CAST(:metadata AS jsonb))
+                        (document_id, chunk_index, content, embedding, metadata)
+                        VALUES (:doc_id, :idx, :content, :embedding::vector, CAST(:metadata AS jsonb))
                     """),
                     {
                         "doc_id": document_id,
                         "idx": chunk_index,
                         "content": content,
+                        "embedding": str(embedding),  # pgvector acepta string "[1.0, 2.0, ...]"
                         "metadata": json.dumps(metadata or {})
                     }
                 )
@@ -142,7 +150,7 @@ class RAGDatabase:
                 {"count": len(chunks), "id": document_id}
             )
             conn.commit()
-            logger.info(f"✅ {len(chunks)} chunks insertados para documento {document_id}")
+            logger.info(f"✅ {len(chunks)} chunks con embeddings insertados para documento {document_id}")
     
     def similarity_search(
         self,
@@ -150,13 +158,30 @@ class RAGDatabase:
         top_k: int = 5
     ) -> List[Dict]:
         """
-        Búsqueda vectorial DESHABILITADA (sin pgvector)
-        
-        Esta función requiere pgvector que no está disponible en PowerPC.
-        Use búsqueda de texto completo como alternativa.
+        Búsqueda vectorial usando pgvector (cosine similarity)
+        Retorna los chunks más similares semánticamente
         """
-        logger.warning("⚠️ similarity_search deshabilitada (sin pgvector)")
-        return []
+        with self.engine.connect() as conn:
+            results = conn.execute(
+                text("""
+                    SELECT 
+                        dc.id,
+                        dc.document_id,
+                        dc.chunk_index,
+                        dc.content,
+                        dc.metadata,
+                        d.filename,
+                        1 - (dc.embedding <=> :query_emb::vector) as similarity
+                    FROM document_chunks dc
+                    JOIN documents d ON d.id = dc.document_id
+                    WHERE dc.embedding IS NOT NULL
+                    ORDER BY dc.embedding <=> :query_emb::vector
+                    LIMIT :limit
+                """),
+                {"query_emb": str(query_embedding), "limit": top_k}
+            )
+            
+            return [dict(row._mapping) for row in results]
     
     def text_search(self, query: str, top_k: int = 5) -> List[Dict]:
         """

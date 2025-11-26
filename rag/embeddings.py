@@ -1,38 +1,69 @@
 """
-Generador de embeddings usando sentence-transformers
+Generador de embeddings usando API externa (compatible con OpenAI)
 """
+import json
 import logging
 from typing import List
-from sentence_transformers import SentenceTransformer
+import requests
+import numpy as np
 from config import config
 
 logger = logging.getLogger(__name__)
 
 class EmbeddingsGenerator:
-    """Generador de embeddings para RAG"""
+    """Generador de embeddings usando API externa"""
     
     def __init__(self):
-        logger.info(f"Cargando modelo de embeddings: {config.EMBEDDING_MODEL}")
-        self.model = SentenceTransformer(
-            config.EMBEDDING_MODEL,
-            device='cpu'  # Power PC usa CPU
-        )
-        logger.info(f"✅ Modelo cargado (dimensión: {config.EMBEDDING_DIMENSION})")
+        self.endpoint = f"http://{config.EMBEDDING_SERVICE_HOST}:{config.EMBEDDING_SERVICE_PORT}"
+        self.model = config.EMBEDDING_MODEL
+        self.max_tokens = config.EMBEDDING_MAX_TOKENS
+        logger.info(f"🔗 Embeddings API: {self.endpoint}")
+        logger.info(f"📦 Modelo: {self.model} (dim: {config.EMBEDDING_DIMENSION})")
     
     def generate_embedding(self, text: str) -> List[float]:
         """Generar embedding para un texto"""
-        embedding = self.model.encode(text, convert_to_numpy=True)
-        return embedding.tolist()
+        embeddings = self._post_embedding([text])
+        return embeddings[0] if embeddings else []
     
     def generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """Generar embeddings para múltiples textos (más eficiente)"""
-        embeddings = self.model.encode(
-            texts,
-            convert_to_numpy=True,
-            batch_size=32,
-            show_progress_bar=True
-        )
-        return [emb.tolist() for emb in embeddings]
+        return self._post_embedding(texts)
+    
+    def _post_embedding(self, texts: List[str]) -> List[List[float]]:
+        """Llamar a la API de embeddings"""
+        try:
+            payload = {
+                "input": texts,
+                "model": self.model,
+                "truncate_prompt_tokens": self.max_tokens - 1,
+            }
+            headers = {
+                "accept": "application/json",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.post(
+                f"{self.endpoint}/v1/embeddings",
+                data=json.dumps(payload),
+                headers=headers,
+                timeout=60
+            )
+            response.raise_for_status()
+            
+            r = response.json()
+            embeddings = [data['embedding'] for data in r['data']]
+            
+            # Convertir a numpy arrays float32 y luego a listas
+            return [np.array(embed, dtype=np.float32).tolist() for embed in embeddings]
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Error llamando API de embeddings: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"   Respuesta: {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error procesando embeddings: {e}")
+            raise
 
 # Instancia global (singleton)
 _embeddings_generator = None
