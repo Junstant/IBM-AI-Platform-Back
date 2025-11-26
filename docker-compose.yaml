@@ -403,51 +403,53 @@ services:
       retries: 5
       start_period: 120s  # 2 minutos en lugar de 1
 
-  #% ======================== RAG API ========================
-  rag-api:
-    build:
-      context: ./rag
-      dockerfile: Dockerfile
-    container_name: rag-api
-    restart: always
-    ports:
-      - "${RAG_API_PORT:-8004}:8004"
-    env_file:
-      - .env
-    environment:
-      - DOCKER_ENV=true
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - LLM_HOST=gemma-2b
-      - LLM_PORT=8080
-    volumes:
-      - ./rag:/app
-      - rag_documents:/app/documents
-    networks:
-      - ai_platform_network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      gemma-2b:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
-    deploy:
-      resources:
-        limits:
-          cpus: '6.0'
-          memory: 6G
-    profiles:
-      - full
+  #% ======================== RAG API (DESHABILITADO TEMPORALMENTE) ========================
+  # NOTA: Comentado porque falla el build de dependencias Python
+  # Para habilitarlo: descomentar y ejecutar "docker compose --profile full up -d"
+  # rag-api:
+  #   build:
+  #     context: ./rag
+  #     dockerfile: Dockerfile
+  #   container_name: rag-api
+  #   restart: always
+  #   ports:
+  #     - "${RAG_API_PORT:-8004}:8004"
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - DOCKER_ENV=true
+  #     - DB_HOST=postgres
+  #     - DB_PORT=5432
+  #     - DB_USER=${DB_USER:-postgres}
+  #     - DB_PASSWORD=${DB_PASSWORD:-postgres}
+  #     - LLM_HOST=gemma-2b
+  #     - LLM_PORT=8080
+  #   volumes:
+  #     - ./rag:/app
+  #     - rag_documents:/app/documents
+  #   networks:
+  #     - ai_platform_network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     gemma-2b:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 90s
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '6.0'
+  #         memory: 6G
+  #   profiles:
+  #     - full
 
 volumes:
-  rag_documents:
+  # rag_documents:  # Comentado porque RAG está deshabilitado
   models_volume:
 
 networks:

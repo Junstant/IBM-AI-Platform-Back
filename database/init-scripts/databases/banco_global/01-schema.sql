@@ -69,10 +69,10 @@ CREATE TABLE IF NOT EXISTS cuentas (
     sucursal_id INTEGER REFERENCES sucursales(id),
     saldo DECIMAL(15,2) DEFAULT 0.00,
     fecha_apertura DATE DEFAULT CURRENT_DATE,
-    estado VARCHAR(20) DEFAULT 'activa',
+    estado VARCHAR(20) DEFAULT 'activo',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_estado_cuenta CHECK (estado IN ('activa', 'inactiva', 'suspendida', 'cerrada'))
+    CONSTRAINT chk_estado_cuenta CHECK (estado IN ('activo', 'inactivo', 'suspendido', 'cerrado'))
 );
 
 -- ===== TABLA TIPOS DE TRANSACCIÓN =====
