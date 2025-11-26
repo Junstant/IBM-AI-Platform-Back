@@ -43,16 +43,37 @@ class MilvusRAGDatabase:
             raise
     
     def _create_collections(self):
-        """Crear colecciones para documentos y chunks"""
+        """Crear colecciones para documentos y chunks (con auto-fix de dimensión)"""
         
-        # Colección de chunks con embeddings
         chunks_collection_name = "rag_chunks"
+        recreate_collection = False
         
+        # 1. Verificar si existe y si la dimensión coincide
         if utility.has_collection(chunks_collection_name):
-            self.chunks_collection = Collection(chunks_collection_name)
-            self.chunks_collection.load()
-            logger.info(f"📚 Colección '{chunks_collection_name}' cargada")
-        else:
+            temp_collection = Collection(chunks_collection_name)
+            existing_dim = -1
+            
+            # Buscar la dimensión del campo embedding en la colección existente
+            for field in temp_collection.schema.fields:
+                if field.name == "embedding":
+                    # Extraer dimensión de los parámetros del campo
+                    existing_dim = int(field.params.get("dim", 0))
+                    break
+            
+            # Comparar con la configuración actual
+            if existing_dim != config.EMBEDDING_DIMENSION:
+                logger.warning(f"⚠️ Mismatch de dimensiones detectado!")
+                logger.warning(f"   Colección actual: {existing_dim} | Nueva config: {config.EMBEDDING_DIMENSION}")
+                logger.warning(f"♻️ Eliminando y recreando colección '{chunks_collection_name}'...")
+                utility.drop_collection(chunks_collection_name)
+                recreate_collection = True
+            else:
+                self.chunks_collection = temp_collection
+                self.chunks_collection.load()
+                logger.info(f"📚 Colección '{chunks_collection_name}' cargada (Dim: {existing_dim})")
+
+        # 2. Crear si no existe o si se marcó para recrear
+        if not utility.has_collection(chunks_collection_name) or recreate_collection:
             # Definir schema para chunks
             fields = [
                 FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
@@ -62,7 +83,8 @@ class MilvusRAGDatabase:
                 FieldSchema(name="filename", dtype=DataType.VARCHAR, max_length=512),
                 FieldSchema(name="content_type", dtype=DataType.VARCHAR, max_length=128),
                 FieldSchema(name="file_size", dtype=DataType.INT64),
-                FieldSchema(name="created_at", dtype=DataType.INT64),  # timestamp
+                FieldSchema(name="created_at", dtype=DataType.INT64),
+                # Aquí se usa la nueva dimensión (4096)
                 FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=config.EMBEDDING_DIMENSION)
             ]
             
@@ -77,13 +99,13 @@ class MilvusRAGDatabase:
                 schema=schema
             )
             
-            # Crear índice HNSW para búsqueda vectorial ultra rápida
+            # Crear índice HNSW
             index_params = {
-                "metric_type": "COSINE",  # Cosine similarity
-                "index_type": "HNSW",     # Hierarchical Navigable Small World
+                "metric_type": "COSINE",
+                "index_type": "HNSW",
                 "params": {
-                    "M": 16,              # Conexiones por nodo
-                    "efConstruction": 200 # Calidad de construcción
+                    "M": 16,
+                    "efConstruction": 200
                 }
             }
             
@@ -93,9 +115,9 @@ class MilvusRAGDatabase:
             )
             
             self.chunks_collection.load()
-            logger.info(f"✅ Colección '{chunks_collection_name}' creada con índice HNSW")
+            logger.info(f"✅ Colección '{chunks_collection_name}' creada con dimensión {config.EMBEDDING_DIMENSION}")
         
-        # Diccionario en memoria para metadata de documentos (simple y rápido)
+        # Diccionario en memoria para metadata
         self.documents_metadata = {}
         self._load_documents_metadata()
     
