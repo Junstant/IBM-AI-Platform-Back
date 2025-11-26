@@ -24,15 +24,17 @@ RUN apk add --no-cache \
     postgresql-dev
 
 # Compilar e instalar pgvector (v0.8.1 con soporte ppc64le)
-# Nota: Deshabilitamos completamente bitcode/JIT ya que clang-19 no está disponible en Alpine Linux ppc64le
+# Nota: Instalación manual para evitar compilación de bitcode con clang-19 (no disponible en Alpine ppc64le)
 RUN cd /tmp && \
     git clone --branch v0.8.1 https://github.com/pgvector/pgvector.git && \
     cd pgvector && \
     make OPTFLAGS="" && \
-    make OPTFLAGS="" install && \
+    cp vector.so $(pg_config --pkglibdir)/ && \
+    cp sql/vector--*.sql $(pg_config --sharedir)/extension/ && \
+    cp vector.control $(pg_config --sharedir)/extension/ && \
     cd / && \
     rm -rf /tmp/pgvector && \
-    echo "✅ pgvector v0.8.1 compilado exitosamente (sin bitcode/JIT)"
+    echo "✅ pgvector v0.8.1 instalado manualmente (sin bitcode/JIT)"
 
 # Verificar instalación de pgvector
 RUN ls -la $(pg_config --pkglibdir) | grep vector || echo "⚠️ pgvector no encontrado en $(pg_config --pkglibdir)"
