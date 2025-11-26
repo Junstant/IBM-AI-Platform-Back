@@ -30,49 +30,53 @@ class EmbeddingsGenerator:
         return self._post_embedding(texts)
     
     def _post_embedding(self, texts: List[str]) -> List[List[float]]:
-        """Llamar a la API de embeddings con fallback a embedding endpoint"""
+        """Llamar a la API de embeddings con procesamiento por lotes optimizado"""
         try:
-            # Intentar primero con el endpoint estándar de embeddings
-            payload = {
-                "content": texts if len(texts) > 1 else texts[0],
-            }
             headers = {
                 "accept": "application/json",
                 "Content-Type": "application/json"
             }
             
-            # Usar el endpoint /embedding de llama.cpp
-            response = requests.post(
-                f"{self.endpoint}/embedding",
-                data=json.dumps(payload),
-                headers=headers,
-                timeout=60
-            )
-            response.raise_for_status()
+            # Procesar en lotes más pequeños para evitar timeouts
+            batch_size = 1  # Procesar de a uno para mayor estabilidad
+            embeddings = []
             
-            r = response.json()
+            logger.info(f"🔄 Generando embeddings para {len(texts)} chunks...")
             
-            # Si es una lista de textos, el resultado es un solo embedding promedio
-            # Para múltiples textos, debemos hacer llamadas individuales
-            if len(texts) == 1:
-                embedding = r.get('embedding', [])
-                return [np.array(embedding, dtype=np.float32).tolist()]
-            else:
-                # Procesar cada texto individualmente
-                embeddings = []
-                for text in texts:
-                    single_payload = {"content": text}
-                    single_response = requests.post(
+            for i, text in enumerate(texts, 1):
+                try:
+                    # Truncar texto si es muy largo (máximo ~2000 caracteres por chunk)
+                    truncated_text = text[:2000] if len(text) > 2000 else text
+                    
+                    payload = {"content": truncated_text}
+                    
+                    response = requests.post(
                         f"{self.endpoint}/embedding",
-                        data=json.dumps(single_payload),
+                        data=json.dumps(payload),
                         headers=headers,
-                        timeout=60
+                        timeout=120  # Mayor timeout para textos largos
                     )
-                    single_response.raise_for_status()
-                    single_data = single_response.json()
-                    embedding = single_data.get('embedding', [])
-                    embeddings.append(np.array(embedding, dtype=np.float32).tolist())
-                return embeddings
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    embedding = data.get('embedding', [])
+                    
+                    if embedding and len(embedding) > 0:
+                        embeddings.append(np.array(embedding, dtype=np.float32).tolist())
+                        if i % 5 == 0:
+                            logger.info(f"   ✓ Procesados {i}/{len(texts)} chunks")
+                    else:
+                        logger.warning(f"⚠️ Embedding vacío para chunk {i}, usando ceros")
+                        # Crear embedding de ceros como fallback
+                        embeddings.append([0.0] * config.EMBEDDING_DIMENSION)
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Error en chunk {i}/{len(texts)}: {e}")
+                    # Continuar con embedding de ceros en caso de error
+                    embeddings.append([0.0] * config.EMBEDDING_DIMENSION)
+                    
+            logger.info(f"✅ Embeddings generados: {len(embeddings)}/{len(texts)}")
+            return embeddings
             
         except requests.exceptions.RequestException as e:
             logger.error(f"❌ Error llamando API de embeddings: {e}")

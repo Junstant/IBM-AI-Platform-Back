@@ -16,12 +16,19 @@ class Config:
     
     # Modelos de embeddings disponibles (API externa)
     AVAILABLE_EMBEDDING_MODELS = {
-        "nomic-embed-text": {
-            "host": "gemma-2b", 
+        "mistral-7b-embeddings": {
+            "host": "mistral-7b", 
             "port": "8080", 
-            "name": "Nomic Embed Text",
-            "description": "Modelo de embeddings optimizado para búsqueda semántica",
-            "dimensions": 768
+            "name": "Mistral 7B Embeddings",
+            "description": "Embeddings de alta capacidad con Mistral 7B - Soporta documentos grandes",
+            "dimensions": 4096
+        },
+        "gemma-2b-embeddings": {
+            "host": "gemma-2b",
+            "port": "8080",
+            "name": "Gemma 2B Embeddings",
+            "description": "Embeddings rápidos con Gemma 2B - Para documentos pequeños",
+            "dimensions": 2048
         }
     }
     
@@ -40,19 +47,19 @@ class Config:
     LLM_PORT = os.getenv("LLM_PORT", "8080")
     
     # Embeddings Service (usando llama.cpp /embedding endpoint)
-    # Por defecto usa el mismo servidor que el LLM seleccionado
-    EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "gemma-2b")
+    # Usando Mistral 7B para mejor capacidad de procesamiento
+    EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "mistral-7b")
     EMBEDDING_SERVICE_PORT = os.getenv("EMBEDDING_SERVICE_PORT", "8080")
-    EMBEDDING_MODEL = "gemma-2b-embeddings"  # Usando embeddings del LLM
-    EMBEDDING_DIMENSION = 2048  # Dimensión de embeddings de Gemma-2B
+    EMBEDDING_MODEL = "mistral-7b-embeddings"  # Mistral 7B para embeddings más robustos
+    EMBEDDING_DIMENSION = 4096  # Dimensión de embeddings de Mistral 7B
     EMBEDDING_MAX_TOKENS = 8192  # Tokens máximos por embedding
     ENABLE_EMBEDDINGS = os.getenv("ENABLE_EMBEDDINGS", "true").lower() == "true"
     
     # Document Processing
-    MAX_FILE_SIZE_MB = 50
+    MAX_FILE_SIZE_MB = 100  # Aumentado a 100MB para documentos grandes
     ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt', '.csv', '.xlsx', '.md'}
-    CHUNK_SIZE = 500
-    CHUNK_OVERLAP = 50
+    CHUNK_SIZE = 512  # Optimizado para Mistral 7B (mejor capacidad)
+    CHUNK_OVERLAP = 64  # Mayor overlap para mejor contexto
     
     # RAG Settings
     TOP_K_RESULTS = 5  # Documentos relevantes a recuperar
