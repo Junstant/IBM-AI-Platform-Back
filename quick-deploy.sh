@@ -47,6 +47,7 @@ case "${1:-menu}" in
         echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
         echo -e "${WHITE}🛡️ Fraude: http://localhost:${FRAUDE_API_PORT:-8001}/docs${NC}"
         echo -e "${WHITE}🔍 TextSQL: http://localhost:${TEXTOSQL_API_PORT:-8000}/docs${NC}"
+        echo -e "${WHITE}📚 RAG: http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
         ;;
         
     "frontend"|"front"|"f")
@@ -88,14 +89,14 @@ case "${1:-menu}" in
         
         # Detener servicios pero NO PostgreSQL ni LLMs
         warn "Deteniendo servicios (manteniendo PostgreSQL y LLMs)..."
-        docker compose stop stats-api fraude-api textosql-api frontend
+        docker compose stop stats-api fraude-api textosql-api rag-api frontend
         
         # Rebuild y levantar servicios
         log "Reconstruyendo imágenes..."
-        docker compose build --no-cache --parallel frontend stats-api fraude-api textosql-api
+        docker compose build --no-cache --parallel frontend stats-api fraude-api textosql-api rag-api
         
         log "Iniciando servicios..."
-        docker compose up -d stats-api fraude-api textosql-api frontend
+        docker compose up -d stats-api fraude-api textosql-api rag-api frontend
         
         sleep 30
         log "✅ Stack actualizado manteniendo datos!"
@@ -105,6 +106,7 @@ case "${1:-menu}" in
         echo -e "${WHITE}📊 Stats: http://localhost:${STATS_PORT:-8003}/docs${NC}"
         echo -e "${WHITE}🛡️ Fraude: http://localhost:${FRAUDE_API_PORT:-8001}/docs${NC}"
         echo -e "${WHITE}🔍 TextSQL: http://localhost:${TEXTOSQL_API_PORT:-8000}/docs${NC}"
+        echo -e "${WHITE}📚 RAG: http://localhost:${RAG_API_PORT:-8004}/docs${NC}"
         ;;
         
     "reset"|"r")
@@ -185,6 +187,7 @@ case "${1:-menu}" in
         test_url "Stats API   " "http://localhost:${STATS_PORT:-8003}/health"
         test_url "Fraude API  " "http://localhost:${FRAUDE_API_PORT:-8001}/health"
         test_url "TextSQL API " "http://localhost:${TEXTOSQL_API_PORT:-8000}/health"
+        test_url "RAG API     " "http://localhost:${RAG_API_PORT:-8004}/health"
         test_url "Gemma 2B    " "http://localhost:${GEMMA_2B_PORT:-8085}/health"
         
         echo ""
@@ -199,6 +202,7 @@ case "${1:-menu}" in
         echo "  • stats-api"
         echo "  • fraude-api"
         echo "  • textosql-api"
+        echo "  • rag-api"
         echo "  • postgres"
         echo "  • gemma-2b"
         read -p "Nombre del servicio: " service_name

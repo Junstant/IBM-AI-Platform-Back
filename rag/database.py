@@ -96,14 +96,14 @@ class RAGDatabase:
             result = conn.execute(
                 text("""
                     INSERT INTO documents (filename, content_type, file_size, metadata)
-                    VALUES (:filename, :content_type, :file_size, :metadata::jsonb)
+                    VALUES (:filename, :content_type, :file_size, CAST(:metadata AS jsonb))
                     RETURNING id
                 """),
                 {
                     "filename": filename,
                     "content_type": content_type,
                     "file_size": file_size,
-                    "metadata": json.dumps(metadata or {})  # ✅ FIX: Convertir dict a JSON string
+                    "metadata": json.dumps(metadata or {})
                 }
             )
             conn.commit()
@@ -126,13 +126,13 @@ class RAGDatabase:
                     text("""
                         INSERT INTO document_chunks 
                         (document_id, chunk_index, content, metadata)
-                        VALUES (:doc_id, :idx, :content, :metadata::jsonb)
+                        VALUES (:doc_id, :idx, :content, CAST(:metadata AS jsonb))
                     """),
                     {
                         "doc_id": document_id,
                         "idx": chunk_index,
                         "content": content,
-                        "metadata": json.dumps(metadata or {})  # ✅ FIX: Convertir dict a JSON string
+                        "metadata": json.dumps(metadata or {})
                     }
                 )
             
