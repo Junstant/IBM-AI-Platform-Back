@@ -141,17 +141,9 @@ async def upload_document(file: UploadFile = File(...)):
         content = await file.read()
         file_size = len(content)
         
-        # Guardar temporalmente
-        temp_path = Path(config.UPLOAD_DIR) / file.filename
-        temp_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(temp_path, 'wb') as f:
-            f.write(content)
-        
-        # Procesar documento - FIX: Convertir Path a string
-        processor = DocumentProcessor()
-        text_content = processor.extract_text(str(temp_path))
-        chunks = processor.chunk_text(text_content)
+        # ✅ FIX: Procesar documento directamente desde memoria (sin archivo temporal)
+        text_content = DocumentProcessor.extract_text(content, file.filename)
+        chunks = DocumentProcessor.chunk_text(text_content)
         
         # Preparar chunks sin embeddings
         chunk_data = []
@@ -167,9 +159,6 @@ async def upload_document(file: UploadFile = File(...)):
         )
         
         db.insert_chunks(doc_id, chunk_data)
-        
-        # Limpiar archivo temporal
-        temp_path.unlink(missing_ok=True)
         
         logger.info(f"✅ Documento {doc_id} procesado: {len(chunks)} chunks")
         
@@ -299,87 +288,4 @@ async def root():
         }
     }
 
-@app.post("/documents/upload", summary="Upload documento para RAG")
-async def upload_document(file: UploadFile = File(...)):
-    """
-    Subir documento (PDF, DOCX, TXT, CSV, XLSX, MD)
-    Procesa, genera embeddings y almacena en pgvector
-    """
-    logger.info(f"📤 Subiendo documento: {file.filename}")
-    
-    try:
-        # Validar tamaño
-        file_content = await file.read()
-        file_size = len(file_content)
-        
-        max_size = config.MAX_FILE_SIZE_MB * 1024 * 1024
-        if file_size > max_size:
-            raise HTTPException(
-                status_code=413,
-                detail=f"Archivo muy grande. Máximo: {config.MAX_FILE_SIZE_MB}MB"
-            )
-        
-        # Validar extensión
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in config.ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Formato no soportado. Permitidos: {config.ALLOWED_EXTENSIONS}"
-            )
-        
-        # ✅ FIX: Pasar AMBOS argumentos (file_content y filename)
-        text = DocumentProcessor.extract_text(file_content, file.filename)
-        
-        if not text.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudo extraer texto del documento"
-            )
-        
-        # Chunking
-        chunks = DocumentProcessor.chunk_text(
-            text,
-            chunk_size=config.CHUNK_SIZE,
-            overlap=config.CHUNK_OVERLAP
-        )
-        
-        if not chunks:
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudieron crear chunks del documento"
-            )
-        
-        logger.info(f"✂️ Documento dividido en {len(chunks)} chunks")
-        
-        # Generar embeddings
-        embeddings_gen = get_embeddings_generator()
-        embeddings = embeddings_gen.generate_embeddings_batch(chunks)
-        
-        logger.info(f"🧠 Embeddings generados: {len(embeddings)}")
-        
-        # Guardar en base de datos
-        db = get_database()
-        doc_id = await db.insert_document(
-            filename=file.filename,
-            content_type=file.content_type or "application/octet-stream",
-            file_size=file_size,
-            chunks=chunks,
-            embeddings=embeddings,
-            metadata={}
-        )
-        
-        logger.info(f"✅ Documento guardado con ID: {doc_id}")
-        
-        return {
-            "status": "success",
-            "document_id": doc_id,
-            "filename": file.filename,
-            "chunks_created": len(chunks),
-            "file_size": file_size
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error subiendo documento: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+
