@@ -39,12 +39,12 @@ class Config:
     LLM_HOST = os.getenv("LLM_HOST", "gemma-2b")
     LLM_PORT = os.getenv("LLM_PORT", "8080")
     
-    # Embeddings Service (API externa compatible con OpenAI)
+    # Embeddings Service (usando llama.cpp /embedding endpoint)
     # Por defecto usa el mismo servidor que el LLM seleccionado
     EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "gemma-2b")
     EMBEDDING_SERVICE_PORT = os.getenv("EMBEDDING_SERVICE_PORT", "8080")
-    EMBEDDING_MODEL = "nomic-embed-text"  # Modelo de embeddings
-    EMBEDDING_DIMENSION = 768  # Dimensión estándar para nomic-embed
+    EMBEDDING_MODEL = "gemma-2b-embeddings"  # Usando embeddings del LLM
+    EMBEDDING_DIMENSION = 2048  # Dimensión de embeddings de Gemma-2B
     EMBEDDING_MAX_TOKENS = 8192  # Tokens máximos por embedding
     ENABLE_EMBEDDINGS = os.getenv("ENABLE_EMBEDDINGS", "true").lower() == "true"
     

@@ -30,20 +30,20 @@ class EmbeddingsGenerator:
         return self._post_embedding(texts)
     
     def _post_embedding(self, texts: List[str]) -> List[List[float]]:
-        """Llamar a la API de embeddings"""
+        """Llamar a la API de embeddings con fallback a embedding endpoint"""
         try:
+            # Intentar primero con el endpoint estándar de embeddings
             payload = {
-                "input": texts,
-                "model": self.model,
-                "truncate_prompt_tokens": self.max_tokens - 1,
+                "content": texts if len(texts) > 1 else texts[0],
             }
             headers = {
                 "accept": "application/json",
                 "Content-Type": "application/json"
             }
             
+            # Usar el endpoint /embedding de llama.cpp
             response = requests.post(
-                f"{self.endpoint}/v1/embeddings",
+                f"{self.endpoint}/embedding",
                 data=json.dumps(payload),
                 headers=headers,
                 timeout=60
@@ -51,10 +51,28 @@ class EmbeddingsGenerator:
             response.raise_for_status()
             
             r = response.json()
-            embeddings = [data['embedding'] for data in r['data']]
             
-            # Convertir a numpy arrays float32 y luego a listas
-            return [np.array(embed, dtype=np.float32).tolist() for embed in embeddings]
+            # Si es una lista de textos, el resultado es un solo embedding promedio
+            # Para múltiples textos, debemos hacer llamadas individuales
+            if len(texts) == 1:
+                embedding = r.get('embedding', [])
+                return [np.array(embedding, dtype=np.float32).tolist()]
+            else:
+                # Procesar cada texto individualmente
+                embeddings = []
+                for text in texts:
+                    single_payload = {"content": text}
+                    single_response = requests.post(
+                        f"{self.endpoint}/embedding",
+                        data=json.dumps(single_payload),
+                        headers=headers,
+                        timeout=60
+                    )
+                    single_response.raise_for_status()
+                    single_data = single_response.json()
+                    embedding = single_data.get('embedding', [])
+                    embeddings.append(np.array(embedding, dtype=np.float32).tolist())
+                return embeddings
             
         except requests.exceptions.RequestException as e:
             logger.error(f"❌ Error llamando API de embeddings: {e}")
