@@ -3,10 +3,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-# Instalar dependencias del sistema
+# Instalar dependencias del sistema (incluyendo PostgreSQL client libraries)
 RUN apt-get update && apt-get install -y \
     curl \
     gcc \
+    libpq-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements
