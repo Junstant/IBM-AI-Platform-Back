@@ -15,10 +15,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Instalar dependencias Python
-RUN pip install --no-cache-dir \
-    --extra-index-url https://repo.fury.io/mgiessing \
-    --prefer-binary \
-    -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación
 COPY . .
