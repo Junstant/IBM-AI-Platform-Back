@@ -17,12 +17,23 @@ class Config:
     DB_PASSWORD = os.getenv("DB_PASSWORD", "root")
     DB_NAME = "ai_platform_rag"  # Nueva base de datos para RAG
     
-    # LLM Configuration (usa Gemma-2B por defecto)
+    # Modelos LLM disponibles (mismos que TextoSQL)
+    AVAILABLE_LLM_MODELS = {
+        "gemma-2b": {"host": "gemma-2b", "port": "8080", "name": "Gemma 2B"},
+        "gemma-4b": {"host": "gemma-4b", "port": "8080", "name": "Gemma 4B"},
+        "gemma-12b": {"host": "gemma-12b", "port": "8080", "name": "Gemma 12B"},
+        "mistral-7b": {"host": "mistral-7b", "port": "8080", "name": "Mistral 7B"},
+        "deepseek-8b": {"host": "deepseek-8b", "port": "8080", "name": "DeepSeek 8B"}
+    }
+    
+    # LLM Configuration (por defecto Gemma-2B)
+    DEFAULT_LLM_MODEL = "gemma-2b"
     LLM_HOST = os.getenv("LLM_HOST", "gemma-2b")
     LLM_PORT = os.getenv("LLM_PORT", "8080")
     
     # Embeddings Service (API externa compatible con OpenAI)
-    EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "gemma-2b")  # Usa el mismo LLM server
+    # Por defecto usa el mismo servidor que el LLM seleccionado
+    EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "gemma-2b")
     EMBEDDING_SERVICE_PORT = os.getenv("EMBEDDING_SERVICE_PORT", "8080")
     EMBEDDING_MODEL = "nomic-embed-text"  # Modelo de embeddings
     EMBEDDING_DIMENSION = 768  # Dimensión estándar para nomic-embed

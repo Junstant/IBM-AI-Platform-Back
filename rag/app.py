@@ -82,6 +82,8 @@ app.add_middleware(
 db = None
 embeddings_gen = None
 llm_client = None
+current_llm_model = config.DEFAULT_LLM_MODEL
+current_embedding_model = config.DEFAULT_LLM_MODEL
 
 # =====================================================
 # EVENTOS DE CICLO DE VIDA
@@ -123,6 +125,35 @@ async def shutdown():
 # ENDPOINTS
 # =====================================================
 
+@app.get("/models")
+async def get_models():
+    """
+    📋 Obtener modelos disponibles para embeddings y LLM
+    """
+    return {
+        "embedding_models": [
+            {
+                "id": model_id,
+                "name": model_info["name"],
+                "description": model_info["description"],
+                "dimensions": model_info["dimensions"]
+            }
+            for model_id, model_info in config.AVAILABLE_EMBEDDING_MODELS.items()
+        ],
+        "llm_models": [
+            {
+                "id": model_id,
+                "name": model_info["name"],
+                "description": model_info["description"]
+            }
+            for model_id, model_info in config.AVAILABLE_LLM_MODELS.items()
+        ],
+        "current": {
+            "embedding_model": current_embedding_model,
+            "llm_model": current_llm_model
+        }
+    }
+
 @app.get("/health")
 async def health_check():
     """Health check"""
@@ -136,18 +167,60 @@ async def health_check():
             "vector_search": "enabled" if config.ENABLE_EMBEDDINGS else "text_search"
         },
         "database": "connected" if db else "disconnected",
-        "embedding_model": config.EMBEDDING_MODEL if config.ENABLE_EMBEDDINGS else "N/A",
-        "embedding_dimension": config.EMBEDDING_DIMENSION
+        "embedding_model": current_embedding_model if config.ENABLE_EMBEDDINGS else "N/A",
+        "embedding_dimension": config.EMBEDDING_DIMENSION,
+        "llm_model": current_llm_model
     }
 
 @app.post("/upload", response_model=DocumentInfo)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    embedding_model: str = None,
+    llm_model: str = None
+):
     """
     📤 Subir documento y procesarlo en chunks con embeddings
     
     Soporta: PDF, DOCX, TXT, CSV, XLSX
+    
+    Parámetros:
+    - file: Documento a procesar
+    - embedding_model: Modelo para embeddings (opcional, usa el actual si no se especifica)
+    - llm_model: Modelo LLM (opcional, usa el actual si no se especifica)
     """
+    global embeddings_gen, llm_client, current_embedding_model, current_llm_model
     try:
+        # Cambiar modelo de embeddings si se especifica
+        if embedding_model and embedding_model != current_embedding_model:
+            if embedding_model not in config.AVAILABLE_EMBEDDING_MODELS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Modelo de embedding no válido: {embedding_model}"
+                )
+            logger.info(f"🔄 Cambiando modelo de embedding: {current_embedding_model} → {embedding_model}")
+            model_info = config.AVAILABLE_EMBEDDING_MODELS[embedding_model]
+            embeddings_gen = EmbeddingsGenerator(
+                emb_model=embedding_model,
+                emb_endpoint=f"http://{model_info['host']}:{model_info['port']}",
+                emb_dimension=model_info['dimensions']
+            )
+            current_embedding_model = embedding_model
+        
+        # Cambiar modelo LLM si se especifica
+        if llm_model and llm_model != current_llm_model:
+            if llm_model not in config.AVAILABLE_LLM_MODELS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Modelo LLM no válido: {llm_model}"
+                )
+            logger.info(f"🔄 Cambiando modelo LLM: {current_llm_model} → {llm_model}")
+            model_info = config.AVAILABLE_LLM_MODELS[llm_model]
+            llm_client = LLMClient(
+                host=model_info['host'],
+                port=model_info['port']
+            )
+            current_llm_model = llm_model
+        
         logger.info(f"📤 Subiendo documento: {file.filename}")
         
         # Validar tipo de archivo
