@@ -183,60 +183,36 @@ async def upload_document(
     embedding_model: str = None,
     llm_model: str = None
 ):
-    """
-    📤 Subir documento y procesarlo en chunks con embeddings
-    
-    Soporta: PDF, DOCX, TXT, CSV, XLSX
-    
-    Parámetros:
-    - file: Documento a procesar
-    - embedding_model: Modelo para embeddings (opcional, usa el actual si no se especifica)
-    - llm_model: Modelo LLM (opcional, usa el actual si no se especifica)
-    """
+    """📤 Subir documento y procesarlo en chunks con embeddings"""
     global embeddings_gen, llm_client, current_embedding_model, current_llm_model
     try:
         # Cambiar modelo de embeddings si se especifica
         if embedding_model and embedding_model != current_embedding_model:
             if embedding_model not in config.AVAILABLE_EMBEDDING_MODELS:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Modelo de embedding no válido: {embedding_model}"
-                )
-            logger.info(f"🔄 Cambiando modelo de embedding: {current_embedding_model} → {embedding_model}")
-            model_info = config.AVAILABLE_EMBEDDING_MODELS[embedding_model]
-            embeddings_gen = EmbeddingsGenerator(
-                emb_model=embedding_model,
-                emb_endpoint=f"http://{model_info['host']}:{model_info['port']}",
-                emb_dimension=model_info['dimensions']
-            )
+                raise HTTPException(status_code=400, detail=f"Modelo no válido: {embedding_model}")
             current_embedding_model = embedding_model
+            embeddings_gen = EmbeddingsGenerator()  # Reinicializar con nuevo modelo
+            logger.info(f"🔄 Modelo de embeddings cambiado a: {embedding_model}")
         
         # Cambiar modelo LLM si se especifica
         if llm_model and llm_model != current_llm_model:
             if llm_model not in config.AVAILABLE_LLM_MODELS:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Modelo LLM no válido: {llm_model}"
-                )
-            logger.info(f"🔄 Cambiando modelo LLM: {current_llm_model} → {llm_model}")
-            model_info = config.AVAILABLE_LLM_MODELS[llm_model]
-            llm_client = LLMClient(
-                host=model_info['host'],
-                port=model_info['port']
-            )
+                raise HTTPException(status_code=400, detail=f"Modelo LLM no válido: {llm_model}")
             current_llm_model = llm_model
+            llm_client = get_llm_client()  # Reinicializar con nuevo modelo
+            logger.info(f"🔄 Modelo LLM cambiado a: {llm_model}")
         
         logger.info(f"📤 Subiendo documento: {file.filename}")
         
         # Validar tipo de archivo
         if not file.filename:
-            raise HTTPException(status_code=400, detail="Nombre de archivo inválido")
+            raise HTTPException(status_code=400, detail="Nombre de archivo vacío")
         
         file_extension = Path(file.filename).suffix.lower()
-        if file_extension not in ['.pdf', '.docx', '.txt', '.csv', '.xlsx']:
+        if file_extension not in config.ALLOWED_EXTENSIONS:
             raise HTTPException(
-                status_code=400,
-                detail=f"Tipo de archivo no soportado: {file_extension}"
+                status_code=400, 
+                detail=f"Tipo de archivo no soportado: {file_extension}. Permitidos: {config.ALLOWED_EXTENSIONS}"
             )
         
         # Leer contenido del archivo
@@ -253,7 +229,7 @@ async def upload_document(
         logger.info("🔮 Generando embeddings vectoriales...")
         if not embeddings_gen:
             raise HTTPException(
-                status_code=500,
+                status_code=500, 
                 detail="Servicio de embeddings no disponible"
             )
         
@@ -265,7 +241,7 @@ async def upload_document(
         for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             chunk_data.append((idx, chunk, embedding, {}))
         
-        # Insertar en PostgreSQL + pgvector
+        # Insertar en Milvus
         doc_id = db.insert_document(
             filename=file.filename,
             content_type=file.content_type or "application/octet-stream",
@@ -275,7 +251,7 @@ async def upload_document(
         
         db.insert_chunks(doc_id, chunk_data)
         
-        logger.info(f"✅ Documento {doc_id} almacenado en PostgreSQL: {len(chunks)} chunks vectorizados")
+        logger.info(f"✅ Documento {doc_id} almacenado en Milvus: {len(chunks)} chunks vectorizados")
         
         return DocumentInfo(
             id=doc_id,
@@ -286,53 +262,46 @@ async def upload_document(
             uploaded_at=datetime.now()
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"❌ Error subiendo documento: {e}")
+        logger.error(f"❌ Error subiendo documento: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error procesando documento: {str(e)}")
+
 
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
-    """
-    🔍 Búsqueda inteligente con embeddings vectoriales y respuesta generada por LLM
-    
-    Proceso:
-    1. Genera embedding de la consulta
-    2. Búsqueda vectorial de chunks similares
-    3. LLM genera respuesta contextualizada
-    """
-    start_time = time.time()  # ✅ Iniciar cronómetro
+    """🔍 Búsqueda inteligente con embeddings vectoriales y respuesta generada por LLM"""
+    start_time = time.time()
     try:
         logger.info(f"🔍 Consultando: '{request.query}' (top_k={request.top_k})")
         
         # Generar embedding de la consulta (REQUERIDO para búsqueda vectorial)
         if not embeddings_gen:
             raise HTTPException(
-                status_code=500,
+                status_code=500, 
                 detail="Servicio de embeddings no disponible"
             )
         
         logger.info("🔮 Generando embedding de consulta...")
         query_embedding = embeddings_gen.generate_embedding(request.query)
         
-        # Búsqueda vectorial semántica en pgvector (cosine similarity)
+        # Búsqueda vectorial semántica en Milvus (cosine similarity)
         results = db.similarity_search(query_embedding, top_k=request.top_k)
-        logger.info(f"📊 Búsqueda vectorial pgvector: {len(results)} resultados")
+        logger.info(f"📊 Búsqueda vectorial Milvus: {len(results)} resultados")
         
         if not results:
-            query_time = time.time() - start_time
-            logger.warning("⚠️ No se encontraron resultados")
-            return QueryResponse(
-                answer="No encontré información relevante en los documentos para responder tu pregunta.",
-                sources=[],
-                query=request.query,
-                query_time=query_time
+            raise HTTPException(
+                status_code=404, 
+                detail="No se encontraron documentos relevantes"
             )
         
         # Construir contexto para el LLM
         context_parts = []
         for i, r in enumerate(results, 1):
-            source_info = f"[Fuente {i}: {r['filename']}]"
-            context_parts.append(f"{source_info}\n{r['content']}")
+            context_parts.append(
+                f"[Fuente {i}: {r['filename']}]\n{r['content']}"
+            )
         
         context = "\n\n---\n\n".join(context_parts)
         
@@ -342,63 +311,31 @@ async def query_documents(request: QueryRequest):
         
         # Preparar fuentes
         sources = []
-        for i, r in enumerate(results, 1):
-            similarity_key = 'similarity' if 'similarity' in r else 'rank'
+        for r in results:
             sources.append({
-                "filename": r['filename'],
-                "content": r['content'][:400] + "..." if len(r['content']) > 400 else r['content'],
-                "similarity": float(r.get(similarity_key, 0.0)),
-                "chunk_index": r.get('chunk_index', i - 1)
+                "document_id": r["document_id"],
+                "filename": r["filename"],
+                "chunk_index": r["chunk_index"],
+                "similarity": r["similarity"],
+                "preview": r["content"][:200] + "..." if len(r["content"]) > 200 else r["content"]
             })
         
-        query_time = time.time() - start_time  # ✅ Calcular tiempo
+        query_time = time.time() - start_time
         logger.info(f"✅ Respuesta generada con {len(sources)} fuentes (tiempo: {query_time:.2f}s)")
         
         return QueryResponse(
             answer=answer,
             sources=sources,
             query=request.query,
-            query_time=query_time  # ✅ Agregar tiempo
+            query_time=query_time
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error en consulta: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/documents", response_model=List[DocumentInfo])
-async def list_documents():
-    """📚 Listar todos los documentos"""
-    try:
-        docs = db.get_all_documents()
-        return [
-            DocumentInfo(
-                id=doc['id'],
-                filename=doc['filename'],
-                content_type=doc['content_type'],
-                file_size=doc['file_size'],
-                total_chunks=doc['total_chunks'],
-                uploaded_at=doc['uploaded_at']
-            )
-            for doc in docs
-        ]
-    except Exception as e:
-        logger.error(f"❌ Error listando documentos: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/documents/{document_id}")
-async def delete_document(document_id: int):
-    """🗑️ Eliminar documento"""
-    try:
-        deleted = db.delete_document(document_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Documento no encontrado")
-        
-        return {"message": f"Documento {document_id} eliminado correctamente"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error eliminando documento: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/stats", response_model=StatsResponse)
 async def get_stats():
@@ -409,10 +346,10 @@ async def get_stats():
             total_documents=stats['total_documents'],
             total_chunks=stats['total_chunks'],
             total_size_bytes=stats['total_size_bytes'],
-            embedding_model=config.EMBEDDING_MODEL,  # ✅ Modelo de embeddings
-            llm_model=current_llm_model,              # ✅ Modelo LLM actual
-            embedding_dimension=config.EMBEDDING_DIMENSION,  # ✅ Dimensión
-            milvus_connected=True if db else False    # ✅ Estado Milvus
+            embedding_model=config.EMBEDDING_MODEL,
+            llm_model=current_llm_model,
+            embedding_dimension=config.EMBEDDING_DIMENSION,
+            milvus_connected=True if db else False
         )
     except Exception as e:
         logger.error(f"❌ Error obteniendo estadísticas: {e}")
