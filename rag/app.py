@@ -177,6 +177,86 @@ async def health_check():
         "llm_model": current_llm_model
     }
 
+@app.get("/documents", response_model=List[DocumentInfo])
+async def get_documents():
+    """📄 Obtener lista de todos los documentos almacenados"""
+    try:
+        logger.info("📄 Obteniendo lista de documentos")
+        
+        if not db:
+            raise HTTPException(
+                status_code=503,
+                detail="Base de datos no disponible"
+            )
+        
+        documents_data = db.get_all_documents()
+        logger.info(f"✅ Retornando {len(documents_data)} documentos")
+        
+        # Convertir a DocumentInfo models
+        documents = [
+            DocumentInfo(
+                id=doc["id"],
+                filename=doc["filename"],
+                content_type=doc["content_type"],
+                file_size=doc["file_size"],
+                total_chunks=doc["total_chunks"],
+                uploaded_at=doc["uploaded_at"]
+            )
+            for doc in documents_data
+        ]
+        
+        return documents
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo documentos: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error obteniendo documentos: {str(e)}")
+
+@app.delete("/documents/{document_id}")
+async def delete_document(document_id: int):
+    """🗑️ Eliminar un documento y todos sus chunks"""
+    try:
+        logger.info(f"🗑️ Eliminando documento: {document_id}")
+        
+        if not db:
+            raise HTTPException(
+                status_code=503,
+                detail="Base de datos no disponible"
+            )
+        
+        # Verificar que el documento existe
+        doc_info = db.get_document(document_id)
+        
+        if not doc_info:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Documento {document_id} no encontrado"
+            )
+        
+        # Eliminar documento y sus chunks
+        success = db.delete_document(document_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error eliminando documento {document_id}"
+            )
+        
+        logger.info(f"✅ Documento {document_id} eliminado correctamente")
+        
+        return {
+            "success": True,
+            "message": f"Documento {document_id} eliminado correctamente",
+            "document_id": document_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error eliminando documento {document_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error eliminando documento: {str(e)}")
+
 @app.post("/upload", response_model=DocumentInfo)
 async def upload_document(
     file: UploadFile = File(...),
@@ -317,6 +397,7 @@ async def query_documents(request: QueryRequest):
                 "filename": r["filename"],
                 "chunk_index": r["chunk_index"],
                 "similarity": r["similarity"],
+                "content": r["content"],  # Contenido completo
                 "preview": r["content"][:200] + "..." if len(r["content"]) > 200 else r["content"]
             })
         
