@@ -41,24 +41,24 @@ class Config:
         "deepseek-8b": {"host": "deepseek-8b", "port": "8080", "name": "DeepSeek 8B"}
     }
     
-    # LLM Configuration (por defecto Gemma-2B)
-    DEFAULT_LLM_MODEL = "gemma-2b"
-    LLM_HOST = os.getenv("LLM_HOST", "gemma-2b")
+    # LLM Configuration (por defecto Mistral-7B - SOLO para generación)
+    DEFAULT_LLM_MODEL = "mistral-7b"  # Mistral mejor que Gemma para seguir instrucciones
+    LLM_HOST = os.getenv("LLM_HOST", "mistral-7b")
     LLM_PORT = os.getenv("LLM_PORT", "8080")
     
-    # Embeddings Service (usando llama.cpp /embedding endpoint)
-    # Usando Mistral 7B para mejor capacidad de procesamiento
-    EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "mistral-7b")
+    # Embeddings Service (DEDICADO - Nomic Embed Text v1.5)
+    # ⚠️ CRÍTICO: Servidor especializado SOLO para embeddings - NO usar LLMs generativos
+    EMBEDDING_SERVICE_HOST = os.getenv("EMBEDDING_SERVICE_HOST", "embeddings-api")
     EMBEDDING_SERVICE_PORT = os.getenv("EMBEDDING_SERVICE_PORT", "8080")
-    EMBEDDING_MODEL = "mistral-7b-embeddings"  # Mistral 7B para embeddings más robustos
-    EMBEDDING_DIMENSION = 4096  # Dimensión de embeddings de Mistral 7B
+    EMBEDDING_MODEL = "nomic-embed-text-v1.5"  # Modelo encoder-only especializado
+    EMBEDDING_DIMENSION = 768  # ⚠️ CRÍTICO: Nomic usa 768 (NO 2048, NO 4096)
     EMBEDDING_MAX_TOKENS = 8192  # Tokens máximos por embedding
     ENABLE_EMBEDDINGS = os.getenv("ENABLE_EMBEDDINGS", "true").lower() == "true"
     
     # Document Processing
     MAX_FILE_SIZE_MB = 100  # Aumentado a 100MB para documentos grandes
     ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt', '.csv', '.xlsx', '.md'}
-    CHUNK_SIZE = 512  # Optimizado para Mistral 7B (mejor capacidad)
+    CHUNK_SIZE = 512  # Optimizado para Nomic (768 dimensiones)
     CHUNK_OVERLAP = 64  # Mayor overlap para mejor contexto
     
     # RAG Settings

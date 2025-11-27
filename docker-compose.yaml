@@ -143,6 +143,16 @@ services:
         else
           echo "✅ Modelo Deepseek 8B ya existe.";
         fi
+
+        # Nomic Embed Text v1.5 - Modelo especializado en embeddings (274 MB)
+        NOMIC_PATH="/models/nomic-embed-text-v1.5.Q4_K_M.gguf";
+        if [ ! -f "$$NOMIC_PATH" ]; then
+          echo "Modelo Nomic Embed Text v1.5 no encontrado. Descargando...";
+          wget --header="Authorization: Bearer $$TOKEN_HUGGHINGFACE" "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_K_M.gguf" -O "$$NOMIC_PATH";
+          echo "✅ Modelo Nomic Embed descargado (274 MB - Especializado en embeddings).";
+        else
+          echo "✅ Modelo Nomic Embed ya existe.";
+        fi
       '
     networks:
       - ai_platform_network
@@ -294,6 +304,43 @@ services:
         limits:
           cpus: '14.0'
           memory: 10G
+
+  #^ ======================== EMBEDDINGS API (NOMIC) ========================
+  embeddings-api:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: embeddings-api
+    user: "root"
+    restart: always
+    ports:
+      - "${EMBEDDINGS_PORT:-8090}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    # COMANDO CRÍTICO: --embedding y --pooling mean para generar embeddings
+    command: [
+      "--host", "0.0.0.0",
+      "--port", "8080",
+      "-m", "/models/nomic-embed-text-v1.5.Q4_K_M.gguf",
+      "--embedding",           # Modo embedding
+      "--pooling", "mean",     # Pooling estrategia
+      "-c", "2048",            # Contexto
+      "-b", "2048"             # Batch size
+    ]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'    # Consume POCA CPU comparado con LLMs generativos
+          memory: 1G     # Solo 1GB - es muy ligero
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
