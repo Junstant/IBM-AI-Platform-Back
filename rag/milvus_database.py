@@ -365,8 +365,26 @@ class MilvusRAGDatabase:
     def delete_document(self, document_id: int) -> bool:
         """Eliminar documento y todos sus chunks"""
         try:
-            # Eliminar de Milvus
-            expr = f"document_id == {document_id}"
+            # Primero obtener los IDs primarios de todos los chunks del documento
+            results = self.chunks_collection.query(
+                expr=f"document_id == {document_id}",
+                output_fields=["id"],
+                limit=10000  # Límite alto para asegurar obtener todos los chunks
+            )
+            
+            if not results:
+                logger.warning(f"⚠️ No se encontraron chunks para documento {document_id}")
+                # Eliminar de metadata de todas formas
+                if document_id in self.documents_metadata:
+                    del self.documents_metadata[document_id]
+                return True
+            
+            # Extraer los IDs primarios
+            chunk_ids = [r["id"] for r in results]
+            logger.info(f"🔍 Encontrados {len(chunk_ids)} chunks para eliminar")
+            
+            # Eliminar usando los IDs primarios (in clause)
+            expr = f"id in {chunk_ids}"
             self.chunks_collection.delete(expr)
             self.chunks_collection.flush()
             
@@ -374,7 +392,7 @@ class MilvusRAGDatabase:
             if document_id in self.documents_metadata:
                 del self.documents_metadata[document_id]
             
-            logger.info(f"🗑️ Documento {document_id} eliminado de Milvus")
+            logger.info(f"🗑️ Documento {document_id} eliminado de Milvus ({len(chunk_ids)} chunks)")
             return True
             
         except Exception as e:
