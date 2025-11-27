@@ -207,8 +207,6 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
-    profiles:
-      - full
     deploy:
       resources:
         limits:
@@ -237,8 +235,6 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
-    profiles:
-      - full
     deploy:
       resources:
         limits:
@@ -267,8 +263,6 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
-    profiles:
-      - full
     deploy:
       resources:
         limits:
@@ -297,8 +291,6 @@ services:
       timeout: 120s
       retries: 3
       start_period: 600s
-    profiles:
-      - full
     deploy:
       resources:
         limits:
