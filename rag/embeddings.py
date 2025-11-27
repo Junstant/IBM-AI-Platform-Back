@@ -36,14 +36,10 @@ class EmbeddingsGenerator:
         
         IMPORTANTE: Requiere llama.cpp con flags --embedding y --pooling mean
         Usa el endpoint /v1/embeddings compatible con OpenAI
+        
+        Procesa en lotes pequeños (batch_size=2) para evitar "input is too large"
         """
         try:
-            # Payload compatible con OpenAI embeddings API
-            payload = {
-                "input": texts,  # Soporta tanto lista como string individual
-                "model": self.model
-            }
-            
             headers = {
                 "accept": "application/json",
                 "Content-Type": "application/json"
@@ -51,31 +47,43 @@ class EmbeddingsGenerator:
             
             logger.info(f"🔄 Generando embeddings para {len(texts)} chunks usando {self.model}...")
             
-            response = requests.post(
-                f"{self.endpoint}/v1/embeddings",
-                json=payload,
-                headers=headers,
-                timeout=120
-            )
-            response.raise_for_status()
+            # Procesar en lotes de 2 para evitar overflow
+            batch_size = 2
+            all_embeddings = []
             
-            data = response.json()
-            
-            # Extraer embeddings del formato OpenAI
-            # Formato esperado: {"data": [{"embedding": [...], "index": 0}, ...]}
-            embeddings = [item['embedding'] for item in data['data']]
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                
+                payload = {
+                    "input": batch,
+                    "model": self.model
+                }
+                
+                response = requests.post(
+                    f"{self.endpoint}/v1/embeddings",
+                    json=payload,
+                    headers=headers,
+                    timeout=120
+                )
+                response.raise_for_status()
+                
+                data = response.json()
+                batch_embeddings = [item['embedding'] for item in data['data']]
+                all_embeddings.extend(batch_embeddings)
+                
+                logger.info(f"   Procesado lote {i//batch_size + 1}/{(len(texts) + batch_size - 1)//batch_size}")
             
             # Validar dimensión esperada
-            if embeddings and len(embeddings[0]) != config.EMBEDDING_DIMENSION:
+            if all_embeddings and len(all_embeddings[0]) != config.EMBEDDING_DIMENSION:
                 logger.warning(
-                    f"⚠️ Dimensión recibida: {len(embeddings[0])}, "
+                    f"⚠️ Dimensión recibida: {len(all_embeddings[0])}, "
                     f"esperada: {config.EMBEDDING_DIMENSION}"
                 )
             
-            logger.info(f"✅ {len(embeddings)} embeddings generados correctamente (dim={len(embeddings[0])})")
+            logger.info(f"✅ {len(all_embeddings)} embeddings generados correctamente (dim={len(all_embeddings[0])})")
             
             # Convertir a numpy arrays float32 y luego a listas
-            return [np.array(e, dtype=np.float32).tolist() for e in embeddings]
+            return [np.array(e, dtype=np.float32).tolist() for e in all_embeddings]
             
         except requests.exceptions.RequestException as e:
             logger.error(f"❌ Error llamando API de embeddings: {e}")
