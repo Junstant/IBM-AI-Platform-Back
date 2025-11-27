@@ -552,12 +552,14 @@ services:
       # Milvus Configuration
       - MILVUS_HOST=milvus
       - MILVUS_PORT=19530
-      # LLM Configuration
-      - LLM_HOST=gemma-2b
+      # LLM Configuration (SOLO para generación de respuestas)
+      - LLM_HOST=mistral-7b
       - LLM_PORT=8080
-      # Embeddings Configuration
-      - EMBEDDING_SERVICE_HOST=gemma-2b
+      # Embeddings Configuration (DEDICADO - Nomic)
+      - EMBEDDING_SERVICE_HOST=embeddings-api
       - EMBEDDING_SERVICE_PORT=8080
+      - EMBEDDING_MODEL=nomic-embed-text-v1.5
+      - EMBEDDING_DIMENSION=768
       - ENABLE_EMBEDDINGS=true
     volumes:
       - ./rag:/app
@@ -568,7 +570,10 @@ services:
       milvus:
         condition: service_healthy
         restart: true
-      gemma-2b:
+      embeddings-api:
+        condition: service_healthy
+        restart: true
+      mistral-7b:
         condition: service_healthy
         restart: true
     healthcheck:
