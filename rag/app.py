@@ -4,6 +4,7 @@
 Sistema completo de RAG con embeddings vectoriales y LLM
 """
 import logging
+import time
 from typing import List, Optional
 from pathlib import Path
 from datetime import datetime
@@ -40,6 +41,7 @@ class QueryResponse(BaseModel):
     answer: str = Field(..., description="Respuesta generada")
     sources: List[dict] = Field(..., description="Chunks relevantes encontrados")
     query: str = Field(..., description="Consulta original")
+    query_time: float = Field(..., description="Tiempo de query en segundos")
 
 class DocumentInfo(BaseModel):
     """Información de documento"""
@@ -55,6 +57,10 @@ class StatsResponse(BaseModel):
     total_documents: int
     total_chunks: int
     total_size_bytes: int
+    embedding_model: str = Field(description="Modelo de embeddings actual")
+    llm_model: str = Field(description="Modelo LLM actual")
+    embedding_dimension: int = Field(description="Dimensión de vectores")
+    milvus_connected: bool = Field(description="Estado de Milvus")
 
 # =====================================================
 # APLICACIÓN FASTAPI
@@ -83,7 +89,7 @@ db = None
 embeddings_gen = None
 llm_client = None
 current_llm_model = config.DEFAULT_LLM_MODEL
-current_embedding_model = config.DEFAULT_LLM_MODEL
+current_embedding_model = config.EMBEDDING_MODEL  # ✅ Usar modelo de embeddings correcto
 
 # =====================================================
 # EVENTOS DE CICLO DE VIDA
@@ -294,6 +300,7 @@ async def query_documents(request: QueryRequest):
     2. Búsqueda vectorial de chunks similares
     3. LLM genera respuesta contextualizada
     """
+    start_time = time.time()  # ✅ Iniciar cronómetro
     try:
         logger.info(f"🔍 Consultando: '{request.query}' (top_k={request.top_k})")
         
@@ -312,11 +319,13 @@ async def query_documents(request: QueryRequest):
         logger.info(f"📊 Búsqueda vectorial pgvector: {len(results)} resultados")
         
         if not results:
+            query_time = time.time() - start_time
             logger.warning("⚠️ No se encontraron resultados")
             return QueryResponse(
                 answer="No encontré información relevante en los documentos para responder tu pregunta.",
                 sources=[],
-                query=request.query
+                query=request.query,
+                query_time=query_time
             )
         
         # Construir contexto para el LLM
@@ -342,12 +351,14 @@ async def query_documents(request: QueryRequest):
                 "chunk_index": r.get('chunk_index', i - 1)
             })
         
-        logger.info(f"✅ Respuesta generada con {len(sources)} fuentes")
+        query_time = time.time() - start_time  # ✅ Calcular tiempo
+        logger.info(f"✅ Respuesta generada con {len(sources)} fuentes (tiempo: {query_time:.2f}s)")
         
         return QueryResponse(
             answer=answer,
             sources=sources,
-            query=request.query
+            query=request.query,
+            query_time=query_time  # ✅ Agregar tiempo
         )
         
     except Exception as e:
@@ -394,7 +405,15 @@ async def get_stats():
     """📊 Obtener estadísticas del sistema"""
     try:
         stats = db.get_document_stats()
-        return StatsResponse(**stats)
+        return StatsResponse(
+            total_documents=stats['total_documents'],
+            total_chunks=stats['total_chunks'],
+            total_size_bytes=stats['total_size_bytes'],
+            embedding_model=config.EMBEDDING_MODEL,  # ✅ Modelo de embeddings
+            llm_model=current_llm_model,              # ✅ Modelo LLM actual
+            embedding_dimension=config.EMBEDDING_DIMENSION,  # ✅ Dimensión
+            milvus_connected=True if db else False    # ✅ Estado Milvus
+        )
     except Exception as e:
         logger.error(f"❌ Error obteniendo estadísticas: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -14,31 +14,50 @@ class Config:
     MILVUS_HOST = os.getenv("MILVUS_HOST", "milvus-standalone")
     MILVUS_PORT = int(os.getenv("MILVUS_PORT", "19530"))
     
-    # Modelos de embeddings disponibles (API externa)
+    # ✅ MODELO DE EMBEDDINGS - SOLO Nomic (especializado en vectorización)
+    # ⚠️ CRÍTICO: Gemma/Mistral NO son modelos de embeddings - Son decoder-only
     AVAILABLE_EMBEDDING_MODELS = {
-        "mistral-7b-embeddings": {
-            "host": "mistral-7b", 
+        "nomic-embed-text-v1.5": {
+            "host": "embeddings-api", 
             "port": "8080", 
-            "name": "Mistral 7B Embeddings",
-            "description": "Embeddings de alta capacidad con Mistral 7B - Soporta documentos grandes",
-            "dimensions": 4096
-        },
-        "gemma-2b-embeddings": {
-            "host": "gemma-2b",
-            "port": "8080",
-            "name": "Gemma 2B Embeddings",
-            "description": "Embeddings rápidos con Gemma 2B - Para documentos pequeños",
-            "dimensions": 2048
+            "name": "Nomic Embed Text v1.5",
+            "description": "Modelo encoder-only especializado en embeddings semánticos (768D ultra-rápido)",
+            "dimensions": 768
         }
     }
     
-    # Modelos LLM disponibles (mismos que TextoSQL)
+    # ✅ MODELOS LLM - SOLO para generación de respuestas (NO para embeddings)
     AVAILABLE_LLM_MODELS = {
-        "gemma-2b": {"host": "gemma-2b", "port": "8080", "name": "Gemma 2B"},
-        "gemma-4b": {"host": "gemma-4b", "port": "8080", "name": "Gemma 4B"},
-        "gemma-12b": {"host": "gemma-12b", "port": "8080", "name": "Gemma 12B"},
-        "mistral-7b": {"host": "mistral-7b", "port": "8080", "name": "Mistral 7B"},
-        "deepseek-8b": {"host": "deepseek-8b", "port": "8080", "name": "DeepSeek 8B"}
+        "gemma-2b": {
+            "host": "gemma-2b", 
+            "port": "8080", 
+            "name": "Gemma 2B",
+            "description": "Rápido, baja latencia (<1s)"
+        },
+        "gemma-4b": {
+            "host": "gemma-4b", 
+            "port": "8080", 
+            "name": "Gemma 4B",
+            "description": "Balance velocidad/calidad"
+        },
+        "gemma-12b": {
+            "host": "gemma-12b", 
+            "port": "8080", 
+            "name": "Gemma 12B",
+            "description": "Alta calidad, más recursos"
+        },
+        "mistral-7b": {
+            "host": "mistral-7b", 
+            "port": "8080", 
+            "name": "Mistral 7B",
+            "description": "Máxima calidad para RAG (recomendado)"
+        },
+        "deepseek-8b": {
+            "host": "deepseek-8b", 
+            "port": "8080", 
+            "name": "DeepSeek 8B",
+            "description": "Especializado en razonamiento complejo"
+        }
     }
     
     # LLM Configuration (por defecto Mistral-7B - SOLO para generación)
