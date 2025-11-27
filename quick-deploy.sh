@@ -276,7 +276,6 @@ case "${1:-menu}" in
                 echo "  • gemma-12b"
                 echo "  • mistral-7b"
                 echo "  • deepseek-8b"
-                echo "  • deepseek-14b"
                 read -p "Nombre del modelo: " model_name
                 log "Reiniciando $model_name..."
                 docker compose restart "$model_name"
@@ -290,7 +289,7 @@ case "${1:-menu}" in
                 ;;
             4)
                 log "Deteniendo modelos secundarios..."
-                docker compose stop gemma-4b gemma-12b mistral-7b deepseek-8b deepseek-14b
+                docker compose stop gemma-4b gemma-12b mistral-7b deepseek-8b
                 ;;
         esac
         ;;

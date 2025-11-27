@@ -36,7 +36,6 @@ class Settings(BaseSettings):
     gemma_12b_port: int = 8087
     mistral_port: int = 8088
     deepseek_8b_port: int = 8089
-    deepseek_14b_port: int = 8090
     
     # Puertos de APIs (desde .env)
     fraud_api_port: int = 8001
@@ -128,12 +127,6 @@ class Settings(BaseSettings):
                 "type": "llm",
                 "size": "8B",
                 "container_name": "deepseek-8b"
-            },
-            "deepseek-14b": {
-                "port": self.deepseek_14b_port,
-                "type": "llm",
-                "size": "14B",
-                "container_name": "deepseek-14b"
             },
             "fraud-api": {
                 "port": self.fraud_api_port,

@@ -65,14 +65,6 @@ def get_available_models():
                 "host": "deepseek-8b", # ← Nombre del contenedor
                 "port": "8080",        # ← Puerto interno del contenedor
                 "container_name": "deepseek-8b"
-            },
-            {
-                "id": "deepseek-14b",
-                "name": "DeepSeek 14B", 
-                "description": "Modelo DeepSeek 14B de alta capacidad",
-                "host": "deepseek-14b", # ← Nombre del contenedor
-                "port": "8080",         # ← Puerto interno del contenedor
-                "container_name": "deepseek-14b"
             }
         ]
     else:
@@ -118,14 +110,6 @@ def get_available_models():
                 "host": "127.0.0.1",
                 "port": os.getenv("DEEPSEEK_8B_PORT", "8089"),
                 "container_name": "deepseek-8b"
-            },
-            {
-                "id": "deepseek-14b",
-                "name": "DeepSeek 14B", 
-                "description": "Modelo DeepSeek 14B de alta capacidad",
-                "host": "127.0.0.1",
-                "port": os.getenv("DEEPSEEK_14B_PORT", "8090"),
-                "container_name": "deepseek-14b"
             }
         ]
     

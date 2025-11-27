@@ -6,21 +6,20 @@ Plataforma backend de inteligencia artificial empresarial con **múltiples model
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   PostgreSQL    │    │   6 LLM Models  │    │   APIs Backend  │
-│   (Port 8070)   │    │   (8085-8090)   │    │ Fraude: 8001    │
+│   PostgreSQL    │    │   5 LLM Models  │    │   APIs Backend  │
+│   (Port 8070)   │    │   (8085-8089)   │    │ Fraude: 8001    │
 │                 │    │                 │    │ TextSQL: 8000   │
 │ • banco_global  │    │ • Gemma 2B      │    │ Frontend: 2012  │
 │ • bank_trans... │    │ • Gemma 4B      │    │                 │
 │ • 5000+ clients │    │ • Gemma 12B     │    │                 │
 │ • 15000+ trans  │    │ • Mistral 7B    │    │                 │
 │                 │    │ • DeepSeek 8B   │    │                 │
-│                 │    │ • DeepSeek 14B  │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
 ## ✨ Características Principales
 
-- 🧠 **6 Modelos LLM**: Gemma (2B, 4B, 12B), Mistral 7B, DeepSeek (8B, 14B)
+- 🧠 **5 Modelos LLM**: Gemma (2B, 4B, 12B), Mistral 7B, DeepSeek 8B
 - 🛡️ **Detección de Fraude**: ML avanzado con Random Forest (+20 características)
 - 🔍 **TextoSQL**: Conversión de lenguaje natural a SQL con múltiples modelos
 - 📊 **Datos Masivos**: 5000+ clientes, 8000+ cuentas, 15000+ transacciones
@@ -123,7 +122,6 @@ docker-compose exec gemma-2b ls -la /models/
 | **Gemma 12B** | 8087 | ~8GB | Alta precisión |
 | **Mistral 7B** | 8088 | ~5GB | Tareas generales |
 | **DeepSeek 8B** | 8089 | ~6GB | Razonamiento lógico |
-| **DeepSeek 14B** | 8090 | ~10GB | Máxima capacidad |
 
 ## 🛠️ Gestión del Sistema
 
@@ -208,7 +206,6 @@ GEMMA_4B_PORT=8086           # Modelo Gemma 4B
 GEMMA_12B_PORT=8087          # Modelo Gemma 12B
 MISTRAL_PORT=8088            # Modelo Mistral 7B
 DEEPSEEK_8B_PORT=8089        # Modelo DeepSeek 8B
-DEEPSEEK_14B_PORT=8090       # Modelo DeepSeek 14B
 
 # === CONFIGURACIÓN HUGGINGFACE ===
 TOKEN_HUGGHINGFACE=tu_token_aqui   # Para descarga acelerada
@@ -386,7 +383,6 @@ docker volume inspect aipl_models_volume
 - 🔹 **Gemma 12B**: `http://localhost:8087` (Alta precisión)
 - 🔹 **Mistral 7B**: `http://localhost:8088` (Versátil, excelente calidad)
 - 🔹 **DeepSeek 8B**: `http://localhost:8089` (Razonamiento lógico)
-- 🔹 **DeepSeek 14B**: `http://localhost:8090` (Máxima capacidad)
 
 ### 🗄️ Acceso a Base de Datos
 - **Host**: `localhost:8070`
