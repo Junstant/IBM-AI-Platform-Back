@@ -14,10 +14,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class StatsAPITester:
-    """Clase para probar la API de estadísticas"""
+    """Clase para probar la API de estadísticas v2.0"""
     
     def __init__(self, base_url: str = "http://localhost:8003"):
         self.base_url = base_url
+        self.api_v2 = f"{base_url}/api/stats"
         self.session = None
     
     async def __aenter__(self):
@@ -46,17 +47,17 @@ class StatsAPITester:
             return False
     
     async def test_dashboard_summary(self):
-        """Probar endpoint de resumen del dashboard"""
-        logger.info("📊 Probando dashboard summary...")
+        """Probar endpoint de resumen del dashboard v2.0"""
+        logger.info("📊 Probando dashboard summary v2.0...")
         
         try:
-            async with self.session.get(f"{self.base_url}/api/stats/dashboard-summary") as response:
+            async with self.session.get(f"{self.api_v2}/dashboard/summary") as response:
                 if response.status == 200:
                     data = await response.json()
-                    logger.info("✅ Dashboard summary OK:")
-                    logger.info(f"   Modelos activos: {data.get('active_models', 0)}")
-                    logger.info(f"   Consultas diarias: {data.get('daily_queries', 0)}")
-                    logger.info(f"   Tiempo promedio: {data.get('avg_response_time', 0):.3f}s")
+                    logger.info("✅ Dashboard summary v2.0 OK:")
+                    logger.info(f"   Total requests 24h: {data.get('total_requests_24h', 0)}")
+                    logger.info(f"   Total errors 24h: {data.get('total_errors_24h', 0)}")
+                    logger.info(f"   Success rate: {data.get('success_rate', 0):.2f}%")
                     return True
                 else:
                     logger.error(f"❌ Dashboard summary failed: {response.status}")
