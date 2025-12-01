@@ -16,12 +16,19 @@ from starlette.types import ASGIApp
 
 logger = logging.getLogger(__name__)
 
+# Variable global para db_manager (se setea desde app.py)
+_db_manager = None
+
+def set_db_manager(db):
+    """Configurar db_manager globalmente para el middleware"""
+    global _db_manager
+    _db_manager = db
+
 class MetricsMiddleware(BaseHTTPMiddleware):
     """Middleware para capturar métricas automáticamente"""
     
-    def __init__(self, app: ASGIApp, db_manager=None):
+    def __init__(self, app: ASGIApp):
         super().__init__(app)
-        self.db_manager = db_manager
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Interceptar y medir todas las requests"""
@@ -98,7 +105,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             response.headers["X-Response-Time"] = f"{response_time:.3f}s"
         
         # Guardar métricas en base de datos (asíncrono)
-        if self.db_manager:
+        if _db_manager:
             try:
                 await self._save_metrics(
                     endpoint=endpoint,
@@ -219,7 +226,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     async def _save_metrics(self, **kwargs):
         """Guardar métricas en la base de datos"""
         try:
-            await self.db_manager.insert_api_log(kwargs)
+            await _db_manager.insert_api_log(kwargs)
         except Exception as e:
             logger.error(f"Error saving API metrics: {e}")
             # No re-lanzar la excepción para no afectar la response

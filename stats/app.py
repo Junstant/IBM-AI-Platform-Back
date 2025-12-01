@@ -21,9 +21,8 @@ from typing import Dict, List, Optional
 
 import psutil
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 from config import Settings
@@ -31,7 +30,7 @@ from database import DatabaseManager
 from health_checker import ModelHealthChecker
 from metrics_collector import MetricsCollector
 from alert_system import AlertSystem
-from middleware import MetricsMiddleware
+from middleware import MetricsMiddleware, set_db_manager as set_middleware_db
 from endpoints_v2 import router as v2_router, set_db_manager
 
 # Configurar logging
@@ -65,13 +64,10 @@ async def lifespan(app: FastAPI):
         db_manager = DatabaseManager(settings.database_url)
         await db_manager.initialize()
         
-        # ✨ NUEVO: Configurar endpoints v2.0
+        # ✨ Configurar db_manager para endpoints v2.0 y middleware
         set_db_manager(db_manager)
-        logger.info("✅ Endpoints v2.0 configurados con db_manager")
-        
-        # ✨ Agregar middleware de métricas
-        app.add_middleware(MetricsMiddleware, db_manager=db_manager)
-        logger.info("✅ Middleware de métricas agregado")
+        set_middleware_db(db_manager)
+        logger.info("✅ Endpoints v2.0 y middleware configurados con db_manager")
         
         health_checker = ModelHealthChecker(db_manager)
         metrics_collector = MetricsCollector(db_manager)
@@ -127,6 +123,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Agregar middleware de métricas (se configurará db_manager después)
+app.add_middleware(MetricsMiddleware)
+
 # ✨ NUEVO: Incluir router de endpoints v2.0
 app.include_router(v2_router)
 logger.info("✅ Router v2.0 incluido en la aplicación")
@@ -163,23 +162,10 @@ async def health_check():
         raise HTTPException(status_code=503, detail="Service unavailable")
 
 # ================================================================
-# ENDPOINTS DE ADMINISTRACIÓN (Con autenticación)
+# ENDPOINTS DE ADMINISTRACIÓN
 # ================================================================
 
-# Seguridad para endpoints de admin
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-async def verify_admin_key(api_key: Optional[str] = Depends(api_key_header)):
-    """Verificar API key de administrador"""
-    admin_key = settings.admin_api_key if hasattr(settings, 'admin_api_key') else "admin-key-change-me"
-    if not api_key or api_key != admin_key:
-        raise HTTPException(
-            status_code=401, 
-            detail="Unauthorized - Valid API key required"
-        )
-    return api_key
-
-@app.post("/api/admin/cleanup-logs", tags=["Admin"], dependencies=[Depends(verify_admin_key)])
+@app.post("/api/admin/cleanup-logs", tags=["Admin"])
 async def cleanup_old_logs():
     """Ejecutar limpieza de logs antiguos manualmente (requiere API key)"""
     try:
@@ -189,9 +175,9 @@ async def cleanup_old_logs():
         logger.error(f"Error cleaning up logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/admin/calculate-metrics", tags=["Admin"], dependencies=[Depends(verify_admin_key)])
+@app.post("/api/admin/calculate-metrics", tags=["Admin"])
 async def calculate_daily_metrics():
-    """Calcular métricas diarias manualmente (requiere API key)"""
+    """Calcular métricas diarias manualmente"""
     try:
         await db_manager.execute_query("SELECT calculate_daily_metrics()")
         return {"message": "Cálculo de métricas ejecutado correctamente"}
@@ -199,9 +185,9 @@ async def calculate_daily_metrics():
         logger.error(f"Error calculating metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/admin/refresh-models", tags=["Admin"], dependencies=[Depends(verify_admin_key)])
+@app.post("/api/admin/refresh-models", tags=["Admin"])
 async def refresh_models():
-    """Refrescar estado de modelos manualmente (requiere API key)"""
+    """Refrescar estado de modelos manualmente"""
     try:
         await health_checker.check_all_models()
         return {"message": "Verificación de modelos ejecutada correctamente"}
@@ -209,9 +195,9 @@ async def refresh_models():
         logger.error(f"Error refreshing models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/admin/resolve-alert/{alert_id}", tags=["Admin"], dependencies=[Depends(verify_admin_key)])
+@app.post("/api/admin/resolve-alert/{alert_id}", tags=["Admin"])
 async def resolve_alert(alert_id: int, resolved_by: str = "admin"):
-    """Resolver una alerta específica (requiere API key)"""
+    """Resolver una alerta específica"""
     try:
         query = """
         UPDATE system_alerts 

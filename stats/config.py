@@ -43,9 +43,6 @@ class Settings(BaseSettings):
     frontend_port: int = 2012
     stats_port: int = 8003
     
-    # Seguridad de admin
-    admin_api_key: str = "admin-key-change-me-in-production"
-    
     # Nombres de contenedores Docker (desde .env)
     postgres_container_name: str = "postgres"
     fraud_api_container_name: str = "fraude-api"
