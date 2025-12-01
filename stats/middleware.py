@@ -1,10 +1,12 @@
 """
 Middleware para capturar automáticamente métricas de todas las requests
+VERSIÓN 2.0 - Cumple con especificación completa del frontend
 """
 
 import json
 import time
 import uuid
+import re
 from typing import Callable
 import logging
 
@@ -33,6 +35,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         
         # Información de la request
         endpoint = str(request.url.path)
+        endpoint_base = self._extract_endpoint_base(endpoint)  # NUEVO: endpoint sin parámetros
         method = request.method
         user_agent = request.headers.get("user-agent", "")
         client_ip = self._get_client_ip(request)
@@ -99,6 +102,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             try:
                 await self._save_metrics(
                     endpoint=endpoint,
+                    endpoint_base=endpoint_base,  # NUEVO: endpoint sin parámetros
                     method=method,
                     functionality=functionality,
                     model_used=model_used,
@@ -168,21 +172,49 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             return 0
     
     def _detect_functionality(self, endpoint: str) -> str:
-        """Detectar funcionalidad basada en el endpoint"""
+        """Detectar funcionalidad basada en el endpoint (v2.0 naming)"""
         endpoint = endpoint.lower()
         
+        # Nombres estandarizados según especificación v2.0
         if "/fraud" in endpoint or "/fraude" in endpoint:
-            return "fraud-detection"
-        elif "/textosql" in endpoint or "/sql" in endpoint:
-            return "textosql"
+            return "fraud_detection"  # Cambio: fraud-detection → fraud_detection
+        elif "/textosql" in endpoint or "/sql" in endpoint or "/texto" in endpoint:
+            return "text_to_sql"  # Cambio: textosql → text_to_sql
+        elif "/rag" in endpoint or "/documents" in endpoint:
+            return "rag_documents"  # Cambio: rag → rag_documents
         elif "/chat" in endpoint or "/bot" in endpoint:
-            return "chatbot"
+            return "chatbot"  # Sin cambio
         elif "/stats" in endpoint or "/metrics" in endpoint:
-            return "stats"
+            return "stats"  # Endpoint de estadísticas (no cuenta como funcionalidad de negocio)
         elif "/health" in endpoint:
-            return "model-health"
+            return "model_health"  # Health checks
         else:
             return "general"
+    
+    def _extract_endpoint_base(self, endpoint: str) -> str:
+        """Extraer endpoint base sin parámetros (ej: /api/fraud/{id} → /api/fraud)"""
+        # Remover query parameters
+        endpoint = endpoint.split('?')[0]
+        
+        # Remover segmentos numéricos o UUIDs (parámetros de ruta)
+        # Ejemplos:
+        # /api/fraud/123 → /api/fraud
+        # /api/stats/alerts/abc-123-def → /api/stats/alerts
+        # /api/textosql/execute/session_456 → /api/textosql/execute
+        
+        parts = endpoint.split('/')
+        cleaned_parts = []
+        
+        for part in parts:
+            # Si es un UUID, número puro, o contiene muchos números/guiones (ID)
+            if part and not (
+                re.match(r'^[0-9]+$', part) or  # Solo números
+                re.match(r'^[0-9a-f-]{32,}$', part, re.IGNORECASE) or  # UUID-like
+                re.match(r'^[a-z_]+_[0-9]+$', part, re.IGNORECASE)  # session_123, alert_456
+            ):
+                cleaned_parts.append(part)
+        
+        return '/'.join(cleaned_parts)
     
     async def _save_metrics(self, **kwargs):
         """Guardar métricas en la base de datos"""

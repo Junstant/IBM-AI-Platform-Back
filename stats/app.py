@@ -31,6 +31,7 @@ from health_checker import ModelHealthChecker
 from metrics_collector import MetricsCollector
 from alert_system import AlertSystem
 from middleware import MetricsMiddleware
+from endpoints_v2 import router as v2_router, set_db_manager
 
 # Configurar logging
 logging.basicConfig(
@@ -62,6 +63,10 @@ async def lifespan(app: FastAPI):
         # Inicializar componentes
         db_manager = DatabaseManager(settings.database_url)
         await db_manager.initialize()
+        
+        # ✨ NUEVO: Configurar endpoints v2.0
+        set_db_manager(db_manager)
+        logger.info("✅ Endpoints v2.0 configurados con db_manager")
         
         health_checker = ModelHealthChecker(db_manager)
         metrics_collector = MetricsCollector(db_manager)
@@ -102,7 +107,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="🤖 AI Platform Stats API",
     description="Sistema de métricas y estadísticas para la plataforma IBM AI Backend",
-    version="1.0.0",
+    version="2.0.0",  # ← ACTUALIZADO a v2.0
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan
@@ -117,8 +122,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Agregar middleware de métricas
-app.add_middleware(MetricsMiddleware, db_manager=db_manager)
+# ✨ NUEVO: Incluir router de endpoints v2.0
+app.include_router(v2_router)
+logger.info("✅ Router v2.0 incluido en la aplicación")
+
+# NOTA: El middleware se agregará después de inicializar db_manager en lifespan
+# app.add_middleware(MetricsMiddleware, db_manager=db_manager)  # db_manager es None aquí
 
 # ================================================================
 # MODELOS DE DATOS

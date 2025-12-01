@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS functionality_metrics (
 CREATE TABLE IF NOT EXISTS api_performance_logs (
     id BIGSERIAL PRIMARY KEY,
     endpoint VARCHAR(200) NOT NULL,
+    endpoint_base VARCHAR(200), -- endpoint sin IDs ni query params (v2.0)
     method VARCHAR(10) NOT NULL,
     functionality VARCHAR(50), -- relaciona con functionality_metrics
     model_used VARCHAR(100), -- modelo específico usado
@@ -355,6 +356,187 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ================================================================
+-- VISTAS V2.0 (ESPECIFICACIÓN FRONTEND)
+-- ================================================================
+
+-- Vista unificada de servicios (LLM models + API endpoints)
+CREATE OR REPLACE VIEW services_unified AS
+SELECT 
+    model_name as service_name,
+    model_type as service_type,
+    status,
+    port,
+    last_health_check,
+    total_requests,
+    successful_requests,
+    error_count,
+    avg_response_time,
+    memory_usage_mb,
+    cpu_usage_percent,
+    CASE 
+        WHEN total_requests > 0 THEN 
+            ROUND((successful_requests::DECIMAL / total_requests * 100), 2)
+        ELSE 0 
+    END as success_rate
+FROM ai_models_metrics
+UNION ALL
+SELECT 
+    functionality as service_name,
+    'api' as service_type,
+    CASE 
+        WHEN MAX(f.updated_at) > NOW() - INTERVAL '5 minutes' THEN 'active'
+        ELSE 'inactive'
+    END as status,
+    NULL as port,
+    MAX(f.updated_at) as last_health_check,
+    SUM(f.total_queries) as total_requests,
+    SUM(f.successful_queries) as successful_requests,
+    SUM(f.failed_queries) as error_count,
+    AVG(f.avg_response_time) as avg_response_time,
+    NULL as memory_usage_mb,
+    NULL as cpu_usage_percent,
+    CASE 
+        WHEN SUM(f.total_queries) > 0 THEN 
+            ROUND((SUM(f.successful_queries)::DECIMAL / SUM(f.total_queries) * 100), 2)
+        ELSE 0 
+    END as success_rate
+FROM functionality_metrics f
+WHERE f.date >= CURRENT_DATE - INTERVAL '1 day'
+GROUP BY functionality;
+
+-- Métricas detalladas por hora con percentiles
+CREATE OR REPLACE VIEW detailed_metrics_hourly AS
+SELECT 
+    DATE_TRUNC('hour', timestamp) as period,
+    functionality,
+    endpoint_base,
+    COUNT(*) as total_requests,
+    COUNT(*) FILTER (WHERE status_code < 400) as successful_requests,
+    COUNT(*) FILTER (WHERE status_code >= 400) as failed_requests,
+    ROUND(AVG(response_time)::numeric, 3) as avg_response_time,
+    ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p50_response_time,
+    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p95_response_time,
+    ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p99_response_time,
+    ROUND(MIN(response_time)::numeric, 3) as min_response_time,
+    ROUND(MAX(response_time)::numeric, 3) as max_response_time
+FROM api_performance_logs
+WHERE timestamp >= NOW() - INTERVAL '7 days'
+GROUP BY DATE_TRUNC('hour', timestamp), functionality, endpoint_base
+ORDER BY period DESC;
+
+-- Top endpoints por volumen
+CREATE OR REPLACE VIEW top_endpoints_view AS
+SELECT 
+    endpoint_base,
+    functionality,
+    COUNT(*) as total_requests,
+    COUNT(*) FILTER (WHERE status_code < 400) as successful_requests,
+    ROUND(AVG(response_time)::numeric, 3) as avg_response_time,
+    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p95_response_time,
+    CASE 
+        WHEN COUNT(*) > 0 THEN 
+            ROUND((COUNT(*) FILTER (WHERE status_code < 400)::DECIMAL / COUNT(*) * 100), 2)
+        ELSE 0 
+    END as success_rate
+FROM api_performance_logs
+WHERE timestamp >= NOW() - INTERVAL '24 hours'
+GROUP BY endpoint_base, functionality
+ORDER BY total_requests DESC
+LIMIT 20;
+
+-- Endpoints más lentos
+CREATE OR REPLACE VIEW slowest_endpoints_view AS
+SELECT 
+    endpoint_base,
+    functionality,
+    COUNT(*) as total_requests,
+    ROUND(AVG(response_time)::numeric, 3) as avg_response_time,
+    ROUND(MAX(response_time)::numeric, 3) as max_response_time,
+    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p95_response_time
+FROM api_performance_logs
+WHERE timestamp >= NOW() - INTERVAL '24 hours'
+  AND status_code < 400
+GROUP BY endpoint_base, functionality
+HAVING COUNT(*) >= 5
+ORDER BY avg_response_time DESC
+LIMIT 20;
+
+-- Activity log (generado desde system_alerts)
+CREATE OR REPLACE VIEW activity_log_view AS
+SELECT 
+    id,
+    alert_type as activity_type,
+    component,
+    component_name,
+    title,
+    message,
+    severity,
+    created_at as timestamp,
+    resolved,
+    resolved_at
+FROM system_alerts
+ORDER BY created_at DESC
+LIMIT 100;
+
+-- ================================================================
+-- TRIGGERS V2.0
+-- ================================================================
+
+-- Trigger para actualizar endpoint_base automáticamente
+CREATE OR REPLACE FUNCTION update_endpoint_base_function()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Extraer endpoint base removiendo IDs numéricos y query params
+    NEW.endpoint_base := REGEXP_REPLACE(
+        REGEXP_REPLACE(NEW.endpoint, '\?.*$', ''),  -- Remover query params
+        '/[0-9]+', '/[id]', 'g'  -- Reemplazar IDs numéricos con [id]
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_endpoint_base
+BEFORE INSERT ON api_performance_logs
+FOR EACH ROW
+EXECUTE FUNCTION update_endpoint_base_function();
+
+-- Trigger para normalizar nombres de funcionalidades
+CREATE OR REPLACE FUNCTION normalize_functionality_function()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Normalizar nombres de funcionalidades a estándar v2.0
+    NEW.functionality := CASE
+        WHEN NEW.functionality IN ('fraude', 'fraud', 'fraud_detection') THEN 'fraud_detection'
+        WHEN NEW.functionality IN ('textosql', 'texto_sql', 'text_to_sql', 'sql') THEN 'text_to_sql'
+        WHEN NEW.functionality IN ('rag', 'rag_query', 'rag_documents') THEN 'rag_documents'
+        WHEN NEW.functionality IN ('chat', 'chatbot', 'conversation') THEN 'chatbot'
+        ELSE COALESCE(NEW.functionality, 'unknown')
+    END;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER normalize_functionality
+BEFORE INSERT ON api_performance_logs
+FOR EACH ROW
+EXECUTE FUNCTION normalize_functionality_function();
+
+-- ================================================================
+-- ÍNDICES ADICIONALES V2.0
+-- ================================================================
+
+-- Índice para api_performance_logs
+CREATE INDEX IF NOT EXISTS idx_api_logs_timestamp ON api_performance_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_api_logs_functionality ON api_performance_logs(functionality);
+CREATE INDEX IF NOT EXISTS idx_api_logs_endpoint_base ON api_performance_logs(endpoint_base);
+CREATE INDEX IF NOT EXISTS idx_api_logs_status ON api_performance_logs(status_code);
+CREATE INDEX IF NOT EXISTS idx_api_logs_request_id ON api_performance_logs(request_id);
+
+-- Índice compuesto para queries frecuentes
+CREATE INDEX IF NOT EXISTS idx_api_logs_time_func ON api_performance_logs(timestamp DESC, functionality);
+CREATE INDEX IF NOT EXISTS idx_api_logs_time_endpoint ON api_performance_logs(timestamp DESC, endpoint_base);
+
+-- ================================================================
 -- CONFIGURACIÓN DE RETENCIÓN Y LIMPIEZA AUTOMÁTICA
 -- ================================================================
 
@@ -364,22 +546,31 @@ $$ LANGUAGE plpgsql;
 -- Programar limpieza automática (requiere pg_cron)
 -- SELECT cron.schedule('cleanup-old-logs', '0 2 * * *', 'SELECT cleanup_old_logs();');
 
-\echo '✅ Esquema ai_platform_stats configurado exitosamente';
+\echo '✅ Esquema ai_platform_stats configurado exitosamente (v2.0)';
 \echo '📊 Tablas creadas:';
 \echo '   - ai_models_metrics: Estado y performance de modelos IA';
 \echo '   - functionality_metrics: Métricas agregadas por funcionalidad';
-\echo '   - api_performance_logs: Logs detallados de performance de APIs';
+\echo '   - api_performance_logs: Logs detallados (con endpoint_base v2.0)';
 \echo '   - accuracy_metrics: Métricas de precisión y calidad';
 \echo '   - system_resources: Uso de recursos del sistema';
 \echo '   - database_metrics: Métricas de base de datos';
 \echo '   - system_alerts: Alertas y eventos del sistema';
 \echo '';
-\echo '🔍 Vistas creadas:';
+\echo '🔍 Vistas creadas (v1.0 + v2.0):';
 \echo '   - dashboard_summary: Resumen principal para dashboard';
 \echo '   - functionality_performance: Performance por funcionalidad';
 \echo '   - models_status_detailed: Estado detallado de modelos';
 \echo '   - top_errors_recent: Top errores recientes';
 \echo '   - hourly_performance_trends: Tendencias de performance por hora';
+\echo '   - services_unified: Vista unificada (LLM + APIs) [v2.0]';
+\echo '   - detailed_metrics_hourly: Métricas horarias con percentiles [v2.0]';
+\echo '   - top_endpoints_view: Top endpoints por volumen [v2.0]';
+\echo '   - slowest_endpoints_view: Endpoints más lentos [v2.0]';
+\echo '   - activity_log_view: Log de actividades [v2.0]';
+\echo '';
+\echo '🔧 Triggers v2.0:';
+\echo '   - normalize_functionality: Normaliza nombres de funcionalidades';
+\echo '   - update_endpoint_base: Genera endpoint_base automáticamente';
 \echo '';
 \echo '⚡ Funciones utilitarias:';
 \echo '   - cleanup_old_logs(): Limpieza de logs antiguos';
