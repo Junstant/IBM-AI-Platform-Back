@@ -776,13 +776,16 @@ deploy_services() {
     log "🗑️ Eliminando volumen de datos anterior..."
     docker volume rm aipl_postgres_data 2>/dev/null || true
     
+    # Eliminar TODOS los volúmenes relacionados con postgres para asegurar limpieza total
+    docker volume ls -q | grep -i postgres | xargs -r docker volume rm 2>/dev/null || true
+    
     # Levantar infraestructura base (PostgreSQL y Milvus)
     log "🗄️ Iniciando bases de datos (PostgreSQL y Milvus Stack)..."
-    $DOCKER_COMPOSE up -d postgres etcd minio
+    PGDATA=/var/lib/postgresql/data $DOCKER_COMPOSE up -d postgres etcd minio
     
     # Esperar a que el contenedor esté completamente iniciado
-    log "⏳ Esperando que PostgreSQL inicie y ejecute init scripts (40s)..."
-    sleep 40
+    log "⏳ Esperando que PostgreSQL inicie y ejecute init scripts (60s)..."
+    sleep 60
     
     # Obtener el nombre real del contenedor de forma más simple
     POSTGRES_CONTAINER=$(docker ps --filter "name=postgres" --format "{{.Names}}" | head -n1)

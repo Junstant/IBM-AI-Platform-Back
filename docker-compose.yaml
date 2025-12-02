@@ -15,6 +15,7 @@ services:
       - POSTGRES_DB=postgres
       - PGDATA=/var/lib/postgresql/data
     volumes:
+      - aipl_postgres_data:/var/lib/postgresql/data
       - ./database/init-scripts:/docker-entrypoint-initdb.d
     networks:
       - ai_platform_network
@@ -586,6 +587,7 @@ services:
           memory: 3G
 
 volumes:
+  aipl_postgres_data:
   rag_documents:
   models_volume:
   etcd_data:
