@@ -372,11 +372,12 @@ SELECT
         WHEN model_name = 'deepseek-8b' THEN 'DeepSeek 8B'
         WHEN model_name = 'fraud-api' THEN 'Fraud Detection API'
         WHEN model_name = 'textosql-api' THEN 'Text to SQL API'
+        WHEN model_name = 'rag-api' THEN 'RAG API'
+        WHEN model_name = 'stats-api' THEN 'Stats API'
         ELSE INITCAP(REPLACE(model_name, '-', ' '))
     END as display_name,
     model_type as service_type,
     status,
-    port,
     last_health_check,
     uptime_seconds,
     total_requests,
@@ -389,31 +390,7 @@ SELECT
         'memory_mb', memory_usage_mb,
         'cpu_percent', cpu_usage_percent
     ) as metadata
-FROM ai_models_metrics
-UNION ALL
-SELECT 
-    functionality as service_name,
-    'api' as service_type,
-    CASE 
-        WHEN MAX(f.updated_at) > NOW() - INTERVAL '5 minutes' THEN 'active'
-        ELSE 'inactive'
-    END as status,
-    NULL as port,
-    MAX(f.updated_at) as last_health_check,
-    SUM(f.total_queries) as total_requests,
-    SUM(f.successful_queries) as successful_requests,
-    SUM(f.failed_queries) as error_count,
-    AVG(f.avg_response_time) as avg_response_time,
-    NULL as memory_usage_mb,
-    NULL as cpu_usage_percent,
-    CASE 
-        WHEN SUM(f.total_queries) > 0 THEN 
-            ROUND((SUM(f.successful_queries)::DECIMAL / SUM(f.total_queries) * 100), 2)
-        ELSE 0 
-    END as success_rate
-FROM functionality_metrics f
-WHERE f.date >= CURRENT_DATE - INTERVAL '1 day'
-GROUP BY functionality;
+FROM ai_models_metrics;
 
 -- Métricas detalladas por hora con percentiles
 CREATE OR REPLACE VIEW detailed_metrics_hourly AS

@@ -757,6 +757,21 @@ deploy_services() {
     # Detener PostgreSQL si está corriendo
     $DOCKER_COMPOSE stop postgres || true
     
+    # Obtener el nombre del contenedor de PostgreSQL del docker-compose
+    POSTGRES_CONTAINER=$($DOCKER_COMPOSE ps -q postgres 2>/dev/null || echo "")
+    if [ -z "$POSTGRES_CONTAINER" ]; then
+        # Si no está corriendo, buscar por nombre común
+        POSTGRES_CONTAINER=$(docker ps -a --filter "name=postgres" --format "{{.Names}}" | head -n1)
+    fi
+    
+    # Si encontramos el contenedor, obtener su nombre real
+    if [ -n "$POSTGRES_CONTAINER" ]; then
+        log "📦 Contenedor PostgreSQL encontrado: $POSTGRES_CONTAINER"
+        # Detener y eliminar el contenedor
+        docker stop "$POSTGRES_CONTAINER" 2>/dev/null || true
+        docker rm "$POSTGRES_CONTAINER" 2>/dev/null || true
+    fi
+    
     # Eliminar el volumen de datos de PostgreSQL para forzar reinicio limpio
     log "🗑️ Eliminando volumen de datos anterior..."
     docker volume rm aipl_postgres_data 2>/dev/null || true
@@ -765,17 +780,42 @@ deploy_services() {
     log "🗄️ Iniciando bases de datos (PostgreSQL y Milvus Stack)..."
     $DOCKER_COMPOSE up -d postgres etcd minio
     
-    # Esperar a que PostgreSQL esté completamente listo
-    log "⏳ Esperando que PostgreSQL esté listo y ejecute init scripts..."
+    # Esperar a que el contenedor esté completamente iniciado
+    log "⏳ Esperando que PostgreSQL inicie y ejecute init scripts (40s)..."
     sleep 40
     
-    # Verificar que PostgreSQL esté respondiendo
-    log "🔍 Verificando conectividad de PostgreSQL..."
-    until docker exec aipl-postgres pg_isready -U admin > /dev/null 2>&1; do
-        log "⏳ PostgreSQL aún no está listo, esperando 5s más..."
+    # Obtener el nombre real del contenedor de forma más simple
+    POSTGRES_CONTAINER=$(docker ps --filter "name=postgres" --format "{{.Names}}" | head -n1)
+    
+    # Si no se encontró, usar nombre por defecto
+    if [ -z "$POSTGRES_CONTAINER" ]; then
+        POSTGRES_CONTAINER="postgres_db"
+    fi
+    
+    # Verificar que PostgreSQL esté respondiendo con reintentos limitados
+    log "🔍 Verificando conectividad de PostgreSQL (contenedor: $POSTGRES_CONTAINER)..."
+    local retries=0
+    local max_retries=12  # 1 minuto máximo (12 * 5s)
+    
+    until docker exec "$POSTGRES_CONTAINER" pg_isready -U postgres > /dev/null 2>&1; do
+        retries=$((retries+1))
+        if [ $retries -ge $max_retries ]; then
+            error "PostgreSQL no respondió después de $max_retries intentos"
+            log "📋 Últimos logs de PostgreSQL:"
+            docker logs "$POSTGRES_CONTAINER" --tail 30 2>&1 || echo "No se pudieron obtener los logs"
+            log "📋 Contenedores en ejecución:"
+            docker ps -a
+            exit 1
+        fi
+        log "⏳ PostgreSQL aún iniciando... intento $retries/$max_retries"
         sleep 5
     done
     log "✅ PostgreSQL está listo y los init scripts se han ejecutado"
+    
+    # Verificar que las bases de datos existan
+    log "🔍 Verificando bases de datos creadas..."
+    DB_COUNT=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -tAc "SELECT COUNT(*) FROM pg_database WHERE datname IN ('banco_global', 'bank_transactions', 'ai_platform_stats', 'ai_platform_rag')" 2>/dev/null || echo "0")
+    log "✅ Bases de datos encontradas: $DB_COUNT/4"
     
     # Iniciar Milvus
     $DOCKER_COMPOSE up -d milvus
