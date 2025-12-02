@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS ai_models_metrics (
     tokens_processed INTEGER DEFAULT 0, -- tokens procesados (para LLM)
     model_load_time DECIMAL(10,3), -- tiempo de carga del modelo
     uptime_seconds INTEGER DEFAULT 0, -- tiempo activo en segundos
+    last_error_message TEXT, -- último mensaje de error
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     CONSTRAINT chk_status CHECK (status IN ('active', 'inactive', 'loading', 'error', 'maintenance')),
@@ -363,21 +364,31 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE VIEW services_unified AS
 SELECT 
     model_name as service_name,
+    CASE 
+        WHEN model_name = 'gemma-2b' THEN 'Gemma 2B'
+        WHEN model_name = 'gemma-4b' THEN 'Gemma 4B'
+        WHEN model_name = 'gemma-12b' THEN 'Gemma 12B'
+        WHEN model_name = 'mistral-7b' THEN 'Mistral 7B'
+        WHEN model_name = 'deepseek-8b' THEN 'DeepSeek 8B'
+        WHEN model_name = 'fraud-api' THEN 'Fraud Detection API'
+        WHEN model_name = 'textosql-api' THEN 'Text to SQL API'
+        ELSE INITCAP(REPLACE(model_name, '-', ' '))
+    END as display_name,
     model_type as service_type,
     status,
     port,
     last_health_check,
+    uptime_seconds,
     total_requests,
     successful_requests,
-    error_count,
-    avg_response_time,
-    memory_usage_mb,
-    cpu_usage_percent,
-    CASE 
-        WHEN total_requests > 0 THEN 
-            ROUND((successful_requests::DECIMAL / total_requests * 100), 2)
-        ELSE 0 
-    END as success_rate
+    error_count as failed_requests,
+    ROUND((avg_response_time * 1000)::numeric, 2) as avg_latency_ms,
+    JSONB_BUILD_OBJECT(
+        'port', port,
+        'model_type', model_type,
+        'memory_mb', memory_usage_mb,
+        'cpu_percent', cpu_usage_percent
+    ) as metadata
 FROM ai_models_metrics
 UNION ALL
 SELECT 
@@ -464,16 +475,23 @@ LIMIT 20;
 -- Activity log (generado desde system_alerts)
 CREATE OR REPLACE VIEW activity_log_view AS
 SELECT 
-    id,
-    alert_type as activity_type,
-    component,
-    component_name,
-    title,
-    message,
-    severity,
+    id::TEXT as activity_id,
     created_at as timestamp,
-    resolved,
-    resolved_at
+    alert_type as activity_type,
+    CASE 
+        WHEN severity >= 4 THEN 'critical'
+        WHEN severity = 3 THEN 'warning'
+        ELSE 'info'
+    END as severity,
+    title,
+    message as description,
+    COALESCE(resolved_by, 'system') as user,
+    JSONB_BUILD_OBJECT(
+        'component', component,
+        'component_name', component_name,
+        'resolved', resolved,
+        'resolved_at', resolved_at
+    ) as metadata
 FROM system_alerts
 ORDER BY created_at DESC
 LIMIT 100;

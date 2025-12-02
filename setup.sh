@@ -750,12 +750,36 @@ deploy_services() {
     warn "⏱️  El inicio completo puede tomar 10-15 minutos"
     echo ""
     
-    # Paso 1: Levantar infraestructura base (PostgreSQL y Milvus)
+    # Paso 1: FORZAR RECREACIÓN COMPLETA DE LA BASE DE DATOS
+    log "🔄 Forzando recreación completa de la base de datos PostgreSQL..."
+    log "⚠️  Esto eliminará todos los datos existentes y aplicará el esquema desde cero"
+    
+    # Detener PostgreSQL si está corriendo
+    $DOCKER_COMPOSE stop postgres || true
+    
+    # Eliminar el volumen de datos de PostgreSQL para forzar reinicio limpio
+    log "🗑️ Eliminando volumen de datos anterior..."
+    docker volume rm aipl_postgres_data 2>/dev/null || true
+    
+    # Levantar infraestructura base (PostgreSQL y Milvus)
     log "🗄️ Iniciando bases de datos (PostgreSQL y Milvus Stack)..."
     $DOCKER_COMPOSE up -d postgres etcd minio
-    sleep 20
+    
+    # Esperar a que PostgreSQL esté completamente listo
+    log "⏳ Esperando que PostgreSQL esté listo y ejecute init scripts..."
+    sleep 40
+    
+    # Verificar que PostgreSQL esté respondiendo
+    log "🔍 Verificando conectividad de PostgreSQL..."
+    until docker exec aipl-postgres pg_isready -U admin > /dev/null 2>&1; do
+        log "⏳ PostgreSQL aún no está listo, esperando 5s más..."
+        sleep 5
+    done
+    log "✅ PostgreSQL está listo y los init scripts se han ejecutado"
+    
+    # Iniciar Milvus
     $DOCKER_COMPOSE up -d milvus
-    log "⏳ Esperando que las bases de datos estén listas (30s)..."
+    log "⏳ Esperando que Milvus esté listo (30s)..."
     sleep 30
     
     # Paso 2: Levantar modelos LLM (con perfil full)
