@@ -640,6 +640,14 @@ async def get_recent_activity(
         
         activities = []
         for row in results:
+            # Convertir metadata de string JSON a dict si es necesario
+            metadata = row['metadata']
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except (json.JSONDecodeError, TypeError):
+                    metadata = {}
+            
             activities.append(ActivityLog(
                 activity_id=row['activity_id'],
                 timestamp=to_utc_iso(row['timestamp']),
@@ -648,7 +656,7 @@ async def get_recent_activity(
                 title=row['title'],
                 description=row['description'],
                 user=row['user'],
-                metadata=row['metadata']
+                metadata=metadata
             ))
         
         return activities
@@ -695,11 +703,11 @@ async def get_detailed_metrics(db = Depends(get_db)):
         # 2. Top endpoints
         top_query = """
         SELECT 
-            endpoint,
+            endpoint_base,
             functionality,
-            requests,
-            avg_response_time_ms,
-            p95_response_time_ms,
+            total_requests,
+            avg_response_time,
+            p95_response_time,
             success_rate
         FROM top_endpoints_view
         LIMIT 10
@@ -711,11 +719,11 @@ async def get_detailed_metrics(db = Depends(get_db)):
         # 3. Slowest endpoints
         slow_query = """
         SELECT 
-            endpoint,
+            endpoint_base,
             functionality,
-            requests,
-            avg_response_time_ms,
-            p95_response_time_ms
+            total_requests,
+            avg_response_time,
+            p95_response_time
         FROM slowest_endpoints_view
         LIMIT 10
         """
