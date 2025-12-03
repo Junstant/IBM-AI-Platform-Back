@@ -11,6 +11,7 @@ Cambios respecto a versión anterior:
 """
 
 import logging
+import json
 from datetime import datetime, timedelta
 from typing import List, Optional
 from functools import lru_cache
@@ -292,6 +293,14 @@ async def get_services_status(db = Depends(get_db)):
                     row['total_requests']
                 )
             
+            # Convertir metadata de string JSON a dict si es necesario
+            metadata = row['metadata']
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except (json.JSONDecodeError, TypeError):
+                    metadata = {}
+            
             services.append(ServiceStatus(
                 service_name=row['service_name'],
                 display_name=row['display_name'],
@@ -301,7 +310,7 @@ async def get_services_status(db = Depends(get_db)):
                 last_check=to_utc_iso(row['last_health_check']),
                 latency_ms=row['avg_latency_ms'],
                 success_rate=success_rate,
-                metadata=row['metadata']
+                metadata=metadata
             ))
         
         return services
