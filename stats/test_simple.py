@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timedelta
 
 # Configuración
-BASE_URL = "http://localhost:8004"
+BASE_URL = "http://localhost:8003"  # ✅ CORREGIDO: Stats API está en puerto 8003, NO 8004
 HEADERS = {"Content-Type": "application/json"}
 
 def print_section(title):
@@ -58,14 +58,14 @@ def main():
     
     test_endpoint(
         "Métricas Globales",
-        f"{BASE_URL}/api/v2/metrics/global?"
+        f"{BASE_URL}/api/stats/metrics/global?"
         f"start_date={start_date.isoformat()}&"
         f"end_date={end_date.isoformat()}"
     )
     
     test_endpoint(
         "Métricas por Servicio",
-        f"{BASE_URL}/api/v2/metrics/by-service?"
+        f"{BASE_URL}/api/stats/metrics/by-service?"
         f"start_date={start_date.isoformat()}&"
         f"end_date={end_date.isoformat()}"
     )
@@ -75,17 +75,17 @@ def main():
     
     test_endpoint(
         "Top Endpoints (mejores)",
-        f"{BASE_URL}/api/v2/performance/top-endpoints?limit=5&worst=false"
+        f"{BASE_URL}/api/stats/performance/top-endpoints?limit=5&worst=false"
     )
     
     test_endpoint(
         "Top Endpoints (peores)",
-        f"{BASE_URL}/api/v2/performance/top-endpoints?limit=5&worst=true"
+        f"{BASE_URL}/api/stats/performance/top-endpoints?limit=5&worst=true"
     )
     
     test_endpoint(
         "Heatmap de Performance",
-        f"{BASE_URL}/api/v2/performance/heatmap?"
+        f"{BASE_URL}/api/stats/performance/heatmap?"
         f"start_date={start_date.isoformat()}&"
         f"end_date={end_date.isoformat()}"
     )
@@ -95,7 +95,7 @@ def main():
     
     test_endpoint(
         "Tendencias Horarias",
-        f"{BASE_URL}/api/v2/trends/hourly?"
+        f"{BASE_URL}/api/stats/trends/hourly?"
         f"start_date={start_date.isoformat()}&"
         f"end_date={end_date.isoformat()}&"
         f"service=rag"
@@ -103,7 +103,7 @@ def main():
     
     test_endpoint(
         "Tendencias Diarias",
-        f"{BASE_URL}/api/v2/trends/daily?"
+        f"{BASE_URL}/api/stats/trends/daily?"
         f"start_date={start_date.isoformat()}&"
         f"end_date={end_date.isoformat()}"
     )
@@ -113,7 +113,7 @@ def main():
     
     test_endpoint(
         "Comparación de Periodos",
-        f"{BASE_URL}/api/v2/compare/periods?"
+        f"{BASE_URL}/api/stats/compare/periods?"
         f"start_date_1={start_date.isoformat()}&"
         f"end_date_1={end_date.isoformat()}&"
         f"start_date_2={(start_date - timedelta(days=7)).isoformat()}&"
@@ -122,7 +122,7 @@ def main():
     
     test_endpoint(
         "Comparación de Servicios",
-        f"{BASE_URL}/api/v2/compare/services?"
+        f"{BASE_URL}/api/stats/compare/services?"
         f"service_1=rag&"
         f"service_2=texto-sql&"
         f"start_date={start_date.isoformat()}&"
@@ -134,7 +134,7 @@ def main():
     
     test_endpoint(
         "Alertas Activas",
-        f"{BASE_URL}/api/v2/alerts/active"
+        f"{BASE_URL}/api/stats/alerts/active"
     )
     
     test_endpoint(
