@@ -4,6 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Directorio de trabajo
 WORKDIR /app
 
+# Configurar PYTHONPATH para que encuentre el módulo shared
+ENV PYTHONPATH=/app
+
 # Instalar curl para health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 

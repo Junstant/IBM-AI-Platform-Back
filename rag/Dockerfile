@@ -3,6 +3,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
+# Configurar PYTHONPATH para que encuentre el módulo shared
+ENV PYTHONPATH=/app
+
 # Instalar dependencias del sistema (incluyendo PostgreSQL client libraries)
 RUN apt-get update && apt-get install -y \
     curl \
