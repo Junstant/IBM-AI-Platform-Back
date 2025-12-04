@@ -403,22 +403,24 @@ FROM ai_models_metrics;
 -- Métricas detalladas por hora con percentiles
 CREATE OR REPLACE VIEW detailed_metrics_hourly AS
 SELECT 
-    DATE_TRUNC('hour', timestamp) as period,
+    DATE_TRUNC('hour', timestamp) as hour,
     functionality,
     endpoint_base,
     COUNT(*) as total_requests,
     COUNT(*) FILTER (WHERE status_code < 400) as successful_requests,
     COUNT(*) FILTER (WHERE status_code >= 400) as failed_requests,
-    ROUND(AVG(response_time)::numeric, 3) as avg_response_time,
-    ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p50_response_time,
-    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p95_response_time,
-    ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p99_response_time,
-    ROUND(MIN(response_time)::numeric, 3) as min_response_time,
-    ROUND(MAX(response_time)::numeric, 3) as max_response_time
+    ROUND(AVG(response_time)::numeric, 3) as avg_response_time_ms,
+    ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as median_response_time_ms,
+    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p95_response_time_ms,
+    ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time)::numeric, 3) as p99_response_time_ms,
+    ROUND(MIN(response_time)::numeric, 3) as min_response_time_ms,
+    ROUND(MAX(response_time)::numeric, 3) as max_response_time_ms,
+    ROUND(COUNT(*) FILTER (WHERE status_code < 400)::numeric * 100.0 / NULLIF(COUNT(*), 0), 2) as success_rate,
+    ROUND(COUNT(*) FILTER (WHERE status_code >= 400)::numeric * 100.0 / NULLIF(COUNT(*), 0), 2) as error_rate
 FROM api_performance_logs
 WHERE timestamp >= NOW() - INTERVAL '7 days'
 GROUP BY DATE_TRUNC('hour', timestamp), functionality, endpoint_base
-ORDER BY period DESC;
+ORDER BY hour DESC;
 
 -- Top endpoints por volumen
 CREATE OR REPLACE VIEW top_endpoints_view AS

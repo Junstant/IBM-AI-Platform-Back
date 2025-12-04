@@ -547,7 +547,7 @@ async def get_recent_errors(
                 status_code=row['status_code'],
                 error_message=row['error_message'],
                 error_type=row['error_type'],
-                request_id=row['request_id']
+                request_id=str(row['request_id']) if row['request_id'] else None
             ))
         
         return errors
