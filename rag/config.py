@@ -77,8 +77,8 @@ class Config:
     # Document Processing
     MAX_FILE_SIZE_MB = 100  # Aumentado a 100MB para documentos grandes
     ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt', '.csv', '.xlsx', '.md'}
-    CHUNK_SIZE = 1500  # ~375 tokens (bien por debajo de 2048 max) - Balance contexto/cantidad
-    CHUNK_OVERLAP = 150  # 10% overlap para continuidad semántica
+    CHUNK_SIZE = 400  # ~100 tokens - Límite SEGURO para PPC64le (evita "input is too large")
+    CHUNK_OVERLAP = 40  # 10% overlap para continuidad semántica
     
     # RAG Settings
     TOP_K_RESULTS = 5  # Documentos relevantes a recuperar

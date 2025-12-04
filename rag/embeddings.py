@@ -37,7 +37,8 @@ class EmbeddingsGenerator:
         IMPORTANTE: Requiere llama.cpp con flags --embedding y --pooling mean
         Usa el endpoint /v1/embeddings compatible con OpenAI
         
-        Procesa en lotes pequeños (batch_size=2) para evitar "input is too large"
+        LÍMITE CRÍTICO PPC64LE: El servidor tiene restricciones de batch físico más estrictas
+        que en x86_64. Se recomienda chunks <= 400 caracteres para evitar "input is too large"
         """
         try:
             headers = {
@@ -48,15 +49,25 @@ class EmbeddingsGenerator:
             logger.info(f"🔄 Generando embeddings para {len(texts)} chunks usando {self.model}...")
             
             # CRÍTICO: Procesar de a 1 texto para evitar "input is too large"
-            # El servidor tiene límite físico de batch processing en PPC64le
+            # Límite físico de batch processing en PPC64le requiere chunks pequeños
             all_embeddings = []
             
             for i, text in enumerate(texts):
-                # Truncar texto si excede max_tokens (aprox 4 chars por token)
-                max_chars = self.max_tokens * 4
-                if len(text) > max_chars:
-                    logger.warning(f"⚠️ Chunk {i+1} truncado: {len(text)} -> {max_chars} chars")
-                    text = text[:max_chars]
+                # TRUNCAMIENTO AGRESIVO: PPC64le requiere chunks más pequeños
+                # Límite conservador: 400 chars (~100 tokens) para garantizar procesamiento
+                max_chars_safe = 400  # Límite seguro para PPC64le (bien por debajo de cualquier límite)
+                
+                if len(text) > max_chars_safe:
+                    logger.warning(f"⚠️ Chunk {i+1}/{len(texts)} truncado: {len(text)} -> {max_chars_safe} chars (límite PPC64le)")
+                    text = text[:max_chars_safe]
+                
+                # Validar tamaño en bytes (UTF-8 puede usar hasta 4 bytes por char)
+                text_bytes = len(text.encode('utf-8'))
+                if text_bytes > 2048:  # Límite de seguridad en bytes
+                    # Truncar character por character hasta quedar bajo el límite
+                    while len(text.encode('utf-8')) > 2048 and len(text) > 0:
+                        text = text[:-1]
+                    logger.warning(f"⚠️ Chunk {i+1}/{len(texts)} truncado por bytes: {text_bytes} -> {len(text.encode('utf-8'))} bytes")
                 
                 payload = {
                     "input": [text],  # Siempre array de 1 elemento
