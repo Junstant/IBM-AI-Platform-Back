@@ -832,10 +832,70 @@ deploy_services() {
     done
     log "✅ PostgreSQL está listo y los init scripts se han ejecutado"
     
-    # Verificar que las bases de datos existan
-    log "🔍 Verificando bases de datos creadas..."
+    # Verificar que las bases de datos existan y esquemas se hayan aplicado
+    log "🔍 Verificando bases de datos y esquemas..."
+    
+    # Esperar adicional para que init scripts terminen
+    log "⏳ Esperando a que init scripts completen (30s adicionales)..."
+    sleep 30
+    
+    # Verificar bases de datos
     DB_COUNT=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -tAc "SELECT COUNT(*) FROM pg_database WHERE datname IN ('banco_global', 'bank_transactions', 'ai_platform_stats', 'ai_platform_rag')" 2>/dev/null || echo "0")
+    
+    if [ "$DB_COUNT" -ne 4 ]; then
+        error "❌ Solo se encontraron $DB_COUNT/4 bases de datos"
+        log "📋 Bases de datos existentes:"
+        docker exec "$POSTGRES_CONTAINER" psql -U postgres -c '\l'
+        exit 1
+    fi
+    
     log "✅ Bases de datos encontradas: $DB_COUNT/4"
+    
+    # Verificar esquemas (tabla crítica en cada BD)
+    log "🔍 Verificando esquemas aplicados..."
+    
+    STATS_TABLES=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -d ai_platform_stats -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null || echo "0")
+    BANCO_TABLES=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -d banco_global -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null || echo "0")
+    TRANS_TABLES=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -d bank_transactions -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null || echo "0")
+    RAG_TABLES=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -d ai_platform_rag -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null || echo "0")
+    
+    log "   📊 ai_platform_stats: $STATS_TABLES tablas"
+    log "   🏦 banco_global: $BANCO_TABLES tablas"
+    log "   💳 bank_transactions: $TRANS_TABLES tablas"
+    log "   🧠 ai_platform_rag: $RAG_TABLES tablas"
+    
+    # Validar que se crearon las tablas
+    local schema_failed=0
+    
+    if [ "$STATS_TABLES" -eq 0 ]; then
+        error "❌ No se crearon tablas en ai_platform_stats"
+        schema_failed=1
+    fi
+    
+    if [ "$BANCO_TABLES" -eq 0 ]; then
+        warn "⚠️ No se crearon tablas en banco_global"
+    fi
+    
+    if [ "$TRANS_TABLES" -eq 0 ]; then
+        warn "⚠️ No se crearon tablas en bank_transactions"
+    fi
+    
+    if [ "$RAG_TABLES" -eq 0 ]; then
+        warn "⚠️ No se crearon tablas en ai_platform_rag"
+    fi
+    
+    if [ $schema_failed -eq 1 ]; then
+        error "❌ Fallo crítico: ai_platform_stats sin esquema"
+        log "📋 Logs de inicialización de PostgreSQL:"
+        docker logs "$POSTGRES_CONTAINER" --tail 100 2>&1 | grep -A5 -B5 "init"
+        log ""
+        log "🔧 SOLUCIÓN MANUAL:"
+        log "   1. Ejecutar: cd $BACK_DIR/database"
+        log "   2. Ejecutar: ./force-init-schemas.sh"
+        exit 1
+    fi
+    
+    log "✅ Todos los esquemas verificados correctamente"
     
     # Iniciar Milvus
     $DOCKER_COMPOSE up -d milvus
