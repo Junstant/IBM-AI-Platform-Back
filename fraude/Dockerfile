@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir \
 # Copia el resto de tus archivos de la aplicación
 COPY ./fraude .
 
+# Copia el módulo shared desde la raíz del proyecto
+COPY ./shared /app/shared
+
 # Expón el puerto que usará tu API
 EXPOSE 8000
 

@@ -191,7 +191,7 @@ BEGIN
             sucursal_var,
             saldo_cuenta,
             DATE '2020-01-01' + (i % 1460) * INTERVAL '1 day',
-            CASE WHEN i % 100 = 0 THEN 'inactiva' ELSE 'activa' END
+            CASE WHEN i % 100 = 0 THEN 'inactivo' ELSE 'activo' END
         );
         
         IF i % 2000 = 0 THEN
@@ -360,7 +360,7 @@ BEGIN
             CURRENT_DATE + (1000 + (i % 2000)) * INTERVAL '1 day',
             monto_var * (0.5 + RANDOM() * 0.5),
             1 + (i % 25),
-            CASE WHEN i % 100 = 0 THEN 'cancelado' WHEN i % 200 = 0 THEN 'vencido' WHEN i % 50 = 0 THEN 'en mora' ELSE 'activo' END
+            CASE WHEN i % 100 = 0 THEN 'cancelado' WHEN i % 200 = 0 THEN 'vencido' WHEN i % 50 = 0 THEN 'vencido' ELSE 'activo' END
         );
         
         IF i % 1000 = 0 THEN
