@@ -9,7 +9,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copia el archivo de requisitos
-COPY requirements.txt .
+COPY ./fraude/requirements.txt .
 
 # Instala las dependencias usando los repositorios de wheels para PPC64LE
 RUN pip install --no-cache-dir \
@@ -18,10 +18,10 @@ RUN pip install --no-cache-dir \
     -r requirements.txt
 
 # Copia carpeta shared (middleware de stats)
-COPY ../shared /app/shared
+COPY ./shared /app/shared
 
 # Copia el resto de tus archivos de la aplicación
-COPY . .
+COPY ./fraude .
 
 # Expón el puerto que usará tu API
 EXPOSE 8000

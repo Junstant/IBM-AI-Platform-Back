@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements
-COPY requirements.txt .
+COPY ./rag/requirements.txt .
 
 # Instalar dependencias Python desde repositorio IBM Power
 # Orden crítico: numpy → marshmallow/environs → resto de dependencias
@@ -30,10 +30,10 @@ RUN pip install --upgrade pip && \
     -r requirements.txt
 
 # Copiar carpeta shared (middleware de stats)
-COPY ../shared /app/shared
+COPY ./shared /app/shared
 
 # Copiar código de la aplicación
-COPY . .
+COPY ./rag .
 
 # Crear directorio para documentos
 RUN mkdir -p /app/documents

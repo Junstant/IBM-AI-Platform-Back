@@ -8,7 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Instalar dependencias
-COPY requirements.txt .
+COPY ./textoSql/requirements.txt .
 
 RUN pip install --no-cache-dir \
     --extra-index-url https://repo.fury.io/mgiessing \
@@ -16,10 +16,10 @@ RUN pip install --no-cache-dir \
     -r requirements.txt
 
 # Copiar carpeta shared (middleware de stats)
-COPY ../shared /app/shared
+COPY ./shared /app/shared
 
 # Copiar código de la aplicación
-COPY . .
+COPY ./textoSql .
 
 # Exponer puerto
 EXPOSE 8000

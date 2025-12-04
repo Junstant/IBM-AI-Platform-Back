@@ -340,8 +340,8 @@ services:
   #% ======================== TEXTOSQL API ========================
   textosql-api:
     build:
-      context: ./textoSql
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./textoSql/Dockerfile
     container_name: textosql-api
     restart: always
     ports:
@@ -376,8 +376,8 @@ services:
   #% ======================== FRAUDE API ========================
   fraude-api:
     build:
-      context: ./fraude
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./fraude/Dockerfile
     container_name: fraude-api
     restart: always
     ports:
@@ -536,8 +536,8 @@ services:
   #% ======================== RAG API (Milvus Vector Database) ========================
   rag-api:
     build:
-      context: ./rag
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./rag/Dockerfile
     container_name: rag-api
     restart: always
     ports:
