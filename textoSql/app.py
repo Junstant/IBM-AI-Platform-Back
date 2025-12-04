@@ -102,11 +102,8 @@ app.add_middleware(
 )
 
 # ✅ Agregar middleware de reporte de métricas a Stats API
-import sys
 import os
-from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent))
-from shared.stats_reporter import StatsReporterMiddleware
+from stats_reporter import StatsReporterMiddleware
 
 STATS_API_URL = os.getenv("STATS_API_URL", "http://stats-api:8003")
 app.add_middleware(

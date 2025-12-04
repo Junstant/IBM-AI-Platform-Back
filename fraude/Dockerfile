@@ -5,9 +5,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Configurar PYTHONPATH para que encuentre el módulo shared
-ENV PYTHONPATH=/app
-
 # Instalar curl para health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
@@ -22,9 +19,6 @@ RUN pip install --no-cache-dir \
 
 # Copia el resto de tus archivos de la aplicación
 COPY ./fraude .
-
-# Copia carpeta shared DESPUÉS para evitar que se sobrescriba
-COPY ./shared /app/shared
 
 # Expón el puerto que usará tu API
 EXPOSE 8000
