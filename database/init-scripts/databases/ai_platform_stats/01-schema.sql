@@ -5,7 +5,6 @@
 
 \echo '📊 Configurando esquema para ai_platform_stats...'
 
-\c ai_platform_stats;
 
 -- Crear extensiones útiles
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

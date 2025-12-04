@@ -3,7 +3,6 @@
 
 \echo '🧠 Configurando esquema para ai_platform_rag (RAG con pgvector)...'
 
-\c ai_platform_rag;
 
 -- Crear extensión pgvector (v0.8.1 compilada)
 CREATE EXTENSION IF NOT EXISTS vector;

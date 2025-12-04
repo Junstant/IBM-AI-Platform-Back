@@ -3,7 +3,6 @@
 
 \echo '🔍 Configurando esquema para bank_transactions (detección de fraude)...'
 
-\c bank_transactions;
 
 -- Crear extensiones útiles
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

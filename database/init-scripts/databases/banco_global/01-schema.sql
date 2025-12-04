@@ -3,7 +3,6 @@
 
 \echo '🏦 Configurando esquema para banco_global...'
 
-\c banco_global;
 
 -- Crear extensiones útiles
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
