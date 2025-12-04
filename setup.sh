@@ -485,9 +485,18 @@ configure_firewall() {
                         fi
                     done
                     
-                    # Permitir Docker
-                    firewall-cmd --permanent --zone=trusted --add-interface=docker0 --quiet 2>/dev/null || true
-                    firewall-cmd --permanent --zone=trusted --add-masquerade --quiet 2>/dev/null || true
+                    # Configurar zona docker para evitar conflictos
+                    # NO agregar docker0 a trusted, Docker debe manejar su propia zona
+                    log "🐳 Configurando zona docker en firewalld..."
+                    firewall-cmd --permanent --new-zone=docker --quiet 2>/dev/null || true
+                    firewall-cmd --permanent --zone=docker --set-target=ACCEPT --quiet 2>/dev/null || true
+                    
+                    # Agregar redes Docker a la zona docker (no las interfaces)
+                    firewall-cmd --permanent --zone=docker --add-source=172.17.0.0/16 --quiet 2>/dev/null || true
+                    firewall-cmd --permanent --zone=docker --add-source=172.18.0.0/16 --quiet 2>/dev/null || true
+                    
+                    # Habilitar masquerading en la zona pública para que Docker pueda acceder a internet
+                    firewall-cmd --permanent --zone=public --add-masquerade --quiet 2>/dev/null || true
                     
                     if firewall-cmd --reload 2>/dev/null; then
                         log "✅ Firewall configurado y recargado"
