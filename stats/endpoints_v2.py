@@ -697,7 +697,11 @@ async def get_recent_activity(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/metrics/detailed", response_model=DetailedMetrics)
-async def get_detailed_metrics(db = Depends(get_db)):
+async def get_detailed_metrics(
+    timeframe: str = Query('24h', regex='^(24h|7days|30days)$'),
+    funcionalidad: str = Query('all'),
+    db = Depends(get_db)
+):
     """
     📊 Detailed Metrics (Advanced)
     
@@ -708,8 +712,18 @@ async def get_detailed_metrics(db = Depends(get_db)):
     - Top 10 endpoints más lentos
     """
     try:
+        # Calcular intervalo según timeframe
+        interval = {
+            '24h': '24 hours',
+            '7days': '7 days',
+            '30days': '30 days'
+        }[timeframe]
+        
+        # Filtrar por funcionalidad si no es 'all'
+        func_filter = "" if funcionalidad == 'all' else f"AND functionality = '{funcionalidad}'"
+        
         # 1. Métricas globales
-        global_query = """
+        global_query = f"""
         SELECT 
             COUNT(*) as total_requests,
             COUNT(*) FILTER (WHERE status_code < 400) as successful_requests,
@@ -719,7 +733,8 @@ async def get_detailed_metrics(db = Depends(get_db)):
             ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time)::numeric, 2) as p95_response_time_ms,
             ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time)::numeric, 2) as p99_response_time_ms
         FROM api_performance_logs
-        WHERE timestamp >= NOW() - INTERVAL '24 hours'
+        WHERE timestamp >= NOW() - INTERVAL '{interval}'
+          {func_filter}
         """
         
         global_result = await db.fetch_one(global_query)
