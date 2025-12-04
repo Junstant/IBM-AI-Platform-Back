@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir \
     --prefer-binary \
     -r requirements.txt
 
+# Copia carpeta shared (middleware de stats)
+COPY ../shared /app/shared
+
 # Copia el resto de tus archivos de la aplicación
 COPY . .
 

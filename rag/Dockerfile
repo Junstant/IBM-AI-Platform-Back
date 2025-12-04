@@ -29,6 +29,9 @@ RUN pip install --upgrade pip && \
     --prefer-binary \
     -r requirements.txt
 
+# Copiar carpeta shared (middleware de stats)
+COPY ../shared /app/shared
+
 # Copiar código de la aplicación
 COPY . .
 
