@@ -461,6 +461,7 @@ services:
       - STATS_API_URL=http://stats-api:8003
     volumes:
       - ./fraude:/app
+      - ./shared:/app/shared
     networks:
       - ai_platform_network
     depends_on:
