@@ -99,10 +99,15 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         if not functionality:
             functionality = self._detect_functionality(endpoint)
         
+        # Determinar si es una query AI válida (v2.1)
+        is_ai_query = self._should_count_as_ai_query(endpoint, method)
+        
         # Agregar headers útiles
         if response:
             response.headers["X-Request-ID"] = request_id
             response.headers["X-Response-Time"] = f"{response_time:.3f}s"
+            # NUEVO: Indicar si cuenta como query AI
+            response.headers["X-AI-Query"] = "true" if is_ai_query else "false"
         
         # Guardar métricas en base de datos (asíncrono)
         if _db_manager:
@@ -121,7 +126,8 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                     error_type=error_type,
                     user_agent=user_agent,
                     client_ip=client_ip,
-                    request_id=request_id
+                    request_id=request_id,
+                    is_ai_query=is_ai_query  # NUEVO: marcar si es query AI
                 )
             except Exception as e:
                 logger.error(f"Failed to save metrics: {e}")
@@ -178,6 +184,46 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         except:
             return 0
     
+    def _should_count_as_ai_query(self, endpoint: str, method: str) -> bool:
+        """Determina si un request debe contar como query AI (ESPECIFICACIÓN v2.1)
+        
+        Solo requests POST a demos de AI deben incrementar daily_queries.
+        Excluir: stats, admin, metrics, health checks.
+        """
+        # Solo contar POST requests (queries activas)
+        if method != "POST":
+            return False
+        
+        endpoint_lower = endpoint.lower()
+        
+        # EXCLUIR endpoints de monitoreo y administración
+        excluded_patterns = [
+            "/api/stats/",
+            "/api/admin/",
+            "/api/metrics/",
+            "/health",
+        ]
+        
+        for pattern in excluded_patterns:
+            if pattern in endpoint_lower:
+                return False
+        
+        # INCLUIR solo endpoints de demos AI
+        ai_patterns = [
+            "/proxy/",              # LLM proxy (chatbot)
+            "/api/rag/query",       # RAG query
+            "/api/rag/upload",      # RAG upload
+            "/api/fraude/predict",  # Fraud detection
+            "/api/textosql/generate", # Text-to-SQL
+        ]
+        
+        for pattern in ai_patterns:
+            if pattern in endpoint_lower:
+                return True
+        
+        # Por defecto, no contar
+        return False
+    
     def _detect_functionality(self, endpoint: str) -> str:
         """Detectar funcionalidad basada en el endpoint (v2.0 naming)"""
         endpoint = endpoint.lower()
@@ -189,8 +235,8 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             return "text_to_sql"  # Cambio: textosql → text_to_sql
         elif "/rag" in endpoint or "/documents" in endpoint:
             return "rag_documents"  # Cambio: rag → rag_documents
-        elif "/chat" in endpoint or "/bot" in endpoint:
-            return "chatbot"  # Sin cambio
+        elif "/chat" in endpoint or "/bot" in endpoint or "/proxy" in endpoint:
+            return "chatbot"  # Incluir /proxy para LLM
         elif "/stats" in endpoint or "/metrics" in endpoint:
             return "stats"  # Endpoint de estadísticas (no cuenta como funcionalidad de negocio)
         elif "/health" in endpoint:
@@ -223,10 +269,17 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         
         return '/'.join(cleaned_parts)
     
-    async def _save_metrics(self, **kwargs):
-        """Guardar métricas en la base de datos"""
+    async def _save_metrics(self, is_ai_query: bool = False, **kwargs):
+        """Guardar métricas en la base de datos
+        
+        Args:
+            is_ai_query: Si TRUE, cuenta como query AI para daily_queries (v2.1)
+            **kwargs: Resto de campos del log
+        """
         try:
-            await _db_manager.insert_api_log(kwargs)
+            # Agregar is_ai_query a los datos del log
+            log_data = {**kwargs, 'is_ai_query': is_ai_query}
+            await _db_manager.insert_api_log(log_data)
         except Exception as e:
             logger.error(f"Error saving API metrics: {e}")
             # No re-lanzar la excepción para no afectar la response

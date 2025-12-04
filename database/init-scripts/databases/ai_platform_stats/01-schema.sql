@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS api_performance_logs (
     user_agent VARCHAR(500),
     client_ip INET,
     request_id UUID DEFAULT uuid_generate_v4(),
+    is_ai_query BOOLEAN DEFAULT FALSE, -- v2.1: TRUE solo para queries a demos AI (excluye monitoring)
     timestamp TIMESTAMP DEFAULT NOW(),
     -- Campos específicos para análisis
     query_complexity_score INTEGER, -- 1-10 para TextoSQL
@@ -533,10 +534,12 @@ CREATE INDEX IF NOT EXISTS idx_api_logs_functionality ON api_performance_logs(fu
 CREATE INDEX IF NOT EXISTS idx_api_logs_endpoint_base ON api_performance_logs(endpoint_base);
 CREATE INDEX IF NOT EXISTS idx_api_logs_status ON api_performance_logs(status_code);
 CREATE INDEX IF NOT EXISTS idx_api_logs_request_id ON api_performance_logs(request_id);
+CREATE INDEX IF NOT EXISTS idx_api_logs_is_ai_query ON api_performance_logs(is_ai_query); -- v2.1
 
--- Índice compuesto para queries frecuentes
+-- Índice compuesto para queries frecuentes (v2.1 optimizado para is_ai_query)
 CREATE INDEX IF NOT EXISTS idx_api_logs_time_func ON api_performance_logs(timestamp DESC, functionality);
 CREATE INDEX IF NOT EXISTS idx_api_logs_time_endpoint ON api_performance_logs(timestamp DESC, endpoint_base);
+CREATE INDEX IF NOT EXISTS idx_api_logs_ai_time ON api_performance_logs(is_ai_query, timestamp DESC) WHERE is_ai_query = TRUE;
 
 -- ================================================================
 -- CONFIGURACIÓN DE RETENCIÓN Y LIMPIEZA AUTOMÁTICA

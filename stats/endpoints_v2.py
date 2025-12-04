@@ -125,8 +125,9 @@ class RecentError(BaseModel):
     request_id: Optional[str] = Field(None, description="ID único de la request")
 
 class ActiveAlert(BaseModel):
-    """Alerta activa del sistema"""
-    alert_id: int = Field(..., description="ID de la alerta")
+    """Alerta activa del sistema - v2.1 con campo id para frontend"""
+    alert_id: int = Field(..., description="ID numérico de la alerta")
+    id: str = Field(..., description="ID como string (para frontend)")
     timestamp: str = Field(..., description="Timestamp de creación (UTC ISO 8601)")
     severity: str = Field(..., description="info | warning | critical | success")
     title: str = Field(..., description="Título de la alerta")
@@ -237,6 +238,7 @@ async def get_dashboard_summary(db = Depends(get_db)):
         error_apis = apis_result['error_count'] if apis_result else 0
         
         # 3. Queries últimas 24h (total, exitosas, fallidas)
+        # SOLO CONTAR QUERIES AI (is_ai_query = TRUE) - v2.1
         queries_query = """
         SELECT 
             COUNT(*) as total,
@@ -245,6 +247,7 @@ async def get_dashboard_summary(db = Depends(get_db)):
             AVG(response_time) as avg_response_time_ms
         FROM api_performance_logs
         WHERE timestamp >= NOW() - INTERVAL '24 hours'
+          AND is_ai_query = TRUE
         """
         queries_result = await db.fetch_one(queries_query)
         
@@ -563,6 +566,7 @@ async def get_active_alerts(db = Depends(get_db)):
         query = """
         SELECT 
             id as alert_id,
+            CAST(id AS TEXT) as id,
             created_at as timestamp,
             CASE 
                 WHEN severity >= 4 THEN 'critical'
@@ -586,6 +590,7 @@ async def get_active_alerts(db = Depends(get_db)):
         for row in results:
             alerts.append(ActiveAlert(
                 alert_id=row['alert_id'],
+                id=row['id'],
                 timestamp=to_utc_iso(row['timestamp']),
                 severity=row['severity'],
                 title=row['title'],

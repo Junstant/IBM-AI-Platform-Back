@@ -114,14 +114,14 @@ class DatabaseManager:
                 raise
     
     async def insert_api_log(self, log_data: Dict[str, Any]) -> None:
-        """Insertar log de API performance (v2.0)"""
+        """Insertar log de API performance (v2.1 con is_ai_query)"""
         query = """
         INSERT INTO api_performance_logs (
             endpoint, endpoint_base, method, functionality, model_used, request_size_bytes,
             response_size_bytes, response_time, status_code, error_message,
-            error_type, user_agent, client_ip, request_id, query_complexity_score,
-            fraud_risk_score, sql_execution_time, database_name
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            error_type, user_agent, client_ip, request_id, is_ai_query,
+            query_complexity_score, fraud_risk_score, sql_execution_time, database_name
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         """
         
         params = (
@@ -139,6 +139,7 @@ class DatabaseManager:
             log_data.get('user_agent'),
             log_data.get('client_ip'),
             log_data.get('request_id'),
+            log_data.get('is_ai_query', False),  # NUEVO: v2.1
             log_data.get('query_complexity_score'),
             log_data.get('fraud_risk_score'),
             log_data.get('sql_execution_time'),
