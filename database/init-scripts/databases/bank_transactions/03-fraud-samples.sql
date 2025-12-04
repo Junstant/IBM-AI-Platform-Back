@@ -4,7 +4,8 @@
 \echo '🔍 Generando datos súper realistas y COMPATIBLES para detección de fraude IA...'
 \echo '   Target: 10,000+ transacciones con distribución optimizada para ML';
 
-\c bank_transactions;
+-- Ya estamos conectados a bank_transactions por el script maestro
+-- \c bank_transactions;
 
 -- ===== INSERTAR COMERCIANTES COMPATIBLES CON EL MODELO IA =====
 \echo '🏪 Configurando comerciantes compatibles con IA avanzada...';
@@ -59,8 +60,9 @@ INSERT INTO reglas_fraude (nombre, descripcion, condicion, peso, activa) VALUES
 
 -- ===== CREAR CUENTAS BANCARIAS =====
 \echo '👤 Creando 500 cuentas bancarias para transacciones...';
-INSERT INTO cuentas (numero_cuenta, nombre, apellido, email, telefono, fecha_nacimiento, direccion, fecha_creacion_cuenta, saldo_actual, estado)
+INSERT INTO cuentas (id, numero_cuenta, nombre, apellido, email, telefono, fecha_nacimiento, direccion, fecha_creacion_cuenta, saldo_actual, estado)
 SELECT 
+    i as id,
     '4000' || LPAD(i::TEXT, 8, '0') as numero_cuenta,
     (ARRAY['Juan', 'María', 'Carlos', 'Ana', 'Luis', 'Laura', 'Diego', 'Sofía', 'Miguel', 'Carmen'])[1 + (i % 10)] as nombre,
     (ARRAY['González', 'Rodríguez', 'Martínez', 'López', 'García', 'Fernández', 'Pérez', 'Sánchez', 'Romero', 'Torres'])[1 + (i % 10)] as apellido,
@@ -72,6 +74,9 @@ SELECT
     1000 + (RANDOM() * 50000)::NUMERIC(15,2) as saldo_actual,
     CASE WHEN i % 50 = 0 THEN 'bloqueada' ELSE 'activa' END as estado
 FROM generate_series(1, 500) as i;
+
+-- Actualizar secuencia para continuar desde 501
+SELECT setval('cuentas_id_seq', 500, true);
 
 \echo '✅ 500 cuentas creadas';
 
@@ -85,7 +90,7 @@ INSERT INTO transacciones (
 )
 SELECT
     'TXN-N-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
-    1000 + (gs % 500),  -- 500 usuarios diferentes para crear patrones de comportamiento
+    1 + (gs % 500),  -- 500 usuarios diferentes (IDs 1-500)
     CASE
         WHEN random() < 0.35 THEN 100 + (random() * 400)::NUMERIC(10,2)      -- Compras pequeñas: $100-500
         WHEN random() < 0.65 THEN 500 + (random() * 1500)::NUMERIC(10,2)     -- Compras medianas: $500-2000
@@ -124,7 +129,7 @@ SELECT
 FROM generate_series(1, 7500) gs;
 
 -- ===== GENERAR FRAUDES SUTILES PARA ENTRENAR IA =====
-\echo '   🚨 Generando 1,800 fraudes sutiles para entrenar IA avanzada...';
+\echo '   🚨 Generando 10,000+ fraudes sutiles para entrenar IA avanzada...';
 
 -- Tipo 1: Fraudes sutiles con comerciantes de riesgo medio
 INSERT INTO transacciones (
@@ -135,7 +140,7 @@ INSERT INTO transacciones (
 )
 SELECT
     'TXN-F1-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
-    1000 + (gs % 500),
+    1 + (gs % 500),
     CASE
         WHEN random() < 0.3 THEN 8000 + (random() * 12000)::NUMERIC(10,2)    -- $8k-20k
         WHEN random() < 0.6 THEN 20000 + (random() * 25000)::NUMERIC(10,2)   -- $20k-45k
@@ -181,7 +186,7 @@ SELECT
         WHEN random() < 0.6 THEN 50 + (random() * 150)::NUMERIC(8,2)   -- Distancia media
         ELSE 200 + (random() * 300)::NUMERIC(8,2)                      -- 🚨 Distancia alta
     END
-FROM generate_series(10001, 11200) gs;
+FROM generate_series(10001, 15000) gs;
 
 -- Tipo 2: Fraudes de bajo monto (testeo de tarjetas)
 INSERT INTO transacciones (
@@ -192,7 +197,7 @@ INSERT INTO transacciones (
 )
 SELECT
     'TXN-F2-' || EXTRACT(EPOCH FROM now())::BIGINT || '-' || gs,
-    1000 + (gs % 500),
+    1 + (gs % 500),
     CASE
         WHEN random() < 0.6 THEN 50 + (random() * 450)::NUMERIC(10,2)    -- $50-500 (testeo de tarjetas)
         WHEN random() < 0.85 THEN 500 + (random() * 1500)::NUMERIC(10,2) -- $500-2000
@@ -231,7 +236,7 @@ SELECT
     CASE WHEN random() < 0.8 THEN 'online' WHEN random() < 0.95 THEN 'pos' ELSE 'mobile' END,
     8000 + (random() * 42000)::NUMERIC(10,2),  -- Saldos variados
     (random() * 200)::NUMERIC(8,2)  -- Distancias variadas
-FROM generate_series(20001, 20400) gs;
+FROM generate_series(20001, 25000) gs;
 
 -- ===== FRAUDES EXTREMOS PARA TESTEAR BEHAVIORAL MODEL =====
 \echo '   🔥 Generando fraudes EXTREMOS para testear behavioral_fraud_model.py...';
@@ -241,33 +246,33 @@ INSERT INTO transacciones (
     es_fraude, canal, monto_cuenta_origen, distancia_ubicacion_usual
 ) VALUES
 -- Caso 1: Monto extremo + comerciante sospechoso + país de riesgo
-('TXN-EXT-001', 1001, 12345678.90, 'SUSP001', 'E-commerce',
+('TXN-EXT-001', 1, 12345678.90, 'SUSP001', 'E-commerce',
 'Desconocida', 'Miami', 'USA', 'Crédito', '14:30:00', CURRENT_DATE - 1,
 TRUE, 'online', 50000.00, 7000.0),
 
 -- Caso 2: Secuencia rápida de compras pequeñas desde país de alto riesgo
-('TXN-EXT-002A', 1002, 150.00, 'SUSP002', 'Retail',
+('TXN-EXT-002A', 2, 150.00, 'SUSP002', 'Retail',
 'Desconocida', 'Lagos', 'Nigeria', 'Débito', '03:15:00', CURRENT_DATE - 2,
 TRUE, 'online', 2500.00, 9000.0),
-('TXN-EXT-002B', 1002, 175.50, 'SUSP002', 'Retail',
+('TXN-EXT-002B', 2, 175.50, 'SUSP002', 'Retail',
 'Desconocida', 'Lagos', 'Nigeria', 'Débito', '03:18:00', CURRENT_DATE - 2,
 TRUE, 'online', 2325.00, 9000.0),
-('TXN-EXT-002C', 1002, 89.99, 'SUSP002', 'Retail',
+('TXN-EXT-002C', 2, 89.99, 'SUSP002', 'Retail',
 'Desconocida', 'Lagos', 'Nigeria', 'Débito', '03:22:00', CURRENT_DATE - 2,
 TRUE, 'online', 2235.01, 9000.0),
 
 -- Caso 3: Comerciante de cripto + horario sospechoso + país sancionado
-('TXN-EXT-003', 1003, 25000.00, 'SUSP003', 'Financiero',
+('TXN-EXT-003', 3, 25000.00, 'SUSP003', 'Financiero',
 'Online', 'Online', 'Rusia', 'Crédito', '02:45:00', CURRENT_DATE - 5,
 TRUE, 'online', 30000.00, 12000.0),
 
 -- Caso 4: Casino online + monto muy alto + país offshore
-('TXN-EXT-004', 1010, 550000.00, 'SUSP004', 'Entretenimiento',
+('TXN-EXT-004', 10, 550000.00, 'SUSP004', 'Entretenimiento',
 'Online', 'Online', 'Malta', 'Crédito', '23:50:00', CURRENT_DATE - 3,
 TRUE, 'online', 600000.00, 11000.0),
 
 -- Caso 5: Comerciante completamente desconocido + patrón anómalo
-('TXN-EXT-005', 1015, 999999.99, 'SUSP005', 'Desconocido',
+('TXN-EXT-005', 15, 999999.99, 'SUSP005', 'Desconocido',
 'Online', 'Online', 'Desconocido', 'Crédito', '01:33:00', CURRENT_DATE - 1,
 TRUE, 'online', 1000000.00, 15000.0);
 
@@ -277,7 +282,7 @@ INSERT INTO perfiles_usuario (cuenta_id, ubicacion_frecuente, comerciante_frecue
 horario_preferido_inicio, horario_preferido_fin, monto_promedio, 
 frecuencia_transaccional, ratio_fin_semana, ratio_noche) 
 SELECT 
-    1000 + gs,
+    gs,  -- IDs 1-500 (coinciden con cuentas)
     CASE (gs % 5)
         WHEN 0 THEN 'Microcentro, CABA'
         WHEN 1 THEN 'Palermo, CABA'
