@@ -57,6 +57,24 @@ INSERT INTO reglas_fraude (nombre, descripcion, condicion, peso, activa) VALUES
 ('Distancia Extrema', 'Ubicación muy distante de lo habitual', '{"distancia_minima": 1000}', 0.45, TRUE),
 ('Comerciante Desconocido', 'Comerciantes no registrados previamente', '{"comerciante_nuevo": true}', 0.35, TRUE);
 
+-- ===== CREAR CUENTAS BANCARIAS =====
+\echo '👤 Creando 500 cuentas bancarias para transacciones...';
+INSERT INTO cuentas (numero_cuenta, nombre, apellido, email, telefono, fecha_nacimiento, direccion, fecha_creacion_cuenta, saldo_actual, estado)
+SELECT 
+    '4000' || LPAD(i::TEXT, 8, '0') as numero_cuenta,
+    (ARRAY['Juan', 'María', 'Carlos', 'Ana', 'Luis', 'Laura', 'Diego', 'Sofía', 'Miguel', 'Carmen'])[1 + (i % 10)] as nombre,
+    (ARRAY['González', 'Rodríguez', 'Martínez', 'López', 'García', 'Fernández', 'Pérez', 'Sánchez', 'Romero', 'Torres'])[1 + (i % 10)] as apellido,
+    'cliente' || i || '@email.com' as email,
+    '+54-11-' || LPAD((1000 + (i % 9000))::TEXT, 4, '0') || '-' || LPAD((1000 + (i % 9000))::TEXT, 4, '0') as telefono,
+    DATE '1970-01-01' + (i % 18000) * INTERVAL '1 day' as fecha_nacimiento,
+    (ARRAY['Av. Corrientes', 'Av. Santa Fe', 'Calle Florida', 'Av. Libertador'])[1 + (i % 4)] || ' ' || (100 + i)::TEXT || ', CABA' as direccion,
+    CURRENT_DATE - (i % 1460) * INTERVAL '1 day' as fecha_creacion_cuenta,
+    1000 + (RANDOM() * 50000)::NUMERIC(15,2) as saldo_actual,
+    CASE WHEN i % 50 = 0 THEN 'bloqueada' ELSE 'activa' END as estado
+FROM generate_series(1, 500) as i;
+
+\echo '✅ 500 cuentas creadas';
+
 -- ===== GENERAR TRANSACCIONES NORMALES OPTIMIZADAS PARA ML =====
 \echo '   📈 Generando 7,500 transacciones normales optimizadas para IA...';
 INSERT INTO transacciones (

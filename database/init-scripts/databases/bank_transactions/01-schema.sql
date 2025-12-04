@@ -9,6 +9,24 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- ===== TABLA CUENTAS BANCARIAS =====
+CREATE TABLE IF NOT EXISTS cuentas (
+    id SERIAL PRIMARY KEY,
+    numero_cuenta VARCHAR(50) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    email VARCHAR(150),
+    telefono VARCHAR(20),
+    fecha_nacimiento DATE,
+    direccion TEXT,
+    fecha_creacion_cuenta DATE DEFAULT CURRENT_DATE,
+    fecha_ultima_transaccion DATE,
+    saldo_actual DECIMAL(15,2) DEFAULT 0,
+    estado VARCHAR(20) DEFAULT 'activa' CHECK (estado IN ('activa', 'bloqueada', 'suspendida', 'cerrada')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ===== TABLA PRINCIPAL DE TRANSACCIONES =====
 CREATE TABLE IF NOT EXISTS transacciones (
     id SERIAL PRIMARY KEY,
@@ -209,7 +227,23 @@ CREATE TRIGGER trigger_actualizar_comerciante
     FOR EACH ROW
     EXECUTE FUNCTION calcular_riesgo_comerciante();
 
+-- ===== FOREIGN KEYS =====
+ALTER TABLE transacciones 
+    ADD CONSTRAINT fk_transacciones_cuenta_origen 
+    FOREIGN KEY (cuenta_origen_id) REFERENCES cuentas(id) ON DELETE CASCADE;
+
+ALTER TABLE transacciones 
+    ADD CONSTRAINT fk_transacciones_cuenta_destino 
+    FOREIGN KEY (cuenta_destino_id) REFERENCES cuentas(id) ON DELETE SET NULL;
+
+ALTER TABLE perfiles_usuario
+    ADD CONSTRAINT fk_perfiles_cuenta
+    FOREIGN KEY (cuenta_id) REFERENCES cuentas(id) ON DELETE CASCADE;
+
 -- ===== ÍNDICES PARA OPTIMIZACIÓN =====
+CREATE INDEX IF NOT EXISTS idx_cuentas_numero ON cuentas(numero_cuenta);
+CREATE INDEX IF NOT EXISTS idx_cuentas_estado ON cuentas(estado);
+CREATE INDEX IF NOT EXISTS idx_cuentas_email ON cuentas(email);
 CREATE INDEX IF NOT EXISTS idx_transacciones_fecha ON transacciones(fecha_transaccion);
 CREATE INDEX IF NOT EXISTS idx_transacciones_cuenta_origen ON transacciones(cuenta_origen_id);
 CREATE INDEX IF NOT EXISTS idx_transacciones_fraude ON transacciones(es_fraude);
