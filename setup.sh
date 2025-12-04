@@ -773,11 +773,28 @@ deploy_services() {
     fi
     
     # Eliminar el volumen de datos de PostgreSQL para forzar reinicio limpio
-    log "🗑️ Eliminando volumen de datos anterior..."
-    docker volume rm aipl_postgres_data 2>/dev/null || true
+    log "🗑️ Eliminando volúmenes de PostgreSQL (forzar init scripts)..."
     
-    # Eliminar TODOS los volúmenes relacionados con postgres para asegurar limpieza total
-    docker volume ls -q | grep -i postgres | xargs -r docker volume rm 2>/dev/null || true
+    # Buscar y eliminar TODOS los volúmenes de postgres (incluye prefijos de proyecto)
+    POSTGRES_VOLUMES=$(docker volume ls --format "{{.Name}}" | grep -E "(postgres|aipl.*postgres)" || true)
+    
+    if [ -n "$POSTGRES_VOLUMES" ]; then
+        echo "$POSTGRES_VOLUMES" | while read -r vol; do
+            log "  🗑️ Eliminando volumen: $vol"
+            docker volume rm "$vol" 2>/dev/null || warn "    ⚠️ No se pudo eliminar $vol (puede estar en uso)"
+        done
+    else
+        log "  ℹ️ No se encontraron volúmenes de PostgreSQL para eliminar"
+    fi
+    
+    # Verificar que se eliminaron correctamente
+    REMAINING=$(docker volume ls --format "{{.Name}}" | grep -E "(postgres|aipl.*postgres)" | wc -l)
+    if [ "$REMAINING" -eq 0 ]; then
+        log "✅ Todos los volúmenes de PostgreSQL eliminados correctamente"
+    else
+        warn "⚠️ Aún quedan $REMAINING volúmenes de PostgreSQL"
+        docker volume ls | grep -E "(postgres|aipl.*postgres)" || true
+    fi
     
     # Levantar infraestructura base (PostgreSQL y Milvus)
     log "🗄️ Iniciando bases de datos (PostgreSQL y Milvus Stack)..."
