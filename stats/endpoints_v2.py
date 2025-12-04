@@ -253,8 +253,8 @@ async def get_dashboard_summary(db = Depends(get_db)):
         daily_failed = queries_result['failed'] if queries_result else 0
         avg_response_ms = queries_result['avg_response_time_ms'] if queries_result else 0
         
-        # Convertir a segundos
-        avg_response_time = round(avg_response_ms / 1000.0, 3) if avg_response_ms else 0.0
+        # Convertir a segundos (forzar a float para evitar error Decimal/float)
+        avg_response_time = round(float(avg_response_ms) / 1000.0, 3) if avg_response_ms else 0.0
         
         # 4. Precisión global (success rate)
         global_accuracy = 0.0
