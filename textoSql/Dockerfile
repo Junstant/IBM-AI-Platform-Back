@@ -15,11 +15,11 @@ RUN pip install --no-cache-dir \
     --prefer-binary \
     -r requirements.txt
 
-# Copiar carpeta shared (middleware de stats)
-COPY ./shared /app/shared
-
 # Copiar código de la aplicación
 COPY ./textoSql .
+
+# Copiar carpeta shared DESPUÉS para evitar que se sobrescriba
+COPY ./shared /app/shared
 
 # Exponer puerto
 EXPOSE 8000
