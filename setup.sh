@@ -719,11 +719,12 @@ deploy_services() {
     
     # Parar servicios existentes (incluyendo perfil full)
     log "🛑 Deteniendo servicios existentes..."
-    $DOCKER_COMPOSE --profile full down || true
+    $DOCKER_COMPOSE --profile full down -v || true
     
-    # Limpiar recursos Docker
-    log "🧹 Limpiando recursos Docker..."
-    docker system prune -f || true
+    # Limpiar recursos Docker COMPLETAMENTE (imágenes, contenedores, volúmenes, redes)
+    log "🧹 Limpieza profunda de recursos Docker..."
+    log "   ⚠️  Eliminando: contenedores, imágenes no usadas, volúmenes y redes"
+    docker system prune -a --volumes --force || true
     
     # Verificar sintaxis
     log "🔍 Verificando sintaxis del docker-compose..."
@@ -776,7 +777,7 @@ deploy_services() {
     log "🗑️ Eliminando volúmenes de PostgreSQL (forzar init scripts)..."
     
     # Buscar y eliminar TODOS los volúmenes de postgres (incluye prefijos de proyecto)
-    POSTGRES_VOLUMES=$(docker volume ls --format "{{.Name}}" | grep -E "(postgres|aipl.*postgres)" || true)
+    POSTGRES_VOLUMES=$(docker volume ls --format "{{.Name}}" | grep -E "(postgres|aipl_postgres)" || true)
     
     if [ -n "$POSTGRES_VOLUMES" ]; then
         echo "$POSTGRES_VOLUMES" | while read -r vol; do
@@ -787,13 +788,21 @@ deploy_services() {
         log "  ℹ️ No se encontraron volúmenes de PostgreSQL para eliminar"
     fi
     
+    # Forzar eliminación con prune si aún existen
+    log "🧹 Limpieza adicional de volúmenes..."
+    docker volume prune -f 2>/dev/null || true
+    
     # Verificar que se eliminaron correctamente
-    REMAINING=$(docker volume ls --format "{{.Name}}" | grep -E "(postgres|aipl.*postgres)" | wc -l)
+    REMAINING=$(docker volume ls --format "{{.Name}}" | grep -E "(postgres|aipl_postgres)" | wc -l)
     if [ "$REMAINING" -eq 0 ]; then
         log "✅ Todos los volúmenes de PostgreSQL eliminados correctamente"
     else
         warn "⚠️ Aún quedan $REMAINING volúmenes de PostgreSQL"
-        docker volume ls | grep -E "(postgres|aipl.*postgres)" || true
+        docker volume ls --format "table {{.Name}}\t{{.Driver}}\t{{.Mountpoint}}" | grep -E "(postgres|aipl_postgres)" || true
+        
+        # Intentar eliminación forzada
+        log "🔨 Intentando eliminación forzada..."
+        docker volume ls --format "{{.Name}}" | grep -E "(postgres|aipl_postgres)" | xargs -r docker volume rm -f 2>/dev/null || true
     fi
     
     # Levantar infraestructura base (PostgreSQL y Milvus)
@@ -801,8 +810,8 @@ deploy_services() {
     PGDATA=/var/lib/postgresql/data $DOCKER_COMPOSE up -d postgres etcd minio
     
     # Esperar a que el contenedor esté completamente iniciado
-    log "⏳ Esperando que PostgreSQL inicie y ejecute init scripts (60s)..."
-    sleep 60
+    log "⏳ Esperando que PostgreSQL inicie (puede tardar 2-3 minutos para init scripts)..."
+    sleep 30
     
     # Obtener el nombre real del contenedor de forma más simple
     POSTGRES_CONTAINER=$(docker ps --filter "name=postgres" --format "{{.Names}}" | head -n1)
@@ -812,32 +821,61 @@ deploy_services() {
         POSTGRES_CONTAINER="postgres_db"
     fi
     
-    # Verificar que PostgreSQL esté respondiendo con reintentos limitados
+    # Verificar que PostgreSQL esté respondiendo con reintentos extendidos
     log "🔍 Verificando conectividad de PostgreSQL (contenedor: $POSTGRES_CONTAINER)..."
     local retries=0
-    local max_retries=12  # 1 minuto máximo (12 * 5s)
+    local max_retries=36  # 3 minutos máximo (36 * 5s) para init scripts
     
     until docker exec "$POSTGRES_CONTAINER" pg_isready -U postgres > /dev/null 2>&1; do
         retries=$((retries+1))
         if [ $retries -ge $max_retries ]; then
             error "PostgreSQL no respondió después de $max_retries intentos"
             log "📋 Últimos logs de PostgreSQL:"
-            docker logs "$POSTGRES_CONTAINER" --tail 30 2>&1 || echo "No se pudieron obtener los logs"
+            docker logs "$POSTGRES_CONTAINER" --tail 50 2>&1 || echo "No se pudieron obtener los logs"
             log "📋 Contenedores en ejecución:"
             docker ps -a
             exit 1
         fi
-        log "⏳ PostgreSQL aún iniciando... intento $retries/$max_retries"
+        
+        # Mostrar progreso de init scripts cada 4 intentos
+        if [ $((retries % 4)) -eq 0 ]; then
+            log "⏳ PostgreSQL iniciando... ($((retries * 5))s transcurridos)"
+            docker exec "$POSTGRES_CONTAINER" ls -la /var/lib/postgresql/data/ 2>/dev/null | grep -q "PG_VERSION" && log "   ✓ PGDATA inicializado" || log "   ⧗ Esperando PGDATA..."
+        fi
+        
         sleep 5
     done
-    log "✅ PostgreSQL está listo y los init scripts se han ejecutado"
+    log "✅ PostgreSQL respondiendo"
+    
+    # CRÍTICO: Esperar a que init scripts terminen de ejecutarse
+    log "⏳ Esperando finalización de init scripts (monitoreando procesos)..."
+    local init_wait=0
+    local max_init_wait=24  # 2 minutos adicionales (24 * 5s)
+    
+    while [ $init_wait -lt $max_init_wait ]; do
+        # Verificar si hay procesos psql activos (indicaría que init scripts están corriendo)
+        PSQL_PROCS=$(docker exec "$POSTGRES_CONTAINER" sh -c "ps aux | grep -E 'psql|postgres.*initdb' | grep -v grep" || echo "")
+        
+        if [ -z "$PSQL_PROCS" ]; then
+            log "✅ Init scripts completados (no hay procesos psql activos)"
+            break
+        fi
+        
+        init_wait=$((init_wait+1))
+        if [ $((init_wait % 3)) -eq 0 ]; then
+            log "   ⧗ Init scripts en ejecución... ($((init_wait * 5))s)"
+        fi
+        sleep 5
+    done
+    
+    # Espera adicional de seguridad
+    log "⏳ Espera de seguridad (15s)..."
+    sleep 15
+    
+    log "✅ PostgreSQL completamente inicializado"
     
     # Verificar que las bases de datos existan y esquemas se hayan aplicado
     log "🔍 Verificando bases de datos y esquemas..."
-    
-    # Esperar adicional para que init scripts terminen
-    log "⏳ Esperando a que init scripts completen (30s adicionales)..."
-    sleep 30
     
     # Verificar bases de datos
     DB_COUNT=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -tAc "SELECT COUNT(*) FROM pg_database WHERE datname IN ('banco_global', 'bank_transactions', 'ai_platform_stats', 'ai_platform_rag')" 2>/dev/null || echo "0")
@@ -846,6 +884,8 @@ deploy_services() {
         error "❌ Solo se encontraron $DB_COUNT/4 bases de datos"
         log "📋 Bases de datos existentes:"
         docker exec "$POSTGRES_CONTAINER" psql -U postgres -c '\l'
+        log "📋 Logs de PostgreSQL (init scripts):"
+        docker logs "$POSTGRES_CONTAINER" 2>&1 | tail -100
         exit 1
     fi
     
