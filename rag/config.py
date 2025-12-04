@@ -71,14 +71,14 @@ class Config:
     EMBEDDING_SERVICE_PORT = os.getenv("EMBEDDING_SERVICE_PORT", "8080")
     EMBEDDING_MODEL = "nomic-embed-text-v1.5"  # Modelo encoder-only especializado
     EMBEDDING_DIMENSION = 768  # ⚠️ CRÍTICO: Nomic usa 768 (NO 2048, NO 4096)
-    EMBEDDING_MAX_TOKENS = 8192  # Tokens máximos por embedding
+    EMBEDDING_MAX_TOKENS = 2048  # Tokens máximos por chunk (servidor soporta -c 8192)
     ENABLE_EMBEDDINGS = os.getenv("ENABLE_EMBEDDINGS", "true").lower() == "true"
     
     # Document Processing
     MAX_FILE_SIZE_MB = 100  # Aumentado a 100MB para documentos grandes
     ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt', '.csv', '.xlsx', '.md'}
-    CHUNK_SIZE = 512  # Optimizado para Nomic (768 dimensiones)
-    CHUNK_OVERLAP = 64  # Mayor overlap para mejor contexto
+    CHUNK_SIZE = 1500  # ~375 tokens (bien por debajo de 2048 max) - Balance contexto/cantidad
+    CHUNK_OVERLAP = 150  # 10% overlap para continuidad semántica
     
     # RAG Settings
     TOP_K_RESULTS = 5  # Documentos relevantes a recuperar

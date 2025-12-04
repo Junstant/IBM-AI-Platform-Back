@@ -978,6 +978,30 @@ main() {
             prepare_project
             ;;
         "deploy")
+            # Cargar configuración para obtener rutas
+            if [ -f ".env" ]; then
+                load_env_config
+            fi
+            
+            # Actualizar backend
+            log "📥 Actualizando código del backend desde repositorio..."
+            if [ -d "$BACK_DIR/.git" ]; then
+                cd "$BACK_DIR"
+                git pull origin main || warn "No se pudo hacer git pull en backend (continuando con código local)"
+            else
+                warn "Backend no es un repositorio git, usando código local"
+            fi
+            
+            # Actualizar frontend
+            log "📥 Actualizando código del frontend desde repositorio..."
+            if [ -d "$FRONT_DIR/.git" ]; then
+                cd "$FRONT_DIR"
+                git pull origin main || warn "No se pudo hacer git pull en frontend (continuando con código local)"
+            else
+                warn "Frontend no es un repositorio git, usando código local"
+            fi
+            
+            # Desplegar servicios
             deploy_services
             ;;
         "verify")
