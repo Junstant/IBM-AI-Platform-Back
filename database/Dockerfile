@@ -45,9 +45,12 @@ RUN mkdir -p /docker-entrypoint-initdb.d
 # Copiar scripts de inicialización
 COPY init-scripts/ /docker-entrypoint-initdb.d/
 
-# Asegurar permisos de ejecución para todos los scripts
+# Asegurar permisos de ejecución y orden de ejecución
+# PostgreSQL ejecuta scripts en orden alfabético
 RUN chmod +x /docker-entrypoint-initdb.d/*.sh && \
-    chmod +x /docker-entrypoint-initdb.d/*.sql
+    chmod +x /docker-entrypoint-initdb.d/*.sql && \
+    # Verificar que el script maestro esté presente
+    ls -la /docker-entrypoint-initdb.d/00-master-init.sh || echo "⚠️ Script maestro no encontrado"
 
 # Copiar configuración personalizada de PostgreSQL
 COPY postgresql.conf /etc/postgresql/postgresql.conf
