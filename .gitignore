@@ -1,19 +1,35 @@
 # Environment variables
 *.env
 .env
+.env.local
+.env.*.local
 
 # Python cache and compiled files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.dylib
 .Python
+*.egg
+*.egg-info/
+dist/
+build/
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual environments
 venv/
 env/
 ENV/
 .venv
+pipenv/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
 
 # IDE
 .vscode/
@@ -21,13 +37,31 @@ ENV/
 *.swp
 *.swo
 *~
+*.sublime-*
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Docker
 *.log
+docker-compose.override.yml
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+*~
+
+# Models (large files)
+models/*.gguf
+models/*.bin
+*.safetensors
+
+# Database dumps
+*.sql.gz
+*.dump
 
 # Legacy code
 legacy/
