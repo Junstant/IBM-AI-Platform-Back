@@ -25,4 +25,4 @@ pydantic>=2.0.0
 python-json-logger>=2.0.7
 
 # Procesamiento adicional
-scipy>=1.11.0
+scipy>=1.11.0httpx>=0.25.0

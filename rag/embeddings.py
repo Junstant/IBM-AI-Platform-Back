@@ -47,31 +47,44 @@ class EmbeddingsGenerator:
             
             logger.info(f"🔄 Generando embeddings para {len(texts)} chunks usando {self.model}...")
             
-            # Procesar en lotes de 2 para evitar overflow
-            batch_size = 2
+            # CRÍTICO: Procesar de a 1 texto para evitar "input is too large"
+            # El servidor tiene límite físico de batch processing en PPC64le
             all_embeddings = []
             
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i:i + batch_size]
+            for i, text in enumerate(texts):
+                # Truncar texto si excede max_tokens (aprox 4 chars por token)
+                max_chars = self.max_tokens * 4
+                if len(text) > max_chars:
+                    logger.warning(f"⚠️ Chunk {i+1} truncado: {len(text)} -> {max_chars} chars")
+                    text = text[:max_chars]
                 
                 payload = {
-                    "input": batch,
+                    "input": [text],  # Siempre array de 1 elemento
                     "model": self.model
                 }
                 
-                response = requests.post(
-                    f"{self.endpoint}/v1/embeddings",
-                    json=payload,
-                    headers=headers,
-                    timeout=120
-                )
-                response.raise_for_status()
-                
-                data = response.json()
-                batch_embeddings = [item['embedding'] for item in data['data']]
-                all_embeddings.extend(batch_embeddings)
-                
-                logger.info(f"   Procesado lote {i//batch_size + 1}/{(len(texts) + batch_size - 1)//batch_size}")
+                try:
+                    response = requests.post(
+                        f"{self.endpoint}/v1/embeddings",
+                        json=payload,
+                        headers=headers,
+                        timeout=120
+                    )
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    embedding = data['data'][0]['embedding']
+                    all_embeddings.append(embedding)
+                    
+                    if (i + 1) % 5 == 0 or (i + 1) == len(texts):
+                        logger.info(f"   Procesado {i+1}/{len(texts)} chunks")
+                        
+                except requests.exceptions.RequestException as chunk_error:
+                    logger.error(f"❌ Error en chunk {i+1}/{len(texts)}: {chunk_error}")
+                    if hasattr(chunk_error, 'response') and chunk_error.response is not None:
+                        logger.error(f"   Respuesta: {chunk_error.response.text}")
+                    # Re-lanzar para que falle el upload completo
+                    raise
             
             # Validar dimensión esperada
             if all_embeddings and len(all_embeddings[0]) != config.EMBEDDING_DIMENSION:

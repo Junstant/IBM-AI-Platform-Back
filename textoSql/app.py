@@ -91,6 +91,33 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# ✅ Configurar CORS
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ✅ Agregar middleware de reporte de métricas a Stats API
+import sys
+import os
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from shared.stats_reporter import StatsReporterMiddleware
+
+STATS_API_URL = os.getenv("STATS_API_URL", "http://stats-api:8003")
+app.add_middleware(
+    StatsReporterMiddleware,
+    service_name="textosql",
+    stats_api_url=STATS_API_URL,
+    timeout=2.0,
+    excluded_paths={'/health', '/docs', '/redoc', '/openapi.json', '/databases', '/models', '/schema'}
+)
+print(f"✅ Stats reporter middleware configurado: textosql → {STATS_API_URL}")
+
 # --- Gestión del Ciclo de Vida de la Aplicación ---
 
 @app.on_event("startup")

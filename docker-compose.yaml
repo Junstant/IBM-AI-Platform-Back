@@ -356,6 +356,7 @@ services:
       - DB_NAME=${DB1_NAME:-banco_global}
       - LLM_HOST=gemma-2b
       - LLM_PORT=8080
+      - STATS_API_URL=http://stats-api:8003
     volumes:
       - ./textoSql:/app
     networks:
@@ -389,6 +390,7 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-root}
       - DB_NAME=${DB2_NAME:-bank_transactions}
+      - STATS_API_URL=http://stats-api:8003
     volumes:
       - ./fraude:/app
     networks:
@@ -556,6 +558,7 @@ services:
       - EMBEDDING_MODEL=nomic-embed-text-v1.5
       - EMBEDDING_DIMENSION=768
       - ENABLE_EMBEDDINGS=true
+      - STATS_API_URL=http://stats-api:8003
     volumes:
       - ./rag:/app
       - rag_documents:/app/documents

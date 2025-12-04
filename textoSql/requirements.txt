@@ -11,4 +11,4 @@ psycopg2-binary>=2.9.10
 httpx>=0.25.0
 
 # Para gestionar variables de entorno (.env)
-python-dotenv>=1.0.0
+python-dotenv>=1.0.0httpx>=0.25.0

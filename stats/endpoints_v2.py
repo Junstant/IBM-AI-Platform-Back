@@ -778,3 +778,111 @@ async def get_detailed_metrics(db = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error in get_detailed_metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# EXTERNAL METRICS INGESTION (v2.1)
+# ============================================================================
+
+class ExternalMetricRequest(BaseModel):
+    """Modelo para recibir métricas de servicios externos"""
+    service_name: str = Field(..., description="Nombre del servicio (fraude, textosql, rag)")
+    endpoint: str = Field(..., description="Endpoint llamado")
+    method: str = Field(..., description="Método HTTP (GET, POST, etc.)")
+    status_code: int = Field(..., description="Código de status HTTP")
+    response_time: float = Field(..., description="Tiempo de respuesta en segundos")
+    request_size_bytes: int = Field(0, description="Tamaño del request en bytes")
+    response_size_bytes: int = Field(0, description="Tamaño del response en bytes")
+    client_ip: Optional[str] = Field(None, description="IP del cliente")
+    user_agent: Optional[str] = Field(None, description="User agent del cliente")
+    request_id: str = Field(..., description="ID único del request")
+    is_ai_query: bool = Field(False, description="Si es una query AI que debe contar")
+    functionality: Optional[str] = Field(None, description="Funcionalidad detectada")
+    model_used: Optional[str] = Field(None, description="Modelo utilizado")
+    error_message: Optional[str] = Field(None, description="Mensaje de error si aplica")
+    error_type: Optional[str] = Field(None, description="Tipo de error")
+    # Campos opcionales específicos por servicio
+    query_complexity_score: Optional[int] = Field(None, description="Score de complejidad (textosql)")
+    fraud_risk_score: Optional[float] = Field(None, description="Score de riesgo (fraude)")
+    sql_execution_time: Optional[float] = Field(None, description="Tiempo SQL (textosql)")
+    database_name: Optional[str] = Field(None, description="Nombre de BD (textosql)")
+
+class ExternalMetricResponse(BaseModel):
+    """Respuesta de ingesta de métrica"""
+    success: bool = Field(..., description="Si la métrica fue guardada exitosamente")
+    message: str = Field(..., description="Mensaje de resultado")
+    request_id: str = Field(..., description="ID del request procesado")
+
+@router.post("/metrics/log", response_model=ExternalMetricResponse)
+async def log_external_metric(
+    metric: ExternalMetricRequest,
+    db = Depends(get_db)
+):
+    """
+    📊 Endpoint para recibir métricas de servicios externos
+    
+    Servicios como fraude, textosql y rag envían sus métricas aquí
+    para ser almacenadas centralizadamente en la base de datos de stats.
+    
+    NO requiere autenticación (confianza dentro de la red Docker interna).
+    """
+    try:
+        # Extraer endpoint_base (sin parámetros)
+        endpoint_base = metric.endpoint.split('?')[0]
+        parts = endpoint_base.split('/')
+        endpoint_base = '/'.join([p for p in parts if p and not re.match(r'^[0-9]+$', p)])
+        
+        # Construir log_data para insertar en DB
+        log_data = {
+            'endpoint': metric.endpoint,
+            'endpoint_base': endpoint_base,
+            'method': metric.method,
+            'functionality': metric.functionality or _detect_functionality_helper(metric.endpoint),
+            'model_used': metric.model_used,
+            'request_size_bytes': metric.request_size_bytes,
+            'response_size_bytes': metric.response_size_bytes,
+            'response_time': metric.response_time,
+            'status_code': metric.status_code,
+            'error_message': metric.error_message,
+            'error_type': metric.error_type,
+            'user_agent': metric.user_agent,
+            'client_ip': metric.client_ip,
+            'request_id': metric.request_id,
+            'is_ai_query': metric.is_ai_query,
+            'query_complexity_score': metric.query_complexity_score,
+            'fraud_risk_score': metric.fraud_risk_score,
+            'sql_execution_time': metric.sql_execution_time,
+            'database_name': metric.database_name
+        }
+        
+        # Guardar en base de datos
+        await db.insert_api_log(log_data)
+        
+        logger.info(f"✅ Métrica externa guardada: {metric.service_name} - {metric.endpoint} - {metric.request_id}")
+        
+        return ExternalMetricResponse(
+            success=True,
+            message="Metric logged successfully",
+            request_id=metric.request_id
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error guardando métrica externa: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to log metric: {str(e)}"
+        )
+
+def _detect_functionality_helper(endpoint: str) -> str:
+    """Helper para detectar funcionalidad basada en endpoint"""
+    endpoint = endpoint.lower()
+    if "/fraud" in endpoint or "/fraude" in endpoint:
+        return "fraud_detection"
+    elif "/textosql" in endpoint or "/sql" in endpoint:
+        return "text_to_sql"
+    elif "/rag" in endpoint or "/documents" in endpoint:
+        return "rag_documents"
+    elif "/chat" in endpoint or "/bot" in endpoint or "/proxy" in endpoint:
+        return "chatbot"
+    else:
+        return "general"

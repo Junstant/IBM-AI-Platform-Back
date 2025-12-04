@@ -81,6 +81,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ Agregar middleware de reporte de métricas a Stats API
+import sys
+import os
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from shared.stats_reporter import StatsReporterMiddleware
+
+STATS_API_URL = os.getenv("STATS_API_URL", "http://stats-api:8003")
+app.add_middleware(
+    StatsReporterMiddleware,
+    service_name="rag",
+    stats_api_url=STATS_API_URL,
+    timeout=2.0,
+    excluded_paths={'/health', '/docs', '/redoc', '/openapi.json', '/', '/models', '/documents', '/stats'}
+)
+logger.info(f"✅ Stats reporter middleware configurado: rag → {STATS_API_URL}")
+
 # =====================================================
 # VARIABLES GLOBALES
 # =====================================================
