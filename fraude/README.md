@@ -1,51 +1,30 @@
-### **🛡️ Aplicación de Detección de Fraude con Machine Learning**
+# Fraude API
 
-Este sistema es un microservicio inteligente diseñado para **detectar transacciones financieras fraudulentas en tiempo real**. Utiliza un modelo de Machine Learning (**Random Forest**) para analizar patrones y identificar actividades sospechosas, y está preparado para integrarse directamente con un frontend de React.
+Detección de fraude en transacciones financieras con Machine Learning.
 
------
+## Características
 
-### ✨ **Características Destacadas**
+- Modelo Random Forest con 20+ features
+- Precisión >90% en detección de fraude
+- Análisis individual y masivo
+- Auto-entrenamiento con datos históricos
 
-  * 🤖 **Modelo de Machine Learning Avanzado**: Emplea un algoritmo **Random Forest** que se alimenta de más de 20 características de ingeniería de datos (*feature engineering*) para una detección precisa.
-  * 🔍 **Detección Dual**: Permite analizar transacciones de dos maneras: **una por una** a través de un formulario o **en grandes volúmenes** directamente desde la base de datos.
-  * 📊 **Ingeniería de Características Automática**: El sistema crea de forma autónoma nuevas variables (features) a partir de los datos brutos, analizando patrones de **tiempo**, **ubicación** y **comportamiento** del usuario.
-  * 🎯 **Alta Precisión e Interpretabilidad**: Alcanza una precisión superior al 90% y es capaz de explicar por qué una transacción es marcada como sospechosa.
-  * 🔄 **Ciclo de Auto-entrenamiento**: El modelo se entrena y actualiza automáticamente utilizando los datos históricos disponibles en la base de datos al iniciar.
-  * 🐳 **Listo para Contenedores (Docker Ready)**: Incluye toda la configuración necesaria para un despliegue rápido y consistente utilizando Docker.
+## Endpoints
 
------
+**Puerto**: `http://localhost:8001/docs`
 
-### 🚀 **Instalación y Puesta en Marcha**
+- `POST /predict` - Analizar transacción individual
+- `POST /batch-predict` - Analizar múltiples transacciones
+- `GET /model-info` - Información del modelo
 
-#### **Opción 1: Usando Docker (Recomendado)**
-
-Es el método más directo y evita problemas de configuración. Desde la raíz del proyecto, solo necesitas ejecutar:
+## Uso
 
 ```bash
-docker-compose up fraude
+# Ejemplo de predicción
+curl -X POST http://localhost:8001/predict \
+  -H "Content-Type: application/json" \
+  -d '{"monto": 5000, "ubicacion": "extranjero", "hora": 3}'
 ```
-
-#### **Opción 2: Instalación en Entorno Local**
-
-1.  **Instalar Dependencias**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-2.  **Configurar Variables de Entorno**:
-    Crear un archivo `.env` en la raíz del proyecto para especificar los datos de conexión a la base de datos PostgreSQL (`bank_transactions`).
-    ```env
-    DB_HOST=localhost
-    DB_USER=postgres
-    DB_PASSWORD=root
-    DB2_NAME=bank_transactions
-    FRAUDE_API_PORT=8001
-    ```
-3.  **Ejecutar la Aplicación**:
-    ```bash
-    python app.py
-    ```
-
-La API estará disponible en `http://localhost:8001`.
 
 -----
 

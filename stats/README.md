@@ -1,53 +1,25 @@
-# 📊 AI Platform Stats API
+# Stats API
 
-Sistema completo de métricas y estadísticas para la plataforma IBM AI Backend.
+Sistema de métricas y monitoreo para la plataforma AI.
 
-## 🎯 Características Principales
+## Características
 
-### 🔍 Middleware Automático de Métricas
-- ✅ **Intercepta TODAS las requests automáticamente**
-- ✅ **Logging automático** en `api_performance_logs`  
-- ✅ **Tiempo de respuesta real** por endpoint
-- ✅ **Status codes y errores** detallados
-- ✅ **Tamaño de request/response**
-- ✅ **IP del cliente y User-Agent**
-- ✅ **Request ID único** para tracking
+- Logging automático de todas las requests
+- Health checks de modelos LLM cada 5 minutos
+- Métricas de performance por funcionalidad
+- Sistema de alertas automático
+- Dashboard con estadísticas en tiempo real
 
-### 🏥 Health Checks de Modelos IA
-- ✅ **Verificación automática** cada 5 minutos
-- ✅ **Estado de modelos** en `ai_models_metrics`
-- ✅ **Ping a puertos** de Ollama/llama.cpp
-- ✅ **Tiempo de respuesta** de modelos
-- ✅ **Detección de modelos** caídos/cargando
-- ✅ **Memoria/CPU usage** por modelo
-- ✅ **Conteo de tokens** procesados
+## Endpoints
 
-### 📊 Métricas de Performance por Funcionalidad
-- ✅ **TextToSQL**: complejidad de query, tiempo SQL execution
-- ✅ **Fraud Detection**: risk score, precisión
-- ✅ **Chatbot**: tokens usados, duración conversación
-- ✅ **Actualización en tiempo real** de `functionality_metrics`
+**Puerto**: `http://localhost:8003/docs`
 
-### 🚨 Sistema de Alertas Automático
-- ✅ **Modelos que no responden** > 30 segundos
-- ✅ **APIs con error rate** > 10%
-- ✅ **Memoria/CPU** > 90%
-- ✅ **Inserción automática** en `system_alerts`
-- ✅ **Detección proactiva** de problemas
-
-### 🎯 Métricas de Precisión/Calidad
-- ✅ **TextToSQL**: validar sintaxis SQL generada
-- ✅ **Fraud**: comparar con resultados esperados
-- ✅ **Actualización de** `accuracy_metrics` por modelo
-
-### 🌐 APIs para Dashboard
-```
-GET /api/stats/dashboard-summary      # Resumen principal
-GET /api/stats/models-status          # Estado de modelos
-GET /api/stats/functionality-performance  # Performance por funcionalidad
-GET /api/stats/recent-errors          # Errores recientes
-GET /api/stats/hourly-trends          # Tendencias por hora
-GET /api/stats/system-resources       # Recursos del sistema
+- `GET /api/stats/dashboard-summary` - Resumen principal
+- `GET /api/stats/models-status` - Estado de modelos LLM
+- `GET /api/stats/functionality-performance` - Performance por API
+- `GET /api/stats/recent-errors` - Errores recientes
+- `GET /api/stats/hourly-trends` - Tendencias por hora
+- `GET /api/stats/system-resources` - Recursos del sistema
 GET /api/stats/alerts                 # Alertas activas
 ```
 

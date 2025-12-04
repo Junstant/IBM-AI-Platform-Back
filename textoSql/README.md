@@ -1,52 +1,30 @@
-### **🤖 TextoSQL: Conversor de Lenguaje Natural a SQL**
+# TextoSQL API
 
-TextoSQL es un microservicio inteligente que actúa como un **traductor avanzado entre el lenguaje humano y el lenguaje de bases de datos SQL**. Su propósito es permitir que los usuarios realicen consultas complejas a bases de datos simplemente haciendo preguntas en su idioma, eliminando la necesidad de escribir código SQL. Forma parte de la plataforma IBM AI Backend.
+Conversor de lenguaje natural a SQL con múltiples modelos LLM.
 
------
+## Características
 
-### ✨ **Características Destacadas**
+- 6 modelos LLM: Gemma (2B, 4B, 12B), Mistral 7B, DeepSeek 8B
+- Soporte multi-base de datos PostgreSQL
+- Análisis semántico de consultas
+- Ejecución automática de SQL generado
 
-  * 🧠 **Inteligencia Multi-Modelo**: Soporta **6 modelos de lenguaje (LLM) diferentes** (incluyendo Mistral, Gemma y DeepSeek), permitiendo al usuario elegir el más adecuado para cada tarea, equilibrando velocidad y precisión.
-  * 🗄️ **Conectividad Multi-Base de Datos**: Puede conectarse y operar con múltiples bases de datos **PostgreSQL** de forma simultánea, permitiendo consultas a diferentes fuentes de datos desde una única interfaz.
-  * 🔧 **Configuración Automática**: El sistema es capaz de detectar si está corriendo en un **entorno Docker o de forma local**, ajustando automáticamente las configuraciones de red y conexión para funcionar sin intervención manual.
-  * ⚡ **Flujo de Ejecución Completo**: Realiza todo el proceso: recibe una pregunta en lenguaje natural, la convierte a una consulta SQL, la ejecuta directamente en la base de datos y devuelve los resultados listos para usar.
-  * 🌐 **API REST Completa**: Ofrece una API bien documentada, ideal para ser consumida por aplicaciones frontend (como las construidas con React) y para integrarse con otros microservicios.
-  * 🐳 **Preparado para Contenedores (Docker Ready)**: Incluye un `Dockerfile` y la configuración necesaria para un despliegue rápido, aislado y consistente utilizando Docker.
+## Endpoints
 
------
+**Puerto**: `http://localhost:8000/docs`
 
-### 🚀 **Instalación y Puesta en Marcha**
+- `POST /query` - Convertir lenguaje natural a SQL y ejecutar
+- `GET /databases` - Listar bases de datos disponibles
+- `GET /models` - Listar modelos LLM disponibles
 
-#### **Opción 1: Usando Docker (Recomendado)**
-
-Este método es el más sencillo y previene problemas de configuración entre entornos. Desde el directorio raíz del proyecto, ejecuta el siguiente comando:
+## Uso
 
 ```bash
-docker-compose up textosql
+# Ejemplo de consulta
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "¿Cuántos clientes tenemos?", "database": "banco_global", "model": "gemma-4b"}'
 ```
-
-Docker gestionará la construcción de la imagen, la instalación de dependencias y la comunicación en red con la base de datos y otros servicios.
-
-#### **Opción 2: Instalación en Entorno Local**
-
-1.  **Instalar Dependencias**: Abre una terminal en la carpeta `textoSql` y ejecuta:
-    ```bash
-    pip install -r requirements.txt
-    ```
-2.  **Configurar Variables de Entorno**: Es necesario crear un archivo `.env` en la raíz del proyecto para definir los datos de conexión a la base de datos, los puertos y los nombres de las bases de datos a utilizar.
-    ```env
-    # Ejemplo de configuración para entorno local
-    DB_HOST=localhost
-    DB_PORT=5432
-    DB_USER=postgres
-    DB_PASSWORD=root
-    DB1_NAME=banco_global
-    TEXTOSQL_PORT=8002
-    ```
-3.  **Ejecutar la Aplicación**:
-    ```bash
-    python app.py
-    ```
 
 Una vez iniciada, la API estará disponible en `http://localhost:8002`.
 

@@ -1,52 +1,28 @@
-# 🧠 RAG API - Retrieval-Augmented Generation
+# RAG API
 
-Sistema de consulta de documentos usando embeddings vectoriales con **Milvus** y generación de respuestas con LLM.
+Sistema de consulta de documentos usando embeddings vectoriales con Milvus y LLM.
 
-## 🚀 Características
+## Características
 
-- ✅ **Procesamiento de múltiples formatos**: PDF, DOCX, TXT, CSV, XLSX, MD
-- ✅ **Embeddings multilingües**: nomic-embed-text (768-dim)
-- ✅ **Búsqueda vectorial ultra rápida**: Milvus con índice HNSW
-- ✅ **Generación de respuestas**: Integración con Gemma-2B
-- ✅ **API REST completa**: Upload, query, list, delete
-- ✅ **Chunking inteligente**: División automática con overlap
-- ✅ **Escalabilidad**: Arquitectura distribuida con etcd + MinIO
+- Procesamiento de formatos: PDF, DOCX, TXT, CSV, XLSX, MD
+- Embeddings: nomic-embed-text (768-dim)
+- Búsqueda vectorial con Milvus (índice HNSW)
+- Generación de respuestas con Gemma-2B
 
-## 📋 Arquitectura
+## Endpoints
 
-```
-Documento → Extracción de texto → Chunking → Embeddings → Milvus (HNSW)
-                                                              ↓
-Usuario → Pregunta → Embedding → Búsqueda similitud → Contexto → LLM → Respuesta
-```
+**Puerto**: `http://localhost:8004/docs`
 
-### Stack de Milvus
-- **etcd**: Almacenamiento de metadata y coordinación
-- **MinIO**: Object storage para datos vectoriales
-- **Milvus**: Motor de búsqueda vectorial (índice HNSW)
+- `POST /documents/upload` - Subir documento
+- `POST /documents/query` - Consultar documentos
+- `GET /documents/list` - Listar documentos
+- `DELETE /documents/{doc_id}` - Eliminar documento
 
-## 🔧 Configuración
+## Stack
 
-### Variables de entorno (.env)
-```bash
-RAG_API_PORT=8004
-MILVUS_HOST=milvus
-MILVUS_PORT=19530
-MINIO_PORT=9000
-MINIO_CONSOLE_PORT=9001
-```
-
-### Recursos asignados
-- **CPU**: 6 cores
-- **RAM**: 6GB
-- **Storage**: Volumen persistente `rag_documents`
-
-## 📚 Endpoints
-
-### 1. Upload de documento
-```bash
-POST /documents/upload
-Content-Type: multipart/form-data
+- **Milvus**: Motor de búsqueda vectorial
+- **MinIO**: Object storage
+- **etcd**: Metadata storage
 
 - file: archivo (.pdf, .docx, .txt, .csv, .xlsx, .md)
 - metadata: (opcional) JSON con metadatos adicionales
