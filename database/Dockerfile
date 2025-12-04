@@ -45,6 +45,9 @@ RUN mkdir -p /docker-entrypoint-initdb.d
 # Copiar scripts de inicialización
 COPY init-scripts/ /docker-entrypoint-initdb.d/
 
+# Asegurar permisos de ejecución para script maestro
+RUN chmod +x /docker-entrypoint-initdb.d/00-master-init.sh
+
 # Copiar configuración personalizada de PostgreSQL
 COPY postgresql.conf /etc/postgresql/postgresql.conf
 COPY pg_hba.conf /etc/postgresql/pg_hba.conf

@@ -90,6 +90,11 @@ class SystemResources(BaseModel):
     disk_percent: float = Field(..., description="Uso de disco (%)")
     network_sent_mb: Optional[float] = Field(None, description="Datos enviados (MB)")
     network_received_mb: Optional[float] = Field(None, description="Datos recibidos (MB)")
+    # Campos adicionales para compatibilidad con frontend
+    avg_cpu_usage: float = Field(..., description="Uso promedio de CPU (%) - alias de cpu_percent")
+    avg_memory_usage: float = Field(..., description="Uso promedio de memoria (%) - alias de memory_percent") 
+    disk_usage_percent: float = Field(..., description="Uso de disco (%) - alias de disk_percent")
+    network_usage_percent: float = Field(..., description="Uso estimado de red (%)")
 
 class HourlyTrend(BaseModel):
     """Tendencia horaria de métricas"""
@@ -383,6 +388,14 @@ async def get_system_resources():
         except:
             pass
         
+        # Calcular network usage percentage (simplificado)
+        network_usage_percent = 0.0
+        if network_sent_mb is not None and network_received_mb is not None:
+            # Estimación básica de uso de red como porcentaje (0-100)
+            # Basado en throughput actual vs capacidad típica (100Mbps = ~12MB/s)
+            network_throughput_mb = (network_sent_mb + network_received_mb) / 60  # MB por minuto
+            network_usage_percent = min(round((network_throughput_mb / 12) * 100, 2), 100.0)
+
         return SystemResources(
             timestamp=to_utc_iso(datetime.utcnow()),
             cpu_percent=round(cpu_percent, 2),
@@ -393,7 +406,12 @@ async def get_system_resources():
             disk_total_gb=round(disk_total_gb, 2),
             disk_percent=round(disk.percent, 2),
             network_sent_mb=round(network_sent_mb, 2) if network_sent_mb else None,
-            network_received_mb=round(network_received_mb, 2) if network_received_mb else None
+            network_received_mb=round(network_received_mb, 2) if network_received_mb else None,
+            # Campos adicionales para compatibilidad con frontend
+            avg_cpu_usage=round(cpu_percent, 2),
+            avg_memory_usage=round(memory.percent, 2), 
+            disk_usage_percent=round(disk.percent, 2),
+            network_usage_percent=network_usage_percent
         )
         
     except Exception as e:
