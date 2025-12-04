@@ -51,22 +51,30 @@ async def get_db():
 # ============================================================================
 
 class DashboardSummaryCard(BaseModel):
-    """Tarjeta resumen del dashboard (4 cards)"""
+    """Tarjeta resumen del dashboard - Especificación Frontend v2.0"""
     active_models: int = Field(..., description="Número de modelos LLM activos")
+    error_models: int = Field(..., description="Número de modelos LLM con error")
     active_apis: int = Field(..., description="Número de APIs activas")
-    total_queries_24h: int = Field(..., description="Queries totales últimas 24h")
-    avg_accuracy: float = Field(..., description="Precisión promedio (0-100)")
+    error_apis: int = Field(..., description="Número de APIs con error")
+    daily_queries: int = Field(..., description="Queries totales últimas 24h")
+    daily_successful_queries: int = Field(..., description="Queries exitosas últimas 24h")
+    daily_failed_queries: int = Field(..., description="Queries fallidas últimas 24h")
+    avg_response_time: float = Field(..., description="Tiempo promedio de respuesta en segundos")
+    global_accuracy: float = Field(..., description="Precisión global (0-100)")
+    timestamp: str = Field(..., description="Timestamp ISO 8601 UTC")
 
 class ServiceStatus(BaseModel):
-    """Estado de un servicio (modelo LLM o API endpoint)"""
+    """Estado de un servicio (modelo LLM o API endpoint) - Especificación Frontend v2.0"""
     service_name: str = Field(..., description="Nombre interno del servicio")
     display_name: str = Field(..., description="Nombre para mostrar en UI")
-    service_type: str = Field(..., description="llm_model | api_endpoint")
+    service_type: str = Field(..., description="llm | fraud | textosql | rag")
     status: str = Field(..., description="online | offline | error | degraded")
     uptime_seconds: Optional[int] = Field(None, description="Tiempo en línea en segundos")
+    total_requests: int = Field(..., description="Total de requests")
+    successful_requests: int = Field(..., description="Requests exitosos")
+    failed_requests: int = Field(..., description="Requests fallidos")
+    avg_latency_ms: Optional[float] = Field(None, description="Latencia promedio en ms")
     last_check: str = Field(..., description="Última verificación (UTC ISO 8601)")
-    latency_ms: Optional[float] = Field(None, description="Latencia promedio en ms")
-    success_rate: Optional[float] = Field(None, description="Tasa de éxito (0-100)")
     metadata: Optional[dict] = Field(None, description="Información adicional (port, version, etc.)")
 
 class SystemResources(BaseModel):
@@ -199,56 +207,71 @@ async def get_dashboard_summary(db = Depends(get_db)):
     - Precisión promedio
     """
     try:
-        # 1. Contar modelos LLM activos
+        # 1. Contar modelos LLM activos y con error
         models_query = """
-        SELECT COUNT(*) as count
+        SELECT 
+            COUNT(*) FILTER (WHERE status = 'active' OR status = 'online') as active_count,
+            COUNT(*) FILTER (WHERE status = 'error' OR status = 'offline') as error_count
         FROM ai_models_metrics
-        WHERE model_type = 'llm' AND status = 'online'
+        WHERE model_type = 'llm'
         """
         models_result = await db.fetch_one(models_query)
-        active_models = models_result['count'] if models_result else 0
+        active_models = models_result['active_count'] if models_result else 0
+        error_models = models_result['error_count'] if models_result else 0
         
-        # 2. Contar APIs activas (endpoints con requests recientes)
+        # 2. Contar APIs activas y con error (basado en health checks recientes)
         apis_query = """
-        SELECT COUNT(DISTINCT functionality) as count
+        SELECT 
+            COUNT(DISTINCT functionality) FILTER (
+                WHERE timestamp >= NOW() - INTERVAL '5 minutes'
+            ) as active_count,
+            COUNT(DISTINCT functionality) FILTER (
+                WHERE timestamp >= NOW() - INTERVAL '5 minutes'
+                  AND status_code >= 500
+            ) as error_count
         FROM api_performance_logs
-        WHERE timestamp >= NOW() - INTERVAL '5 minutes'
-          AND functionality IN ('fraud_detection', 'text_to_sql', 'rag_documents', 'chatbot')
+        WHERE functionality IN ('fraud_detection', 'text_to_sql', 'rag_documents')
         """
         apis_result = await db.fetch_one(apis_query)
-        active_apis = apis_result['count'] if apis_result else 0
+        active_apis = apis_result['active_count'] if apis_result else 0
+        error_apis = apis_result['error_count'] if apis_result else 0
         
-        # 3. Total queries 24h
+        # 3. Queries últimas 24h (total, exitosas, fallidas)
         queries_query = """
-        SELECT COUNT(*) as count
+        SELECT 
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE status_code < 400) as successful,
+            COUNT(*) FILTER (WHERE status_code >= 400) as failed,
+            AVG(response_time) as avg_response_time_ms
         FROM api_performance_logs
         WHERE timestamp >= NOW() - INTERVAL '24 hours'
         """
         queries_result = await db.fetch_one(queries_query)
-        total_queries = queries_result['count'] if queries_result else 0
         
-        # 4. Precisión promedio (success rate)
-        accuracy_query = """
-        SELECT 
-            COUNT(*) as total,
-            COUNT(*) FILTER (WHERE status_code < 400) as successful
-        FROM api_performance_logs
-        WHERE timestamp >= NOW() - INTERVAL '24 hours'
-        """
-        accuracy_result = await db.fetch_one(accuracy_query)
+        daily_queries = queries_result['total'] if queries_result else 0
+        daily_successful = queries_result['successful'] if queries_result else 0
+        daily_failed = queries_result['failed'] if queries_result else 0
+        avg_response_ms = queries_result['avg_response_time_ms'] if queries_result else 0
         
-        avg_accuracy = 0.0
-        if accuracy_result and accuracy_result['total'] > 0:
-            avg_accuracy = calculate_success_rate(
-                accuracy_result['successful'],
-                accuracy_result['total']
-            )
+        # Convertir a segundos
+        avg_response_time = round(avg_response_ms / 1000.0, 3) if avg_response_ms else 0.0
+        
+        # 4. Precisión global (success rate)
+        global_accuracy = 0.0
+        if daily_queries > 0:
+            global_accuracy = calculate_success_rate(daily_successful, daily_queries)
         
         return DashboardSummaryCard(
             active_models=active_models,
+            error_models=error_models,
             active_apis=active_apis,
-            total_queries_24h=total_queries,
-            avg_accuracy=avg_accuracy
+            error_apis=error_apis,
+            daily_queries=daily_queries,
+            daily_successful_queries=daily_successful,
+            daily_failed_queries=daily_failed,
+            avg_response_time=avg_response_time,
+            global_accuracy=global_accuracy,
+            timestamp=to_utc_iso(datetime.utcnow())
         )
         
     except Exception as e:
@@ -307,9 +330,11 @@ async def get_services_status(db = Depends(get_db)):
                 service_type=row['service_type'],
                 status=row['status'] or 'unknown',
                 uptime_seconds=row['uptime_seconds'],
+                total_requests=row['total_requests'] or 0,
+                successful_requests=row['successful_requests'] or 0,
+                failed_requests=row['failed_requests'] or 0,
+                avg_latency_ms=row['avg_latency_ms'],
                 last_check=to_utc_iso(row['last_health_check']),
-                latency_ms=row['avg_latency_ms'],
-                success_rate=success_rate,
                 metadata=metadata
             ))
         

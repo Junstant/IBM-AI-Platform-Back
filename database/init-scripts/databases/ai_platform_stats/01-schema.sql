@@ -361,6 +361,7 @@ $$ LANGUAGE plpgsql;
 -- ================================================================
 
 -- Vista unificada de servicios (LLM models + API endpoints)
+-- ESPECIFICACIÓN FRONTEND V2.0: service_type debe ser "llm" | "fraud" | "textosql" | "rag"
 CREATE OR REPLACE VIEW services_unified AS
 SELECT 
     model_name as service_name,
@@ -376,7 +377,13 @@ SELECT
         WHEN model_name = 'stats-api' THEN 'Stats API'
         ELSE INITCAP(REPLACE(model_name, '-', ' '))
     END as display_name,
-    model_type as service_type,
+    CASE 
+        WHEN model_name LIKE 'fraud%' OR model_name = 'fraud-api' THEN 'fraud'
+        WHEN model_name LIKE 'textosql%' OR model_name = 'textosql-api' THEN 'textosql'
+        WHEN model_name LIKE 'rag%' OR model_name = 'rag-api' THEN 'rag'
+        WHEN model_type = 'llm' THEN 'llm'
+        ELSE 'llm'
+    END as service_type,
     status,
     last_health_check,
     uptime_seconds,
