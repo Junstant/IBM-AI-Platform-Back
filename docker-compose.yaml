@@ -331,7 +331,7 @@ services:
       resources:
         limits:
           cpus: '12.0'
-          memory: 20G0'
+          memory: 20G
   #^ ======================== DEEPSEEK 8B ========================
   deepseek-8b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
