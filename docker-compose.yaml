@@ -191,7 +191,7 @@ services:
       "--cont-batching",
       "-fa",
       "--mlock",
-      "--numa"
+      "--numa", "distribute"
     ]
     depends_on:
       model-downloader:
@@ -233,7 +233,7 @@ services:
       "--cont-batching",
       "-fa",
       "--mlock",
-      "--numa"
+      "--numa", "distribute"
     ]
     depends_on:
       model-downloader:
@@ -275,7 +275,7 @@ services:
       "--cont-batching",
       "-fa",
       "--mlock",
-      "--numa"
+      "--numa", "distribute"
     ]
     depends_on:
       model-downloader:
@@ -316,7 +316,7 @@ services:
       "--cont-batching",
       "-fa",
       "--mlock",
-      "--numa"
+      "--numa", "distribute"
     ]
     depends_on:
       model-downloader:
@@ -357,7 +357,7 @@ services:
       "--cont-batching",
       "-fa",
       "--mlock",
-      "--numa"
+      "--numa", "distribute"
     ]
     depends_on:
       model-downloader:
@@ -396,7 +396,7 @@ services:
       "-t", "12",
       "--parallel", "16",
       "--mlock",
-      "--numa"
+      "--numa", "distribute"
     ]
     depends_on:
       model-downloader:
