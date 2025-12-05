@@ -190,7 +190,6 @@ services:
       "--parallel", "4",
       "--cont-batching",
       "-fa",
-      "--mlock",
       "--numa", "distribute"
     ]
     depends_on:
@@ -232,7 +231,6 @@ services:
       "--parallel", "4",
       "--cont-batching",
       "-fa",
-      "--mlock",
       "--numa", "distribute"
     ]
     depends_on:
@@ -274,7 +272,6 @@ services:
       "--parallel", "4",
       "--cont-batching",
       "-fa",
-      "--mlock",
       "--numa", "distribute"
     ]
     depends_on:
@@ -360,7 +357,6 @@ services:
       "--parallel", "4",
       "--cont-batching",
       "-fa",
-      "--mlock",
       "--numa", "distribute"
     ]
     depends_on:
@@ -399,7 +395,6 @@ services:
       "-b", "4096",
       "-t", "4",
       "--parallel", "8",
-      "--mlock",
       "--numa", "distribute"
     ]
     depends_on:
