@@ -25,12 +25,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 90s
-    shm_size: 4g
+    shm_size: 2g
     deploy:
       resources:
         limits:
-          cpus: '8.0'
-          memory: 16G
+          cpus: '4.0'
+          memory: 6G
 
 #? ======================== FRONTEND (NGINX) ========================
   frontend:
@@ -166,7 +166,7 @@ services:
     networks:
       - ai_platform_network
 
-  #^ ======================== GEMMA 2B (PRIORIDAD ALTA) ========================
+  #^ ======================== GEMMA 2B (RESPALDO LIGERO) ========================
   gemma-2b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
     container_name: gemma-2b
@@ -182,12 +182,12 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/gemma-2-2b-it-Q4_K_S.gguf",
-      "-c", "8192",
-      "-b", "2048",
-      "-t", "12",
+      "-c", "4096",
+      "-b", "1024",
+      "-t", "6",
       "-n", "-1",
-      "--ctx-size", "8192",
-      "--parallel", "8",
+      "--ctx-size", "4096",
+      "--parallel", "4",
       "--cont-batching",
       "-fa",
       "--mlock",
@@ -205,10 +205,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '12.0'
-          memory: 8G
+          cpus: '6.0'
+          memory: 4G
 
-  # #^ ======================== GEMMA 4B ========================
+  #^ ======================== GEMMA 4B ========================
   gemma-4b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
     container_name: gemma-4b
@@ -224,12 +224,12 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/google_gemma-3-4b-it-Q4_K_S.gguf",
-      "-c", "16384",
-      "-b", "2048",
-      "-t", "12",
+      "-c", "8192",
+      "-b", "1024",
+      "-t", "6",
       "-n", "-1",
-      "--ctx-size", "16384",
-      "--parallel", "8",
+      "--ctx-size", "8192",
+      "--parallel", "4",
       "--cont-batching",
       "-fa",
       "--mlock",
@@ -247,8 +247,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '12.0'
-          memory: 16G
+          cpus: '6.0'
+          memory: 5G
 
   #^ ======================== GEMMA 12B ========================
   gemma-12b:
@@ -266,12 +266,12 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/google_gemma-3-12b-it-Q4_K_S.gguf",
-      "-c", "16384",
-      "-b", "2048",
-      "-t", "12",
+      "-c", "8192",
+      "-b", "1024",
+      "-t", "6",
       "-n", "-1",
-      "--ctx-size", "16384",
-      "--parallel", "6",
+      "--ctx-size", "8192",
+      "--parallel", "4",
       "--cont-batching",
       "-fa",
       "--mlock",
@@ -289,9 +289,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '12.0'
-          memory: 24G
-  #^ ======================== MISTRAL 7b ========================
+          cpus: '6.0'
+          memory: 7G
+  
+  #^ ======================== MISTRAL 7B (⭐ PRIORIDAD MÁXIMA) ========================
   mistral-7b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
     container_name: mistral-7b
@@ -312,7 +313,7 @@ services:
       "-t", "12",
       "-n", "-1",
       "--ctx-size", "32768",
-      "--parallel", "8",
+      "--parallel", "12",
       "--cont-batching",
       "-fa",
       "--mlock",
@@ -331,7 +332,10 @@ services:
       resources:
         limits:
           cpus: '12.0'
-          memory: 20G
+          memory: 12G
+        reservations:
+          cpus: '10.0'
+          memory: 10G
   #^ ======================== DEEPSEEK 8B ========================
   deepseek-8b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
@@ -348,12 +352,12 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/DeepSeek-R1-Distill-Qwen-7B-Q4_K_L.gguf",
-      "-c", "16384",
-      "-b", "2048",
-      "-t", "12",
+      "-c", "8192",
+      "-b", "1024",
+      "-t", "6",
       "-n", "-1",
-      "--ctx-size", "16384",
-      "--parallel", "8",
+      "--ctx-size", "8192",
+      "--parallel", "4",
       "--cont-batching",
       "-fa",
       "--mlock",
@@ -371,8 +375,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '12.0'
-          memory: 20G
+          cpus: '6.0'
+          memory: 6G
   #^ ======================== EMBEDDINGS API (NOMIC) ========================
   embeddings-api:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
@@ -391,10 +395,10 @@ services:
       "-m", "/models/nomic-embed-text-v1.5.Q4_K_M.gguf",
       "--embedding",
       "--pooling", "mean",
-      "-c", "8192",
-      "-b", "8192",
-      "-t", "12",
-      "--parallel", "16",
+      "-c", "4096",
+      "-b", "4096",
+      "-t", "4",
+      "--parallel", "8",
       "--mlock",
       "--numa", "distribute"
     ]
@@ -410,8 +414,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '12.0'
-          memory: 6G
+          cpus: '4.0'
+          memory: 2G
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
@@ -604,11 +608,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '10.0'
-          memory: 20G
+          cpus: '4.0'
+          memory: 6G
         reservations:
-          cpus: '6.0'
-          memory: 10G
+          cpus: '2.0'
+          memory: 4G
 
   #% ======================== RAG API (Milvus Vector Database) ========================
   rag-api:
@@ -660,11 +664,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '6'
-          memory: 6G
+          cpus: '4'
+          memory: 4G
         reservations:
-          cpus: '3'
-          memory: 3G
+          cpus: '2'
+          memory: 2G
 
 volumes:
   aipl_postgres_data:

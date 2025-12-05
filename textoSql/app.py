@@ -64,8 +64,81 @@ class SQLGenerator:
         prompt = f"""
 ### Instrucciones:
 Dada la siguiente base de datos PostgreSQL, tu tarea es generar una única consulta SQL que responda a la pregunta del usuario.
-- Solo debes devolver el bloque de código SQL y nada más.
-- Asegúrate de que la sintaxis sea correcta para PostgreSQL.
+
+### Reglas importantes:
+1. **Formato de salida**: Solo devuelve el bloque de código SQL, nada más
+2. **Sintaxis PostgreSQL**: Asegúrate de usar sintaxis correcta para PostgreSQL
+3. **Filtros específicos**: Si la pregunta menciona marca, categoría o nombre específico, DEBES incluir WHERE con ese valor exacto
+4. **Stock crítico**: Para "stock bajo" o "próximos a agotarse", usa: `stock_actual < stock_minimo` (NO valores fijos)
+5. **JOINs necesarios**: Solo incluye JOINs si la pregunta requiere datos de esas tablas
+6. **TOP N con "preferido/favorito"**: Usa subquery para calcular la moda (valor más frecuente):
+   ```sql
+   (SELECT columna FROM tabla WHERE condicion GROUP BY columna ORDER BY COUNT(*) DESC LIMIT 1)
+   ```
+7. **Agregaciones**: Para TOP clientes/productos, usa `GROUP BY` con `COUNT()` o `SUM()`, nunca uses subqueries en WHERE para filtrar TOP N
+8. **ORDER BY lógico**: Ordena por el criterio relevante (total_compras, monto, stock_actual, etc.)
+9. **Nombres exactos**: Las tablas y columnas deben coincidir exactamente con el esquema proporcionado
+
+### Ejemplos:
+
+**Ejemplo 1: Filtrar por marca con stock bajo**
+Pregunta: "¿Qué productos de Makita tienen stock bajo?"
+SQL correcto:
+```sql
+SELECT p.nombre, p.stock_actual, p.stock_minimo, pr.nombre AS proveedor
+FROM productos p
+JOIN marcas m ON p.id_marca = m.id_marca
+JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
+WHERE m.nombre = 'Makita' AND p.stock_actual < p.stock_minimo
+ORDER BY p.stock_actual ASC;
+```
+
+**Ejemplo 2: Productos próximos a agotarse (sin marca específica)**
+Pregunta: "¿Cuáles son los productos más próximos a agotarse?"
+SQL correcto:
+```sql
+SELECT p.nombre, p.stock_actual, p.stock_minimo, (p.stock_actual - p.stock_minimo) AS diferencia
+FROM productos p
+WHERE p.stock_actual < p.stock_minimo
+ORDER BY diferencia ASC
+LIMIT 10;
+```
+
+**Ejemplo 3: TOP clientes con método de pago preferido (subquery para moda)**
+Pregunta: "¿Cuáles son los 5 clientes que más han comprado y cuál es su método de pago preferido?"
+SQL correcto:
+```sql
+SELECT 
+    c.id_cliente,
+    c.nombre || ' ' || c.apellido AS cliente,
+    COUNT(DISTINCT v.id_venta) AS total_compras,
+    SUM(v.total) AS monto_total,
+    (
+        SELECT metodo_pago 
+        FROM ventas v2 
+        WHERE v2.id_cliente = c.id_cliente 
+        GROUP BY metodo_pago 
+        ORDER BY COUNT(*) DESC 
+        LIMIT 1
+    ) AS metodo_preferido
+FROM clientes c
+JOIN ventas v ON c.id_cliente = v.id_cliente
+GROUP BY c.id_cliente, c.nombre, c.apellido
+ORDER BY total_compras DESC, monto_total DESC
+LIMIT 5;
+```
+
+**Ejemplo 4: Evitar JOINs innecesarios**
+Pregunta: "¿Cuántos productos hay en total?"
+SQL correcto:
+```sql
+SELECT COUNT(*) AS total_productos FROM productos;
+```
+SQL INCORRECTO (evitar esto):
+```sql
+-- ❌ NO hagas JOINs innecesarios con categorías, marcas, etc. si no se necesitan
+SELECT COUNT(*) FROM productos p JOIN categorias c ON p.id_categoria = c.id_categoria;
+```
 
 ### Esquema de la Base de Datos:
 {self.db_schema}

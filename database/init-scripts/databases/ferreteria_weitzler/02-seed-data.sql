@@ -64,9 +64,9 @@ INSERT INTO sucursales (nombre, tipo, direccion, ciudad, telefono, horario_atenc
 -- ===== PRODUCTOS (Basados en catálogo real de Weitzler) =====
 
 -- Herramientas Eléctricas Makita
-INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, precio_oferta, descuento_porcentaje, stock_actual, en_oferta, permite_despacho) VALUES
-('MAK-D15986', 'Broca para Vidrio/Cerámica 10 x 80mm 1/4" 14 D-15986 Makita', 'Broca especializada para perforación de vidrio y cerámica, 10mm x 80mm', 3, 1, 1, 4200, 6150, 5290, 14, 45, TRUE, FALSE),
-('MAK-9557HNG', 'Esmeril Angular 9557HNG Makita', 'Esmeril angular 4 1/2", 840W, incluye disco de corte', 11, 1, 1, 62000, 88300, 74990, 15, 12, TRUE, FALSE);
+INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, precio_oferta, descuento_porcentaje, stock_actual, stock_minimo, en_oferta, permite_despacho) VALUES
+('MAK-D15986', 'Broca para Vidrio/Cerámica 10 x 80mm 1/4" 14 D-15986 Makita', 'Broca especializada para perforación de vidrio y cerámica, 10mm x 80mm', 3, 1, 1, 4200, 6150, 5290, 14, 45, 30, TRUE, FALSE),
+('MAK-9557HNG', 'Esmeril Angular 9557HNG Makita', 'Esmeril angular 4 1/2", 840W, incluye disco de corte', 11, 1, 1, 62000, 88300, 74990, 15, 12, 20, TRUE, FALSE);
 
 -- Herramientas Fixtec
 INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, precio_oferta, descuento_porcentaje, stock_actual, en_oferta, permite_despacho) VALUES
@@ -87,9 +87,9 @@ INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, 
 ('FJD-BEECH-175', 'Piso SPC 5.5mm Beech 1.75m2 fjäder', 'Piso vinílico SPC color Beech, 5.5mm espesor, caja de 1.75m2', 15, 3, 3, 10500, 20342.86, 14851.43, 27, 'm2', 185, TRUE, FALSE);
 
 -- Decoración Santini
-INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, precio_oferta, descuento_porcentaje, stock_actual, en_oferta, permite_despacho) VALUES
-('SNT-BOLAS40', 'Juego 12 Bolas 40mm Santini', 'Set de 12 bolas decorativas navideñas 40mm, colores variados', 16, 4, 4, 1100, 2500, 1690, 32, 68, TRUE, FALSE),
-('SNT-PORTAVELA', 'Portavela D13xH27cm Champagne Blues Santini', 'Portavela decorativo color champagne, 13cm diámetro x 27cm alto', 7, 4, 4, 11000, 22990, 15790, 31, 42, TRUE, FALSE);
+INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, precio_oferta, descuento_porcentaje, stock_actual, stock_minimo, en_oferta, permite_despacho) VALUES
+('SNT-BOLAS40', 'Juego 12 Bolas 40mm Santini', 'Set de 12 bolas decorativas navideñas 40mm, colores variados', 16, 4, 4, 1100, 2500, 1690, 32, 68, 50, TRUE, FALSE),
+('SNT-PORTAVELA', 'Portavela D13xH27cm Champagne Blues Santini', 'Portavela decorativo color champagne, 13cm diámetro x 27cm alto', 7, 4, 4, 11000, 22990, 15790, 31, 42, 60, TRUE, FALSE);
 
 -- Productos adicionales sin oferta
 INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, stock_actual, permite_despacho) VALUES
@@ -98,6 +98,18 @@ INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, 
 ('MAK-DHP453', 'Taladro Atornillador Inalámbrico DHP453 Makita', 'Taladro percutor inalámbrico 18V, incluye 2 baterías y cargador', 1, 1, 1, 85000, 149990, 8, FALSE),
 ('FXT-ALICATE8', 'Alicate Universal 8" Fixtec', 'Alicate universal 8 pulgadas, mango ergonómico', 2, 2, 2, 3200, 6490, 110, TRUE),
 ('CER-LATEX15', 'Pintura Látex Interior 15L Ceresita', 'Pintura látex lavable para interiores, rendimiento 180m2', 9, 9, 5, 18500, 32990, 45, TRUE),
+
+-- Productos con stock crítico (stock_actual < stock_minimo)
+INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, stock_actual, stock_minimo, permite_despacho) VALUES
+('MAK-GA4530', 'Esmeril Angular 4 1/2" GA4530 Makita', 'Esmeril angular 720W, 11000 RPM, para corte y desbaste', 11, 1, 1, 42000, 69990, 2, 10, TRUE),
+('FXT-TORX30', 'Set Puntas Torx 30 Piezas Fixtec', 'Juego de 30 puntas magnéticas Torx, incluye estuche', 13, 2, 2, 3500, 7990, 1, 8, TRUE),
+('MAK-BO4556', 'Lijadora Orbital BO4556 Makita', 'Lijadora orbital 200W, base cuadrada, control velocidad', 1, 1, 1, 38000, 62990, 3, 12, TRUE),
+('FXT-NIVELLASER', 'Nivel Láser Autonivelante Fixtec', 'Nivel láser con línea horizontal y vertical, alcance 10m', 2, 2, 2, 15000, 29990, 2, 15, TRUE),
+('CER-ESMALTE1L', 'Esmalte Sintético Negro 1L Ceresita', 'Esmalte brillante para metal y madera, secado rápido', 9, 9, 5, 5200, 11990, 4, 20, TRUE),
+('FXT-EXT5M', 'Extensión Eléctrica 5 Metros Fixtec', 'Extensión eléctrica con 4 enchufes, cable 5m, protección sobrecarga', 10, 2, 2, 4800, 9990, 3, 25, TRUE),
+('MAK-M9204', 'Pulidora Recta M9204 Makita', 'Pulidora recta 750W, 25000 RPM, para desbaste y pulido', 11, 1, 1, 48000, 79990, 1, 6, FALSE),
+('FXT-SERRUCH22', 'Serrucho 22" Diente Fino Fixtec', 'Serrucho carpintería 22 pulgadas, diente fino, mango ergonómico', 14, 2, 2, 3800, 8490, 4, 18, TRUE),
+('MAK-HR2470', 'Taladro Rotomartillo HR2470 Makita', 'Rotomartillo 780W, 3 modos, SDS-Plus, incluye maletín', 1, 1, 1, 95000, 159990, 4, 15, TRUE),
 ('FXT-NIVEL24', 'Nivel de Burbuja 24" Fixtec', 'Nivel de aluminio 24 pulgadas, 3 burbujas', 2, 2, 2, 4800, 9990, 65, TRUE),
 ('FXT-SERRUCHO', 'Serrucho Carpintero 22" Fixtec', 'Serrucho para madera 22 pulgadas, mango de plástico', 14, 2, 2, 3500, 7490, 75, TRUE),
 ('FXT-DESTPUNTA', 'Set 6 Destornilladores Punta Plana/Phillips Fixtec', 'Juego de 6 destornilladores con estuche, puntas planas y phillips', 2, 2, 2, 5500, 11990, 52, TRUE);
@@ -110,13 +122,13 @@ INSERT INTO inventario_sucursal (id_producto, id_sucursal, stock_disponible) VAL
 (6, 1, 180), (7, 1, 120), (8, 1, 75), (9, 1, 55), (10, 1, 140),
 (11, 1, 90), (12, 1, 100), (13, 1, 85), (14, 1, 30), (15, 1, 22),
 (16, 1, 40), (17, 1, 3), (18, 1, 50), (19, 1, 22), (20, 1, 35),
-(21, 1, 28), (22, 1, 32), (23, 1, 25),
+(21, 1, 28), (22, 1, 32), (23, 1, 25), (24, 1, 2),
 -- Distribución Puerto Varas
 (1, 2, 15), (3, 2, 45), (6, 2, 85), (7, 2, 60), (11, 2, 80),
-(12, 2, 50), (16, 2, 25), (19, 2, 22), (21, 2, 20),
+(12, 2, 50), (16, 2, 25), (19, 2, 22), (21, 2, 20), (24, 2, 2),
 -- Constructor
 (2, 3, 4), (5, 3, 8), (9, 3, 110), (10, 3, 35), (17, 3, 3),
-(18, 3, 35), (20, 3, 18), (22, 3, 15),
+(18, 3, 35), (20, 3, 18), (22, 3, 15), (24, 3, 0),
 -- Osorno
 (1, 4, 10), (3, 4, 45), (4, 4, 25), (6, 4, 55), (8, 4, 40),
 (11, 4, 70), (12, 4, 35), (16, 4, 20),
@@ -136,4 +148,87 @@ INSERT INTO clientes (rut, nombre, apellido, email, telefono, ciudad, region, ti
 ('78.901.234-5', 'Pedro', 'Soto Muñoz', 'pedro.soto@email.com', '+56-9-4321-0987', 'Puerto Varas', 'Los Lagos', 'Particular', 0),
 ('89.012.345-6', 'Inmobiliaria Los Lagos', NULL, 'contacto@inmobiliarialagos.cl', '+56-65-456-7890', 'Puerto Montt', 'Los Lagos', 'Empresa', 12);
 
-\echo '✅ Datos de productos Weitzler insertados exitosamente';
+-- ===== VENTAS =====
+-- Ventas de empresas (método: transferencia)
+INSERT INTO ventas (id_cliente, fecha_venta, total, metodo_pago, estado) VALUES
+(3, '2024-11-15 10:30:00', 425990, 'transferencia', 'completada'),  -- Constructora Sur
+(3, '2024-11-22 14:15:00', 189980, 'transferencia', 'completada'),  -- Constructora Sur
+(3, '2024-12-01 09:45:00', 567940, 'transferencia', 'completada'),  -- Constructora Sur
+(6, '2024-11-18 11:20:00', 890750, 'transferencia', 'completada'),  -- Maestranza del Sur
+(6, '2024-11-28 15:30:00', 234560, 'transferencia', 'completada'),  -- Maestranza del Sur
+(8, '2024-12-02 10:00:00', 678920, 'transferencia', 'completada'),  -- Inmobiliaria Los Lagos
+(8, '2024-12-04 13:45:00', 345670, 'transferencia', 'completada'),  -- Inmobiliaria Los Lagos
+
+-- Ventas de particulares (métodos mixtos: efectivo, tarjeta, transferencia)
+INSERT INTO ventas (id_cliente, fecha_venta, total, metodo_pago, estado) VALUES
+(1, '2024-11-20 16:30:00', 89990, 'efectivo', 'completada'),   -- Juan Pérez
+(1, '2024-11-25 10:15:00', 45990, 'tarjeta', 'completada'),    -- Juan Pérez
+(1, '2024-12-03 14:20:00', 127980, 'tarjeta', 'completada'),   -- Juan Pérez
+(1, '2024-12-05 09:30:00', 23990, 'efectivo', 'completada'),   -- Juan Pérez
+(2, '2024-11-19 11:45:00', 67490, 'tarjeta', 'completada'),    -- María González
+(2, '2024-11-30 15:20:00', 189990, 'transferencia', 'completada'), -- María González
+(2, '2024-12-04 16:10:00', 34990, 'tarjeta', 'completada'),    -- María González
+(4, '2024-11-21 08:30:00', 234560, 'transferencia', 'completada'), -- Carlos Rodríguez
+(4, '2024-12-02 12:15:00', 156780, 'transferencia', 'completada'), -- Carlos Rodríguez
+(5, '2024-11-23 13:40:00', 78990, 'efectivo', 'completada'),   -- Ana Martínez
+(5, '2024-12-01 10:25:00', 45990, 'tarjeta', 'completada'),    -- Ana Martínez
+(7, '2024-11-24 14:50:00', 123490, 'tarjeta', 'completada');   -- Pedro Soto
+
+-- ===== DETALLE DE VENTAS =====
+-- Detalles Constructora Sur (id_cliente=3)
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(1, 1, 2, 89990, 179980),   -- 2 Esmeriles Makita
+(1, 5, 10, 3990, 39900),    -- 10 Discos Fixtec
+(1, 15, 1, 189990, 189990), -- 1 Taladro Percutor Makita
+(2, 8, 5, 11990, 59950),    -- 5 Juegos Destornilladores
+(2, 12, 20, 6500, 130000),  -- 20 Cajas Tornillos
+(3, 20, 3, 145990, 437970), -- 3 Sierras Circulares Makita
+(3, 25, 10, 12990, 129900); -- 10 Metros Cable Eléctrico
+
+-- Detalles Maestranza del Sur (id_cliente=6)
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(4, 15, 4, 189990, 759960), -- 4 Taladros Percutores
+(4, 8, 10, 11990, 119900),  -- 10 Juegos Destornilladores
+(5, 30, 15, 15640, 234600); -- 15 Brocas HSS
+
+-- Detalles Inmobiliaria Los Lagos (id_cliente=8)
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(6, 35, 50, 8990, 449500),  -- 50 Candados Yale
+(6, 40, 30, 7650, 229500),  -- 30 Cerraduras
+(7, 45, 20, 17290, 345800); -- 20 Pinturas Ceresita
+
+-- Detalles Juan Pérez (id_cliente=1) - Tarjeta preferida
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(8, 1, 1, 89990, 89990),    -- 1 Esmeril Makita
+(9, 5, 10, 3990, 39900),    -- 10 Discos
+(9, 10, 1, 5990, 5990),     -- 1 Martillo
+(10, 20, 1, 145990, 145990),-- 1 Sierra Circular
+(11, 3, 1, 23990, 23990);   -- 1 Caja Herramientas
+
+-- Detalles María González (id_cliente=2) - Tarjeta preferida
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(12, 3, 2, 23990, 47980),   -- 2 Cajas Herramientas
+(12, 8, 1, 11990, 11990),   -- 1 Juego Destornilladores
+(13, 15, 1, 189990, 189990),-- 1 Taladro Percutor
+(14, 5, 5, 3990, 19950),    -- 5 Discos
+(14, 25, 1, 12990, 12990);  -- 1 Metro Cable
+
+-- Detalles Carlos Rodríguez (id_cliente=4) - Transferencia preferida
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(15, 20, 1, 145990, 145990),-- 1 Sierra Circular
+(15, 15, 1, 89990, 89990),  -- 1 Taladro
+(16, 35, 10, 8990, 89900),  -- 10 Candados
+(16, 40, 5, 7650, 38250);   -- 5 Cerraduras
+
+-- Detalles Ana Martínez (id_cliente=5) - Tarjeta preferida
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(17, 10, 3, 5990, 17970),   -- 3 Martillos
+(17, 45, 2, 17290, 34580),  -- 2 Pinturas
+(18, 5, 10, 3990, 39900);   -- 10 Discos
+
+-- Detalles Pedro Soto (id_cliente=7) - Solo 1 compra
+INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES
+(19, 15, 1, 189990, 189990),-- 1 Taladro Percutor
+(19, 8, 2, 11990, 23980);   -- 2 Juegos Destornilladores
+
+\echo '✅ Datos de productos Weitzler y ventas insertados exitosamente';
