@@ -63,10 +63,27 @@ INSERT INTO sucursales (nombre, tipo, direccion, ciudad, telefono, horario_atenc
 
 -- ===== PRODUCTOS (Basados en catálogo real de Weitzler) =====
 
--- Herramientas Eléctricas Makita
+-- Herramientas Eléctricas Makita (categoría principal)
 INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, precio_oferta, descuento_porcentaje, stock_actual, stock_minimo, en_oferta, permite_despacho) VALUES
 ('MAK-D15986', 'Broca para Vidrio/Cerámica 10 x 80mm 1/4" 14 D-15986 Makita', 'Broca especializada para perforación de vidrio y cerámica, 10mm x 80mm', 3, 1, 1, 4200, 6150, 5290, 14, 45, 30, TRUE, FALSE),
-('MAK-9557HNG', 'Esmeril Angular 9557HNG Makita', 'Esmeril angular 4 1/2", 840W, incluye disco de corte', 11, 1, 1, 62000, 88300, 74990, 15, 12, 20, TRUE, FALSE);
+('MAK-9557HNG', 'Esmeril Angular 9557HNG Makita', 'Esmeril angular 4 1/2", 840W, incluye disco de corte', 11, 1, 1, 62000, 88300, 74990, 15, 12, 20, TRUE, FALSE),
+('MAK-HP1630', 'Taladro Percutor 5/8" HP1630 Makita', 'Taladro percutor 710W, 5/8 pulgadas, velocidad variable', 1, 1, 1, 48000, 79990, NULL, NULL, 25, NULL, FALSE, TRUE),
+('MAK-4329', 'Sierra Caladora 4329 Makita', 'Sierra caladora 450W, cambio de hoja sin herramientas', 1, 1, 1, 42000, 69990, NULL, NULL, 18, NULL, FALSE, TRUE),
+('MAK-9069', 'Esmeril Recto 6mm 9069 Makita', 'Esmeril recto 450W, pinza 6mm, 28000 RPM', 1, 1, 1, 38000, 64990, NULL, NULL, 14, NULL, FALSE, TRUE),
+('MAK-5017RKB', 'Martillo Demoledor 5017RKB Makita', 'Martillo demoledor 2300W, 68J, SDS-Max, incluye maletín', 1, 1, 1, 385000, 649990, NULL, NULL, 4, NULL, FALSE, FALSE),
+('MAK-6271D', 'Atornillador Inalámbrico 6271D Makita', 'Atornillador inalámbrico 7.2V, incluye batería y cargador', 1, 1, 1, 32000, 54990, NULL, NULL, 16, NULL, FALSE, TRUE),
+('MAK-UC3541A', 'Motosierra Eléctrica UC3541A Makita', 'Motosierra eléctrica 1800W, espada 35cm, freno cadena', 1, 1, 1, 95000, 159990, NULL, NULL, 7, NULL, FALSE, TRUE),
+('MAK-JR3050T', 'Sierra Sable JR3050T Makita', 'Sierra sable 1010W, velocidad variable, cambio rápido hoja', 1, 1, 1, 68000, 115990, NULL, NULL, 9, NULL, FALSE, TRUE),
+('MAK-RP1801', 'Fresadora RP1801 Makita', 'Fresadora 1850W, pinza 12mm, velocidad variable', 1, 1, 1, 125000, 209990, NULL, NULL, 5, NULL, FALSE, FALSE),
+('MAK-TW0350', 'Llave de Impacto TW0350 Makita', 'Llave de impacto 1/2", 350W, par máximo 300Nm', 1, 1, 1, 78000, 129990, NULL, NULL, 11, NULL, FALSE, TRUE),
+('MAK-4350FCT', 'Sierra Caladora 4350FCT Makita', 'Sierra caladora 720W, luz LED, velocidad variable, sistema pendular', 1, 1, 1, 58000, 98990, NULL, NULL, 13, NULL, FALSE, TRUE),
+('MAK-9565CV', 'Esmeril Angular 9565CV Makita', 'Esmeril angular 1400W, 5", velocidad variable, arranque suave', 1, 1, 1, 85000, 142990, NULL, NULL, 8, NULL, FALSE, TRUE),
+('BSH-GSB550', 'Taladro Percutor GSB 550 Bosch', 'Taladro percutor 550W, mandril 13mm, reversible', 1, 5, 1, 38000, 64990, NULL, NULL, 22, NULL, FALSE, TRUE),
+('BSH-GWS9125', 'Esmeril Angular GWS 9-125 Bosch', 'Esmeril angular 900W, 5 pulgadas, protección contra polvo', 1, 5, 1, 52000, 89990, NULL, NULL, 16, NULL, FALSE, TRUE),
+('DWT-DWE4120', 'Esmeril Angular DWE4120 DeWalt', 'Esmeril angular 800W, 4 1/2 pulgadas, interruptor deslizante', 1, 6, 1, 58000, 99990, NULL, NULL, 12, NULL, FALSE, TRUE),
+('DWT-DWD520', 'Taladro DWD520 DeWalt', 'Taladro 10mm, 600W, velocidad variable, empuñadura lateral', 1, 6, 1, 45000, 76990, NULL, NULL, 19, NULL, FALSE, TRUE),
+('BD-TM500', 'Taladro 3/8" TM500 Black & Decker', 'Taladro 500W, 3/8 pulgadas, velocidad única', 1, 8, 1, 28000, 47990, NULL, NULL, 28, NULL, FALSE, TRUE),
+('BD-G720', 'Esmeril Angular G720 Black & Decker', 'Esmeril angular 820W, 4 1/2 pulgadas, mango auxiliar', 1, 8, 1, 42000, 71990, NULL, NULL, 15, NULL, FALSE, TRUE);
 
 -- Herramientas Fixtec
 INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, precio_oferta, descuento_porcentaje, stock_actual, en_oferta, permite_despacho) VALUES
@@ -113,6 +130,38 @@ INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, 
 ('FXT-NIVEL24', 'Nivel de Burbuja 24" Fixtec', 'Nivel de aluminio 24 pulgadas, 3 burbujas', 2, 2, 2, 4800, 9990, 65, TRUE),
 ('FXT-SERRUCHO', 'Serrucho Carpintero 22" Fixtec', 'Serrucho para madera 22 pulgadas, mango de plástico', 14, 2, 2, 3500, 7490, 75, TRUE),
 ('FXT-DESTPUNTA', 'Set 6 Destornilladores Punta Plana/Phillips Fixtec', 'Juego de 6 destornilladores con estuche, puntas planas y phillips', 2, 2, 2, 5500, 11990, 52, TRUE);
+
+-- Más herramientas eléctricas en subcategorías
+INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, stock_actual, permite_despacho) VALUES
+('MAK-BROCAS5P', 'Set 5 Brocas SDS-Plus Makita', 'Juego 5 brocas SDS-Plus para concreto, diámetros variados', 12, 1, 1, 8500, 17990, 42, TRUE),
+('BSH-BROCAS13P', 'Set 13 Brocas Metal Titanio Bosch', 'Juego 13 brocas HSS-TiN titanio, 1.5mm a 6.5mm', 12, 5, 1, 12000, 24990, 35, TRUE),
+('DWT-BROCAS14P', 'Set 14 Brocas Madera/Metal DeWalt', 'Kit completo brocas para madera y metal, estuche incluido', 12, 6, 1, 15000, 29990, 28, TRUE),
+('FXT-DISCOS10P', 'Pack 10 Discos Corte Metal 4.5" Fixtec', 'Pack económico 10 discos corte metal 4 1/2 pulgadas', 19, 2, 2, 2800, 5990, 85, TRUE),
+('MAK-DISCOS5P', 'Set 5 Discos Desbaste 4.5" Makita', 'Juego 5 discos desbaste metal 4 1/2 pulgadas, alta durabilidad', 19, 2, 2, 5200, 10990, 52, TRUE),
+('BSH-DISCOD230', 'Disco Diamantado 9" Turbo Bosch', 'Disco diamantado 9 pulgadas, corte concreto/ladrillo', 19, 5, 1, 18000, 36990, 18, TRUE);
+
+-- Más productos con stock crítico - variedad de categorías y marcas
+INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, stock_actual, stock_minimo, permite_despacho) VALUES
+('MAK-JS3201', 'Sierra Caladora JS3201 Makita', 'Sierra caladora 720W, velocidad variable, cambio herramienta sin llave', 1, 1, 1, 52000, 89990, 3, 15, TRUE),
+('FXT-PINZA10', 'Pinza de Presión 10" Fixtec', 'Pinza de presión tipo vise-grip 10 pulgadas, mordaza ajustable', 2, 2, 2, 4200, 8990, 5, 25, TRUE),
+('BSH-GBH220', 'Rotomartillo GBH 2-20 Bosch', 'Rotomartillo profesional 650W, SDS-Plus, reversible', 1, 5, 1, 68000, 119990, 2, 12, TRUE),
+('DWT-DCD771', 'Taladro Atornillador DCD771 DeWalt', 'Taladro inalámbrico 20V, 2 velocidades, incluye batería', 1, 6, 1, 72000, 129990, 4, 18, TRUE),
+('FXT-BROCAS19', 'Set 19 Brocas Metal/Madera Fixtec', 'Juego completo de brocas HSS y brad point, estuche plástico', 12, 2, 2, 6500, 14990, 8, 30, TRUE),
+('STL-FLEX5M', 'Flexómetro 5m PowerLock Stanley', 'Huincha de medir 5 metros, cinta ancha 25mm, freno automático', 2, 7, 2, 5800, 12990, 6, 35, TRUE),
+('FXT-PISTOLASIL', 'Pistola Silicona Profesional Fixtec', 'Pistola aplicadora silicona esqueleto, refuerzo metálico', 4, 2, 2, 1800, 4990, 15, 50, TRUE),
+('MAK-9005B', 'Esmeril Recto 9005B Makita', 'Esmeril recto 500W, 30000 RPM, pinza 6mm', 11, 1, 1, 38000, 65990, 2, 8, TRUE),
+('CER-BARNIZ1L', 'Barniz Marino Ceresita 1L', 'Barniz marino brillante, protección UV, uso exterior', 9, 9, 5, 6200, 13990, 7, 25, TRUE),
+('FXT-LLAVING12', 'Llave Inglesa 12" Fixtec', 'Llave ajustable 12 pulgadas, apertura máxima 30mm', 13, 2, 2, 3600, 7990, 10, 40, TRUE),
+('BD-KR604', 'Taladro Percutor KR604 Black & Decker', 'Taladro percutor 650W, reversible, selector 2 velocidades', 1, 8, 1, 35000, 59990, 5, 20, TRUE),
+('FXT-TARUGO8', 'Caja 100 Tarugos 8mm Fixtec', 'Tarugos plásticos 8mm con tornillos, uso general', 4, 2, 2, 2800, 5990, 18, 60, TRUE),
+('MAK-TD0101', 'Rotomartillo TD0101 Makita', 'Rotomartillo ligero 450W, mandril SDS-Plus, velocidad variable', 1, 1, 1, 58000, 99990, 3, 10, TRUE),
+('TRI-LATEX4L', 'Pintura Látex Premium 4L Tricolor', 'Látex premium lavable, alto cubrimiento, bajo olor', 9, 10, 5, 8500, 17990, 12, 45, TRUE),
+('FXT-SOLDADOR60', 'Soldador Eléctrico 60W Fixtec', 'Cautín eléctrico 60W, punta de cobre, mango aislado', 10, 2, 2, 3200, 6990, 9, 35, TRUE),
+('STL-NIVEL60', 'Nivel Torpedo Stanley', 'Nivel torpedo 9 pulgadas, magnético, 3 burbujas', 2, 7, 2, 4500, 9990, 14, 50, TRUE),
+('FXT-ARCO12', 'Arco Sierra 12" Ajustable Fixtec', 'Marco sierra ajustable 12 pulgadas, mango ergonómico', 14, 2, 2, 2400, 5490, 11, 45, TRUE),
+('CER-OLEO1L', 'Óleo Opaco Blanco 1L Ceresita', 'Pintura al óleo opaca, alto cubrimiento, uso interior/exterior', 9, 9, 5, 7800, 16990, 6, 30, TRUE),
+('MAK-9553NB', 'Esmeril Angular 9553NB Makita', 'Esmeril angular 840W, 4 1/2", interruptor deslizante', 11, 1, 1, 59000, 99990, 7, 25, TRUE),
+('FXT-MAZOGOMA', 'Mazo de Goma 16oz Fixtec', 'Mazo cabeza goma blanca/negra, mango madera, 16 onzas', 2, 2, 2, 3800, 8490, 16, 55, TRUE);
 
 -- ===== INVENTARIO POR SUCURSAL =====
 -- Distribuir inventario en las sucursales

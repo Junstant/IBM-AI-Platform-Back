@@ -140,6 +140,44 @@ SQL INCORRECTO (evitar esto):
 SELECT COUNT(*) FROM productos p JOIN categorias c ON p.id_categoria = c.id_categoria;
 ```
 
+**Ejemplo 5: Consultas con conteo + información detallada**
+Pregunta: "¿Cuántos clientes tenemos en Puerto Montt?"
+SQL correcto (trae conteo + detalles):
+```sql
+SELECT 
+    c.rut,
+    c.nombre,
+    c.apellido,
+    c.email,
+    c.telefono,
+    c.tipo_cliente,
+    c.ciudad
+FROM clientes c
+WHERE c.ciudad = 'Puerto Montt'
+ORDER BY c.nombre;
+```
+Nota: Cuando pregunten "¿Cuántos X?" generalmente es más útil mostrar el listado completo con detalles relevantes en lugar de solo el COUNT(*).
+
+**Ejemplo 6: Productos de una marca específica con información completa**
+Pregunta: "¿Cuántos productos de la marca Makita tenemos?"
+SQL correcto (trae productos con detalles):
+```sql
+SELECT 
+    p.codigo_sku,
+    p.nombre,
+    p.precio_venta,
+    p.stock_actual,
+    c.nombre AS categoria,
+    pr.nombre AS proveedor
+FROM productos p
+JOIN marcas m ON p.id_marca = m.id_marca
+JOIN categorias c ON p.id_categoria = c.id_categoria
+JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
+WHERE m.nombre = 'Makita'
+ORDER BY p.nombre;
+```
+Nota: Muestra el listado completo con información útil (SKU, precio, stock, categoría).
+
 ### Esquema de la Base de Datos:
 {self.db_schema}
 
