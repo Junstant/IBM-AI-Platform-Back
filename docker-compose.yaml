@@ -24,7 +24,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 90s  # AUMENTADO de 60s a 90s (scripts de inicialización tardan)
+      start_period: 90s
+    shm_size: 4g
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 16G
 
 #? ======================== FRONTEND (NGINX) ========================
   frontend:
@@ -176,29 +182,30 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/gemma-2-2b-it-Q4_K_S.gguf",
-      "-c", "4096",
-      "-b", "512",              # Batch size aumentado para mejor throughput
-      "-t", "8",
+      "-c", "8192",
+      "-b", "2048",
+      "-t", "12",
       "-n", "-1",
-      "--ctx-size", "4096",
-      "--parallel", "4",        # 🚀 CRITICAL: Soportar 4 requests concurrentes
-      "--cont-batching",        # 🚀 Continuous batching para menor latencia
-      "-fa",                    # Flash Attention (más rápido)
-      "--mlock"                 # 🚀 Lock model en RAM (evita swap, carga instantánea)
+      "--ctx-size", "8192",
+      "--parallel", "8",
+      "--cont-batching",
+      "-fa",
+      "--mlock",
+      "--numa"
     ]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s       # Menos frecuente
-      timeout: 10s        
-      retries: 3          # Menos reintentos
-      start_period: 300s  # Reducido a 5 minutos
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     deploy:
       resources:
         limits:
-          cpus: '8.0'     # Más CPUs = carga más rápida
+          cpus: '12.0'
           memory: 8G
 
   # #^ ======================== GEMMA 4B ========================
@@ -217,30 +224,31 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/google_gemma-3-4b-it-Q4_K_S.gguf",
-      "-c", "4096",
-      "-b", "512",
+      "-c", "16384",
+      "-b", "2048",
       "-t", "12",
       "-n", "-1",
-      "--ctx-size", "4096",
-      "--parallel", "4",
+      "--ctx-size", "16384",
+      "--parallel", "8",
       "--cont-batching",
       "-fa",
-      "--mlock"
+      "--mlock",
+      "--numa"
     ]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 120s
-      timeout: 120s
+      interval: 30s
+      timeout: 10s
       retries: 3
-      start_period: 600s
+      start_period: 90s
     deploy:
       resources:
         limits:
           cpus: '12.0'
-          memory: 8G
+          memory: 16G
 
   #^ ======================== GEMMA 12B ========================
   gemma-12b:
@@ -258,31 +266,31 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/google_gemma-3-12b-it-Q4_K_S.gguf",
-      "-c", "4096",
-      "-b", "512",
-      "-t", "16",
+      "-c", "16384",
+      "-b", "2048",
+      "-t", "12",
       "-n", "-1",
-      "--ctx-size", "4096",
-      "--parallel", "4",
+      "--ctx-size", "16384",
+      "--parallel", "6",
       "--cont-batching",
       "-fa",
-      "--mlock"
+      "--mlock",
+      "--numa"
     ]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 120s
-      timeout: 120s
+      interval: 30s
+      timeout: 10s
       retries: 3
-      start_period: 600s
+      start_period: 120s
     deploy:
       resources:
         limits:
-          cpus: '16.0'
-          memory: 12G
-
+          cpus: '12.0'
+          memory: 24G
   #^ ======================== MISTRAL 7b ========================
   mistral-7b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
@@ -299,31 +307,31 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/Mistral-7B-Instruct-v0.3-Q4_K_S.gguf",
-      "-c", "4096",
-      "-b", "512",
+      "-c", "32768",
+      "-b", "2048",
       "-t", "12",
       "-n", "-1",
-      "--ctx-size", "4096",
-      "--parallel", "4",
+      "--ctx-size", "32768",
+      "--parallel", "8",
       "--cont-batching",
       "-fa",
-      "--mlock"
+      "--mlock",
+      "--numa"
     ]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 120s
-      timeout: 120s
+      interval: 30s
+      timeout: 10s
       retries: 3
-      start_period: 600s
+      start_period: 120s
     deploy:
       resources:
         limits:
           cpus: '12.0'
-          memory: 8G
-
+          memory: 20G0'
   #^ ======================== DEEPSEEK 8B ========================
   deepseek-8b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
@@ -340,55 +348,16 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/DeepSeek-R1-Distill-Qwen-7B-Q4_K_L.gguf",
-      "-c", "4096",
-      "-b", "512",
-      "-t", "14",
+      "-c", "16384",
+      "-b", "2048",
+      "-t", "12",
       "-n", "-1",
-      "--ctx-size", "4096",
-      "--parallel", "4",
+      "--ctx-size", "16384",
+      "--parallel", "8",
       "--cont-batching",
       "-fa",
-      "--mlock"
-    ]
-    depends_on:
-      model-downloader:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 120s
-      timeout: 120s
-      retries: 3
-      start_period: 600s
-    deploy:
-      resources:
-        limits:
-          cpus: '14.0'
-          memory: 10G
-
-  #^ ======================== EMBEDDINGS API (NOMIC) ========================
-  embeddings-api:
-    image: quay.io/daniel_casali/llama.cpp-mma:v8
-    container_name: embeddings-api
-    user: "root"
-    restart: always
-    ports:
-      - "${EMBEDDINGS_PORT:-8090}:8080"
-    volumes:
-      - models_volume:/models
-    networks:
-      - ai_platform_network
-    # COMANDO CRÍTICO: --embedding y --pooling mean para generar embeddings
-    command: [
-      "--host", "0.0.0.0",
-      "--port", "8080",
-      "-m", "/models/nomic-embed-text-v1.5.Q4_K_M.gguf",
-      "--embedding",           # Modo embedding
-      "--pooling", "mean",     # Pooling estrategia
-      "-c", "8192",            # Contexto aumentado para docs grandes
-      "-b", "8192",            # Batch size aumentado (fix "input is too large")
-      "-t", "4",               # Threads (usar 4 de 12 cores disponibles)
-      "--parallel", "4",       # 🚀 Requests concurrentes
-      "--mlock"                # 🚀 Lock en RAM para velocidad
+      "--mlock",
+      "--numa"
     ]
     depends_on:
       model-downloader:
@@ -402,8 +371,47 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4.0'    # Aumentado para procesamiento de docs grandes
-          memory: 3G     # Aumentado para batch size 8192
+          cpus: '12.0'
+          memory: 20G
+  #^ ======================== EMBEDDINGS API (NOMIC) ========================
+  embeddings-api:
+    image: quay.io/daniel_casali/llama.cpp-mma:v8
+    container_name: embeddings-api
+    user: "root"
+    restart: always
+    ports:
+      - "${EMBEDDINGS_PORT:-8090}:8080"
+    volumes:
+      - models_volume:/models
+    networks:
+      - ai_platform_network
+    command: [
+      "--host", "0.0.0.0",
+      "--port", "8080",
+      "-m", "/models/nomic-embed-text-v1.5.Q4_K_M.gguf",
+      "--embedding",
+      "--pooling", "mean",
+      "-c", "8192",
+      "-b", "8192",
+      "-t", "12",
+      "--parallel", "16",
+      "--mlock",
+      "--numa"
+    ]
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '12.0'
+          memory: 6G
 
   #% ======================== TEXTOSQL API ========================
   textosql-api:
@@ -566,12 +574,12 @@ services:
   
   # Milvus - Vector Database
   milvus:
-    image: quay.io/mgiessing/milvus:v2.3.1  # Imagen para ppc64le
+    image: quay.io/mgiessing/milvus:v2.3.1
     container_name: milvus
     restart: always
     ports:
-      - "${MILVUS_PORT:-19530}:19530"  # gRPC
-      - "9091:9091"                    # Metrics
+      - "${MILVUS_PORT:-19530}:19530"
+      - "9091:9091"
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
@@ -596,11 +604,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 4G
+          cpus: '10.0'
+          memory: 20G
         reservations:
-          cpus: '2'
-          memory: 2G
+          cpus: '6.0'
+          memory: 10G
 
   #% ======================== RAG API (Milvus Vector Database) ========================
   rag-api:

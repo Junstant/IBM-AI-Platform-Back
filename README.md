@@ -27,6 +27,14 @@ sudo ./setup.sh full
 - **PostgreSQL**: `localhost:8070`
 - **Milvus**: `localhost:19530`
 
+## 🗄️ Bases de Datos
+
+- **ai_platform_stats**: Métricas y estadísticas
+- **banco_global**: Demo banco ficticio
+- **bank_transactions**: Detección de fraude
+- **ai_platform_rag**: Vectores y embeddings
+- **ferreteria_weitzler**: Demo TextoSQL (Ferretería real chilena)
+
 ## 🧠 Modelos LLM
 
 | Modelo | Puerto | Tamaño | Especialidad |
