@@ -313,7 +313,6 @@ services:
       "--parallel", "12",
       "--cont-batching",
       "-fa",
-      "--mlock",
       "--numa", "distribute"
     ]
     depends_on:
