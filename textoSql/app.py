@@ -68,125 +68,39 @@ class SQLGenerator:
         current_date = datetime.now().strftime("%Y-%m-%d")
         
         prompt = textwrap.dedent(f"""
-        ### Rol:
-        Eres un experto en PostgreSQL. Convierte preguntas en lenguaje natural a consultas SQL eficientes y de solo lectura.
-
-        ### Contexto Temporal:
-        Fecha actual: {current_date} (usa esto para calcular fechas relativas como 'este mes', 'semana pasada', 'último año')
-
-        ### Esquema de la Base de Datos:
+        Eres un experto en PostgreSQL. Genera consultas SQL de solo lectura.
+        
+        Fecha actual: {current_date}
+        
+        Esquema:
         {self.db_schema}
-
-        ### Reglas Críticas:
-        1. **Solo Lectura**: JAMÁS generes INSERT, UPDATE, DELETE o DROP
-        2. **Búsqueda Flexible**: Para nombres de texto (marcas, categorías, clientes), usa `ILIKE '%valor%'` en lugar de `=`
-           - Ejemplo: `WHERE m.nombre ILIKE '%Makita%'` (captura "makita", "MAKITA", "Herramientas Makita")
-        3. **Stock Crítico**: Siempre usa `stock_actual < stock_minimo` (NO valores fijos como < 10)
-        4. **Top N / Favoritos**: Para "método preferido" o "categoría favorita", usa subqueries:
-           ```sql
-           (SELECT columna FROM tabla WHERE condicion GROUP BY columna ORDER BY COUNT(*) DESC LIMIT 1)
-           ```
-        5. **Límites de Seguridad**: 
-           - Si la consulta lista productos/ventas/clientes (no agregaciones), añade `LIMIT 50` por defecto
-           - Para TOP N específico (ej: "top 5"), usa el número solicitado
-        6. **Conteos vs Detalles**:
-           - "¿Cuántos...?" → Si es sobre productos/clientes/ventas, muestra AMBOS: conteo total + lista de detalles (nombre, stock, precio, etc.)
-           - "¿Qué productos...?" o "¿Quiénes...?" → Lista detalles completos
-           - Ejemplo "¿Cuántos productos de X marca?": Muestra código, nombre, stock, precio (NO solo COUNT)
-        7. **Sintaxis PostgreSQL**: Usa `CURRENT_DATE`, `INTERVAL '30 days'`, etc.
-        8. **Salida Limpia**: Devuelve SOLAMENTE el bloque SQL en formato Markdown
-        9. **Lee el Esquema**: SOLO usa tablas y columnas que existen en el esquema proporcionado
-
-
-        ### Ejemplos de Razonamiento (Few-Shot):
-
-        **Ejemplo 1: Búsqueda flexible con ILIKE**
-        Pregunta: "¿Qué productos de Makita tienen stock bajo?"
-        ```sql
-        SELECT p.nombre, p.stock_actual, p.stock_minimo, pr.nombre AS proveedor
-        FROM productos p
-        JOIN marcas m ON p.id_marca = m.id_marca
-        JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
-        WHERE m.nombre ILIKE '%Makita%' AND p.stock_actual < p.stock_minimo
-        ORDER BY p.stock_actual ASC;
-        ```
-
-        **Ejemplo 2: Top N con método favorito (subquery para moda)**
-        Pregunta: "¿Cuáles son los 3 mejores clientes y su método de pago favorito?"
-        ```sql
-        SELECT 
-            c.nombre || ' ' || c.apellido AS cliente,
-            SUM(v.total) AS total_gastado,
-            (
-                SELECT metodo_pago 
-                FROM ventas v2 
-                WHERE v2.id_cliente = c.id_cliente 
-                GROUP BY metodo_pago 
-                ORDER BY COUNT(*) DESC 
-                LIMIT 1
-            ) AS metodo_favorito
-        FROM clientes c
-        JOIN ventas v ON c.id_cliente = v.id_cliente
-        GROUP BY c.id_cliente, c.nombre, c.apellido
-        ORDER BY total_gastado DESC
-        LIMIT 3;
-        ```
-
-        **Ejemplo 3: Conteo CON detalles (caso común de inventario)**
-        Pregunta: "¿Cuántos productos de Makita tenemos?"
-        ```sql
+        
+        Reglas:
+        1. Solo SELECT (no INSERT/UPDATE/DELETE/DROP)
+        2. Para texto usa ILIKE '%valor%' (no =)
+        3. Stock crítico: stock_actual < stock_minimo
+        4. Añade LIMIT 50 por defecto
+        5. ❌ NUNCA uses solo COUNT(*) cuando pregunten "¿Cuántos X?" - lista los detalles completos
+        6. Para TOP N o favoritos usa subqueries con ORDER BY COUNT(*) DESC
+        7. Lee el esquema: SOLO usa tablas/columnas que existen
+        
+        Ejemplos:
+        
+        P: "¿Cuántos productos de Makita tenemos?"
         SELECT p.codigo_sku, p.nombre, p.stock_actual, p.precio_venta, m.nombre AS marca
-        FROM productos p
-        JOIN marcas m ON p.id_marca = m.id_marca
-        WHERE m.nombre ILIKE '%Makita%'
-        ORDER BY p.stock_actual DESC
-        LIMIT 50;
-        ```
-        Nota: Muestra detalles útiles (código, nombre, stock, precio) en lugar de solo COUNT(*)
-
-        **Ejemplo 4: Conteo simple (solo cuando NO hay detalles relevantes)**
-        Pregunta: "¿Cuántas ventas hubo en total?"
-        ```sql
-        SELECT COUNT(*) AS total_ventas FROM ventas;
-        ```
-
-        **Ejemplo 5: Lista de detalles (con LIMIT por seguridad)**
-        Pregunta: "¿Qué clientes hay en Puerto Montt?"
-        ```sql
-        SELECT c.rut, c.nombre, c.apellido, c.email, c.telefono, c.tipo_cliente
-        FROM clientes c
-        WHERE c.ciudad ILIKE '%Puerto Montt%'
-        ORDER BY c.nombre
-        LIMIT 50;
-        ```
-
-        **Ejemplo 6: Consultas con fechas relativas**
-        Pregunta: "¿Qué ventas hubo este mes?"
-        ```sql
-        SELECT v.id_venta, v.fecha, v.total, c.nombre AS cliente
-        FROM ventas v
-        JOIN clientes c ON v.id_cliente = c.id_cliente
-        WHERE v.fecha >= DATE_TRUNC('month', CURRENT_DATE)
-        ORDER BY v.fecha DESC
-        LIMIT 50;
-        ```
-
-        **Ejemplo 7: Evitar JOINs innecesarios**
-        Pregunta: "¿Cuántos productos hay en total?"
-        ```sql
-        SELECT COUNT(*) AS total_productos FROM productos;
-        ```
-        ❌ INCORRECTO: `SELECT COUNT(*) FROM productos p JOIN categorias c ON p.id_categoria = c.id_categoria;`
-
-        **IMPORTANTE: SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA**
-        - ❌ NO inventes: "inventario_sucursal", "año_venta", "nombre_marca", "total_ventas"
-        - ✅ USA los nombres exactos del esquema proporcionado
-        - ✅ Si no existe una tabla, busca alternativas con las disponibles
-
-        ### Pregunta del Usuario:
-        {question}
-
-        ### SQL:
+        FROM productos p JOIN marcas m ON p.id_marca = m.id_marca
+        WHERE m.nombre ILIKE '%Makita%' ORDER BY p.stock_actual DESC LIMIT 50;
+        
+        P: "¿Top 3 clientes y su método de pago favorito?"
+        SELECT c.nombre, SUM(v.total) AS total,
+               (SELECT metodo_pago FROM ventas v2 WHERE v2.id_cliente = c.id_cliente 
+                GROUP BY metodo_pago ORDER BY COUNT(*) DESC LIMIT 1) AS favorito
+        FROM clientes c JOIN ventas v ON c.id_cliente = v.id_cliente
+        GROUP BY c.id_cliente, c.nombre ORDER BY total DESC LIMIT 3;
+        
+        Pregunta: {question}
+        
+        SQL:
         ```sql
         """)
         
@@ -444,31 +358,28 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
             ❌ NO uses "total_ventas" - la columna correcta es `ventas.total`
             """)
         
-        # 5. Crear prompt mejorado con tu enfoque
+        # 5. Crear prompt compacto
         prompt = textwrap.dedent(f"""
-        ### Rol:
-        Eres un experto en PostgreSQL. Convierte preguntas en lenguaje natural a consultas SQL eficientes y de solo lectura.
-
-        ### Contexto:
-        - Base de datos: {request.database_id}
-        - Fecha actual: {current_date} (usa esto para calcular fechas relativas)
-
-        ### Esquema de la Base de Datos:
+        Eres experto en PostgreSQL. Genera SQL de solo lectura.
+        
+        BD: {request.database_id}
+        Fecha: {current_date}
+        
+        Esquema:
         {db_schema}
         {ejemplos_especificos}
-
-        ### Reglas Críticas:
-        1. **Solo Lectura**: JAMÁS generes INSERT, UPDATE, DELETE o DROP
-        2. **Búsqueda Flexible**: Para nombres de texto, usa `ILIKE '%valor%'` en lugar de `=`
-        3. **Stock Crítico**: Usa `stock_actual < stock_minimo` (NO valores fijos)
-        4. **Límites de Seguridad**: Para listas de datos, añade `LIMIT 50` por defecto
-        5. **Salida Limpia**: Devuelve SOLAMENTE el bloque SQL en formato Markdown
-        6. **Lee el Esquema**: SOLO usa tablas y columnas que existen en el esquema
-
-        ### Pregunta del Usuario:
-        {request.question}
-
-        ### SQL:
+        
+        Reglas:
+        1. Solo SELECT (no INSERT/UPDATE/DELETE/DROP)
+        2. Texto: usa ILIKE '%valor%'
+        3. Stock crítico: stock_actual < stock_minimo
+        4. LIMIT 50 por defecto
+        5. ❌ NUNCA COUNT(*) solo - lista detalles completos
+        6. Lee esquema: SOLO tablas/columnas existentes
+        
+        Pregunta: {request.question}
+        
+        SQL:
         ```sql
         """)
         
