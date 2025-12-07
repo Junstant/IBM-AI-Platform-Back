@@ -289,7 +289,7 @@ services:
           cpus: '6.0'
           memory: 7G
   
-  #^ ======================== MISTRAL 7B (⭐ PRIORIDAD MÁXIMA) ========================
+  #^ ======================== MISTRAL 7B (⭐ OPTIMIZADO PARA TEXTOSQL) ========================
   mistral-7b:
     image: quay.io/daniel_casali/llama.cpp-mma:v8
     container_name: mistral-7b
@@ -305,25 +305,26 @@ services:
       "--host", "0.0.0.0",
       "--port", "8080",
       "-m", "/models/Mistral-7B-Instruct-v0.3-Q4_K_S.gguf",
-      "-c", "32768",
-      "-b", "2048",
+      "-c", "8192",
+      "-b", "1024",
       "-t", "12",
       "-n", "-1",
-      "--ctx-size", "32768",
-      "--parallel", "12",
+      "--ctx-size", "8192",
+      "--parallel", "8",
       "--cont-batching",
       "-fa",
-      "--numa", "distribute"
+      "--numa", "distribute",
+      "--no-warmup"
     ]
     depends_on:
       model-downloader:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
+      interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 600s
+      start_period: 120s
     deploy:
       resources:
         limits:
