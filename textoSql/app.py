@@ -178,6 +178,11 @@ ORDER BY p.nombre;
 ```
 Nota: Muestra el listado completo con información útil (SKU, precio, stock, categoría).
 
+**IMPORTANTE: SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA**
+- ❌ NO inventes nombres como "inventario_sucursal", "año_venta", "configuracion"
+- ✅ USA los nombres exactos del esquema proporcionado
+- ✅ Si no existe una tabla para lo que necesitas, busca alternativas con las tablas disponibles
+
 ### Esquema de la Base de Datos:
 {self.db_schema}
 
@@ -387,7 +392,7 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
         db_schema = connection_manager.get_database_schema(request.database_id)
         
         # 4. Crear prompt para generar SQL
-        prompt = f"""Eres un experto en bases de datos PostgreSQL. Tu tarea es generar UNA consulta SQL válida.
+        prompt = f"""Eres un experto en bases de datos PostgreSQL. Tu tarea es generar UNA consulta SQL válida USANDO EXCLUSIVAMENTE LAS TABLAS Y COLUMNAS DEL ESQUEMA PROPORCIONADO.
 
 BASE DE DATOS: {request.database_id}
 
@@ -396,12 +401,20 @@ ESQUEMA DE LA BASE DE DATOS:
 
 PREGUNTA DEL USUARIO: {request.question}
 
-INSTRUCCIONES:
-- Genera SOLO la consulta SQL, nada más
-- Usa sintaxis PostgreSQL
-- La consulta debe terminar con punto y coma (;)
-- NO agregues explicaciones ni texto adicional
-- Si necesitas buscar cuentas bancarias, usa las tablas disponibles en el esquema
+INSTRUCCIONES CRÍTICAS:
+1. **SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA** - No inventes nombres de tablas o columnas
+2. **Lee cuidadosamente el esquema** antes de generar la consulta
+3. Genera SOLO la consulta SQL, sin explicaciones ni comentarios
+4. Usa sintaxis PostgreSQL estándar
+5. La consulta debe terminar con punto y coma (;)
+6. Si una tabla no existe en el esquema, NO la uses - busca alternativas con las tablas disponibles
+7. Para columnas de stock, usa los nombres exactos del esquema (ej: stock_actual, stock_minimo)
+8. Para relaciones, revisa las foreign keys documentadas en el esquema
+
+FORMATO DE SALIDA:
+```sql
+-- Tu consulta SQL aquí usando SOLO tablas del esquema
+```
 
 CONSULTA SQL:
 ```sql
