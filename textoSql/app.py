@@ -78,6 +78,7 @@ Dada la siguiente base de datos PostgreSQL, tu tarea es generar una única consu
 7. **Agregaciones**: Para TOP clientes/productos, usa `GROUP BY` con `COUNT()` o `SUM()`, nunca uses subqueries en WHERE para filtrar TOP N
 8. **ORDER BY lógico**: Ordena por el criterio relevante (total_compras, monto, stock_actual, etc.)
 9. **Nombres exactos**: Las tablas y columnas deben coincidir exactamente con el esquema proporcionado
+10. **Lee el esquema cuidadosamente**: SOLO usa tablas y columnas que existen en el esquema
 
 ### Ejemplos:
 
@@ -391,30 +392,57 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
         # 3. Obtener el esquema de la BD
         db_schema = connection_manager.get_database_schema(request.database_id)
         
-        # 4. Crear prompt para generar SQL
+        # 4. Agregar ejemplos específicos si es ferreteria_weitzler
+        ejemplos_especificos = ""
+        if request.database_id == "ferreteria_weitzler":
+            ejemplos_especificos = """
+
+### EJEMPLOS ESPECÍFICOS PARA ESTA BASE DE DATOS:
+
+**Stock bajo:**
+Si preguntan por productos con stock bajo, usa: `WHERE stock_actual < stock_minimo`
+Tablas: productos (columnas: id_producto, nombre, stock_actual, stock_minimo)
+
+**Productos de una marca:**
+Si preguntan por productos de una marca (ej: Makita):
+```sql
+SELECT p.codigo_sku, p.nombre, p.stock_actual, m.nombre AS marca
+FROM productos p JOIN marcas m ON p.id_marca = m.id_marca
+WHERE m.nombre = 'Makita';
+```
+❌ NO uses "nombre_marca" - no existe
+✅ USA tabla "marcas" con columna "nombre"
+
+**Ventas recientes:**
+Si preguntan por ventas o compras:
+Tabla "ventas" tiene columnas: id_venta, fecha, total (NO "total_ventas")
+```sql
+SELECT c.nombre, SUM(v.total) AS total_gastado
+FROM clientes c JOIN ventas v ON c.id_cliente = v.id_cliente
+WHERE v.fecha >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY c.id_cliente, c.nombre;
+```
+"""
+        
+        # 5. Crear prompt para generar SQL
         prompt = f"""Eres un experto en bases de datos PostgreSQL. Tu tarea es generar UNA consulta SQL válida USANDO EXCLUSIVAMENTE LAS TABLAS Y COLUMNAS DEL ESQUEMA PROPORCIONADO.
 
 BASE DE DATOS: {request.database_id}
 
 ESQUEMA DE LA BASE DE DATOS:
 {db_schema}
+{ejemplos_especificos}
 
 PREGUNTA DEL USUARIO: {request.question}
 
 INSTRUCCIONES CRÍTICAS:
-1. **SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA** - No inventes nombres de tablas o columnas
-2. **Lee cuidadosamente el esquema** antes de generar la consulta
-3. Genera SOLO la consulta SQL, sin explicaciones ni comentarios
+1. **SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA** - No inventes nombres
+2. **Lee TODO el esquema** antes de generar la consulta
+3. Genera SOLO la consulta SQL, sin explicaciones
 4. Usa sintaxis PostgreSQL estándar
 5. La consulta debe terminar con punto y coma (;)
-6. Si una tabla no existe en el esquema, NO la uses - busca alternativas con las tablas disponibles
-7. Para columnas de stock, usa los nombres exactos del esquema (ej: stock_actual, stock_minimo)
-8. Para relaciones, revisa las foreign keys documentadas en el esquema
-
-FORMATO DE SALIDA:
-```sql
--- Tu consulta SQL aquí usando SOLO tablas del esquema
-```
+6. Si una tabla no existe, busca alternativas en el esquema
+7. Verifica que cada columna usada existe en su tabla
 
 CONSULTA SQL:
 ```sql
