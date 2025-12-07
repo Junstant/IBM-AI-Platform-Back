@@ -90,8 +90,9 @@ class SQLGenerator:
            - Si la consulta lista productos/ventas/clientes (no agregaciones), añade `LIMIT 50` por defecto
            - Para TOP N específico (ej: "top 5"), usa el número solicitado
         6. **Conteos vs Detalles**:
-           - "¿Cuántos...?" → Usa `COUNT(*)`
+           - "¿Cuántos...?" → Si es sobre productos/clientes/ventas, muestra AMBOS: conteo total + lista de detalles (nombre, stock, precio, etc.)
            - "¿Qué productos...?" o "¿Quiénes...?" → Lista detalles completos
+           - Ejemplo "¿Cuántos productos de X marca?": Muestra código, nombre, stock, precio (NO solo COUNT)
         7. **Sintaxis PostgreSQL**: Usa `CURRENT_DATE`, `INTERVAL '30 days'`, etc.
         8. **Salida Limpia**: Devuelve SOLAMENTE el bloque SQL en formato Markdown
         9. **Lee el Esquema**: SOLO usa tablas y columnas que existen en el esquema proporcionado
@@ -131,15 +132,25 @@ class SQLGenerator:
         LIMIT 3;
         ```
 
-        **Ejemplo 3: Conteo simple (sin detalles)**
-        Pregunta: "¿Cuántos clientes hay en Puerto Montt?"
+        **Ejemplo 3: Conteo CON detalles (caso común de inventario)**
+        Pregunta: "¿Cuántos productos de Makita tenemos?"
         ```sql
-        SELECT COUNT(*) AS total_clientes 
-        FROM clientes 
-        WHERE ciudad ILIKE '%Puerto Montt%';
+        SELECT p.codigo_sku, p.nombre, p.stock_actual, p.precio_venta, m.nombre AS marca
+        FROM productos p
+        JOIN marcas m ON p.id_marca = m.id_marca
+        WHERE m.nombre ILIKE '%Makita%'
+        ORDER BY p.stock_actual DESC
+        LIMIT 50;
+        ```
+        Nota: Muestra detalles útiles (código, nombre, stock, precio) en lugar de solo COUNT(*)
+
+        **Ejemplo 4: Conteo simple (solo cuando NO hay detalles relevantes)**
+        Pregunta: "¿Cuántas ventas hubo en total?"
+        ```sql
+        SELECT COUNT(*) AS total_ventas FROM ventas;
         ```
 
-        **Ejemplo 4: Lista de detalles (con LIMIT por seguridad)**
+        **Ejemplo 5: Lista de detalles (con LIMIT por seguridad)**
         Pregunta: "¿Qué clientes hay en Puerto Montt?"
         ```sql
         SELECT c.rut, c.nombre, c.apellido, c.email, c.telefono, c.tipo_cliente
@@ -149,7 +160,7 @@ class SQLGenerator:
         LIMIT 50;
         ```
 
-        **Ejemplo 5: Consultas con fechas relativas**
+        **Ejemplo 6: Consultas con fechas relativas**
         Pregunta: "¿Qué ventas hubo este mes?"
         ```sql
         SELECT v.id_venta, v.fecha, v.total, c.nombre AS cliente
@@ -160,7 +171,7 @@ class SQLGenerator:
         LIMIT 50;
         ```
 
-        **Ejemplo 6: Evitar JOINs innecesarios**
+        **Ejemplo 7: Evitar JOINs innecesarios**
         Pregunta: "¿Cuántos productos hay en total?"
         ```sql
         SELECT COUNT(*) AS total_productos FROM productos;
