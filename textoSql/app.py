@@ -60,144 +60,140 @@ class SQLGenerator:
         self.db_schema = db_schema
 
     async def generate_sql_async(self, question: str) -> str:
-        """Crea el prompt, llama al LLM y extrae la consulta SQL."""
-        prompt = f"""
-### Instrucciones:
-Dada la siguiente base de datos PostgreSQL, tu tarea es generar una única consulta SQL que responda a la pregunta del usuario.
+        """Crea el prompt, inyecta fecha actual y contexto, llama al LLM."""
+        import textwrap
+        from datetime import datetime
+        
+        # Inyectar fecha actual para resolver "este mes", "ayer", "último año", etc.
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
+        prompt = textwrap.dedent(f"""
+        ### Rol:
+        Eres un experto en PostgreSQL. Convierte preguntas en lenguaje natural a consultas SQL eficientes y de solo lectura.
 
-### Reglas importantes:
-1. **Formato de salida**: Solo devuelve el bloque de código SQL, nada más
-2. **Sintaxis PostgreSQL**: Asegúrate de usar sintaxis correcta para PostgreSQL
-3. **Filtros específicos**: Si la pregunta menciona marca, categoría o nombre específico, DEBES incluir WHERE con ese valor exacto
-4. **Stock crítico**: Para "stock bajo" o "próximos a agotarse", usa: `stock_actual < stock_minimo` (NO valores fijos)
-5. **JOINs necesarios**: Solo incluye JOINs si la pregunta requiere datos de esas tablas
-6. **TOP N con "preferido/favorito"**: Usa subquery para calcular la moda (valor más frecuente):
-   ```sql
-   (SELECT columna FROM tabla WHERE condicion GROUP BY columna ORDER BY COUNT(*) DESC LIMIT 1)
-   ```
-7. **Agregaciones**: Para TOP clientes/productos, usa `GROUP BY` con `COUNT()` o `SUM()`, nunca uses subqueries en WHERE para filtrar TOP N
-8. **ORDER BY lógico**: Ordena por el criterio relevante (total_compras, monto, stock_actual, etc.)
-9. **Nombres exactos**: Las tablas y columnas deben coincidir exactamente con el esquema proporcionado
-10. **Lee el esquema cuidadosamente**: SOLO usa tablas y columnas que existen en el esquema
+        ### Contexto Temporal:
+        Fecha actual: {current_date} (usa esto para calcular fechas relativas como 'este mes', 'semana pasada', 'último año')
 
-### Ejemplos:
+        ### Esquema de la Base de Datos:
+        {self.db_schema}
 
-**Ejemplo 1: Filtrar por marca con stock bajo**
-Pregunta: "¿Qué productos de Makita tienen stock bajo?"
-SQL correcto:
-```sql
-SELECT p.nombre, p.stock_actual, p.stock_minimo, pr.nombre AS proveedor
-FROM productos p
-JOIN marcas m ON p.id_marca = m.id_marca
-JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
-WHERE m.nombre = 'Makita' AND p.stock_actual < p.stock_minimo
-ORDER BY p.stock_actual ASC;
-```
+        ### Reglas Críticas:
+        1. **Solo Lectura**: JAMÁS generes INSERT, UPDATE, DELETE o DROP
+        2. **Búsqueda Flexible**: Para nombres de texto (marcas, categorías, clientes), usa `ILIKE '%valor%'` en lugar de `=`
+           - Ejemplo: `WHERE m.nombre ILIKE '%Makita%'` (captura "makita", "MAKITA", "Herramientas Makita")
+        3. **Stock Crítico**: Siempre usa `stock_actual < stock_minimo` (NO valores fijos como < 10)
+        4. **Top N / Favoritos**: Para "método preferido" o "categoría favorita", usa subqueries:
+           ```sql
+           (SELECT columna FROM tabla WHERE condicion GROUP BY columna ORDER BY COUNT(*) DESC LIMIT 1)
+           ```
+        5. **Límites de Seguridad**: 
+           - Si la consulta lista productos/ventas/clientes (no agregaciones), añade `LIMIT 50` por defecto
+           - Para TOP N específico (ej: "top 5"), usa el número solicitado
+        6. **Conteos vs Detalles**:
+           - "¿Cuántos...?" → Usa `COUNT(*)`
+           - "¿Qué productos...?" o "¿Quiénes...?" → Lista detalles completos
+        7. **Sintaxis PostgreSQL**: Usa `CURRENT_DATE`, `INTERVAL '30 days'`, etc.
+        8. **Salida Limpia**: Devuelve SOLAMENTE el bloque SQL en formato Markdown
+        9. **Lee el Esquema**: SOLO usa tablas y columnas que existen en el esquema proporcionado
 
-**Ejemplo 2: Productos próximos a agotarse (sin marca específica)**
-Pregunta: "¿Cuáles son los productos más próximos a agotarse?"
-SQL correcto:
-```sql
-SELECT p.nombre, p.stock_actual, p.stock_minimo, (p.stock_actual - p.stock_minimo) AS diferencia
-FROM productos p
-WHERE p.stock_actual < p.stock_minimo
-ORDER BY diferencia ASC
-LIMIT 10;
-```
 
-**Ejemplo 3: TOP clientes con método de pago preferido (subquery para moda)**
-Pregunta: "¿Cuáles son los 5 clientes que más han comprado y cuál es su método de pago preferido?"
-SQL correcto:
-```sql
-SELECT 
-    c.id_cliente,
-    c.nombre || ' ' || c.apellido AS cliente,
-    COUNT(DISTINCT v.id_venta) AS total_compras,
-    SUM(v.total) AS monto_total,
-    (
-        SELECT metodo_pago 
-        FROM ventas v2 
-        WHERE v2.id_cliente = c.id_cliente 
-        GROUP BY metodo_pago 
-        ORDER BY COUNT(*) DESC 
-        LIMIT 1
-    ) AS metodo_preferido
-FROM clientes c
-JOIN ventas v ON c.id_cliente = v.id_cliente
-GROUP BY c.id_cliente, c.nombre, c.apellido
-ORDER BY total_compras DESC, monto_total DESC
-LIMIT 5;
-```
+        ### Ejemplos de Razonamiento (Few-Shot):
 
-**Ejemplo 4: Evitar JOINs innecesarios**
-Pregunta: "¿Cuántos productos hay en total?"
-SQL correcto:
-```sql
-SELECT COUNT(*) AS total_productos FROM productos;
-```
-SQL INCORRECTO (evitar esto):
-```sql
--- ❌ NO hagas JOINs innecesarios con categorías, marcas, etc. si no se necesitan
-SELECT COUNT(*) FROM productos p JOIN categorias c ON p.id_categoria = c.id_categoria;
-```
+        **Ejemplo 1: Búsqueda flexible con ILIKE**
+        Pregunta: "¿Qué productos de Makita tienen stock bajo?"
+        ```sql
+        SELECT p.nombre, p.stock_actual, p.stock_minimo, pr.nombre AS proveedor
+        FROM productos p
+        JOIN marcas m ON p.id_marca = m.id_marca
+        JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
+        WHERE m.nombre ILIKE '%Makita%' AND p.stock_actual < p.stock_minimo
+        ORDER BY p.stock_actual ASC;
+        ```
 
-**Ejemplo 5: Consultas con conteo + información detallada**
-Pregunta: "¿Cuántos clientes tenemos en Puerto Montt?"
-SQL correcto (trae conteo + detalles):
-```sql
-SELECT 
-    c.rut,
-    c.nombre,
-    c.apellido,
-    c.email,
-    c.telefono,
-    c.tipo_cliente,
-    c.ciudad
-FROM clientes c
-WHERE c.ciudad = 'Puerto Montt'
-ORDER BY c.nombre;
-```
-Nota: Cuando pregunten "¿Cuántos X?" generalmente es más útil mostrar el listado completo con detalles relevantes en lugar de solo el COUNT(*).
+        **Ejemplo 2: Top N con método favorito (subquery para moda)**
+        Pregunta: "¿Cuáles son los 3 mejores clientes y su método de pago favorito?"
+        ```sql
+        SELECT 
+            c.nombre || ' ' || c.apellido AS cliente,
+            SUM(v.total) AS total_gastado,
+            (
+                SELECT metodo_pago 
+                FROM ventas v2 
+                WHERE v2.id_cliente = c.id_cliente 
+                GROUP BY metodo_pago 
+                ORDER BY COUNT(*) DESC 
+                LIMIT 1
+            ) AS metodo_favorito
+        FROM clientes c
+        JOIN ventas v ON c.id_cliente = v.id_cliente
+        GROUP BY c.id_cliente, c.nombre, c.apellido
+        ORDER BY total_gastado DESC
+        LIMIT 3;
+        ```
 
-**Ejemplo 6: Productos de una marca específica con información completa**
-Pregunta: "¿Cuántos productos de la marca Makita tenemos?"
-SQL correcto (trae productos con detalles):
-```sql
-SELECT 
-    p.codigo_sku,
-    p.nombre,
-    p.precio_venta,
-    p.stock_actual,
-    c.nombre AS categoria,
-    pr.nombre AS proveedor
-FROM productos p
-JOIN marcas m ON p.id_marca = m.id_marca
-JOIN categorias c ON p.id_categoria = c.id_categoria
-JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
-WHERE m.nombre = 'Makita'
-ORDER BY p.nombre;
-```
-Nota: Muestra el listado completo con información útil (SKU, precio, stock, categoría).
+        **Ejemplo 3: Conteo simple (sin detalles)**
+        Pregunta: "¿Cuántos clientes hay en Puerto Montt?"
+        ```sql
+        SELECT COUNT(*) AS total_clientes 
+        FROM clientes 
+        WHERE ciudad ILIKE '%Puerto Montt%';
+        ```
 
-**IMPORTANTE: SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA**
-- ❌ NO inventes nombres como "inventario_sucursal", "año_venta", "configuracion"
-- ✅ USA los nombres exactos del esquema proporcionado
-- ✅ Si no existe una tabla para lo que necesitas, busca alternativas con las tablas disponibles
+        **Ejemplo 4: Lista de detalles (con LIMIT por seguridad)**
+        Pregunta: "¿Qué clientes hay en Puerto Montt?"
+        ```sql
+        SELECT c.rut, c.nombre, c.apellido, c.email, c.telefono, c.tipo_cliente
+        FROM clientes c
+        WHERE c.ciudad ILIKE '%Puerto Montt%'
+        ORDER BY c.nombre
+        LIMIT 50;
+        ```
 
-### Esquema de la Base de Datos:
-{self.db_schema}
+        **Ejemplo 5: Consultas con fechas relativas**
+        Pregunta: "¿Qué ventas hubo este mes?"
+        ```sql
+        SELECT v.id_venta, v.fecha, v.total, c.nombre AS cliente
+        FROM ventas v
+        JOIN clientes c ON v.id_cliente = c.id_cliente
+        WHERE v.fecha >= DATE_TRUNC('month', CURRENT_DATE)
+        ORDER BY v.fecha DESC
+        LIMIT 50;
+        ```
 
-### Pregunta del Usuario:
-{question}
+        **Ejemplo 6: Evitar JOINs innecesarios**
+        Pregunta: "¿Cuántos productos hay en total?"
+        ```sql
+        SELECT COUNT(*) AS total_productos FROM productos;
+        ```
+        ❌ INCORRECTO: `SELECT COUNT(*) FROM productos p JOIN categorias c ON p.id_categoria = c.id_categoria;`
 
-### Consulta SQL:
-```sql
-"""
+        **IMPORTANTE: SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA**
+        - ❌ NO inventes: "inventario_sucursal", "año_venta", "nombre_marca", "total_ventas"
+        - ✅ USA los nombres exactos del esquema proporcionado
+        - ✅ Si no existe una tabla, busca alternativas con las disponibles
+
+        ### Pregunta del Usuario:
+        {question}
+
+        ### SQL:
+        ```sql
+        """)
+        
+        # Llamar al LLM con el prompt mejorado
         response = await self.llm_interface.get_llama_response_async(prompt)
-        # Usa la función de utils.py para limpiar la respuesta del LLM
+        
+        # Extraer SQL de la respuesta del LLM
         sql_query = extract_sql_from_response(response)
         if not sql_query:
             raise ValueError("El LLM no pudo generar una consulta SQL válida.")
+        
+        # Validación de seguridad: rechazar operaciones de escritura
+        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE']
+        sql_upper = sql_query.upper()
+        for keyword in dangerous_keywords:
+            if keyword in sql_upper:
+                raise ValueError(f"Operación no permitida: {keyword}. Solo se aceptan consultas de lectura (SELECT).")
+        
         return sql_query
 
 # --- Aplicación FastAPI ---
@@ -392,73 +388,97 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
         # 3. Obtener el esquema de la BD
         db_schema = connection_manager.get_database_schema(request.database_id)
         
-        # 4. Agregar ejemplos específicos si es ferreteria_weitzler
+        # 4. Preparar contexto temporal y ejemplos específicos
+        import textwrap
+        from datetime import datetime
+        
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
         ejemplos_especificos = ""
         if request.database_id == "ferreteria_weitzler":
-            ejemplos_especificos = """
+            ejemplos_especificos = textwrap.dedent("""
 
-### EJEMPLOS ESPECÍFICOS PARA ESTA BASE DE DATOS:
+            ### EJEMPLOS ESPECÍFICOS PARA ESTA BASE DE DATOS:
 
-**Stock bajo:**
-Si preguntan por productos con stock bajo, usa: `WHERE stock_actual < stock_minimo`
-Tablas: productos (columnas: id_producto, nombre, stock_actual, stock_minimo)
+            **Stock bajo:**
+            Pregunta: "¿Productos con stock bajo?"
+            ```sql
+            SELECT p.nombre, p.stock_actual, p.stock_minimo
+            FROM productos p
+            WHERE p.stock_actual < p.stock_minimo
+            LIMIT 50;
+            ```
 
-**Productos de una marca:**
-Si preguntan por productos de una marca (ej: Makita):
-```sql
-SELECT p.codigo_sku, p.nombre, p.stock_actual, m.nombre AS marca
-FROM productos p JOIN marcas m ON p.id_marca = m.id_marca
-WHERE m.nombre = 'Makita';
-```
-❌ NO uses "nombre_marca" - no existe
-✅ USA tabla "marcas" con columna "nombre"
+            **Productos de una marca (usa ILIKE):**
+            Pregunta: "¿Productos de Makita?"
+            ```sql
+            SELECT p.codigo_sku, p.nombre, p.stock_actual, m.nombre AS marca
+            FROM productos p 
+            JOIN marcas m ON p.id_marca = m.id_marca
+            WHERE m.nombre ILIKE '%Makita%'
+            LIMIT 50;
+            ```
+            ❌ NO uses "nombre_marca" - la columna correcta es `marcas.nombre`
 
-**Ventas recientes:**
-Si preguntan por ventas o compras:
-Tabla "ventas" tiene columnas: id_venta, fecha, total (NO "total_ventas")
-```sql
-SELECT c.nombre, SUM(v.total) AS total_gastado
-FROM clientes c JOIN ventas v ON c.id_cliente = v.id_cliente
-WHERE v.fecha >= CURRENT_DATE - INTERVAL '30 days'
-GROUP BY c.id_cliente, c.nombre;
-```
-"""
+            **Ventas recientes (usa fecha actual):**
+            Pregunta: "¿Ventas de los últimos 30 días?"
+            ```sql
+            SELECT c.nombre, SUM(v.total) AS total_gastado
+            FROM clientes c 
+            JOIN ventas v ON c.id_cliente = v.id_cliente
+            WHERE v.fecha >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY c.id_cliente, c.nombre
+            ORDER BY total_gastado DESC;
+            ```
+            ❌ NO uses "total_ventas" - la columna correcta es `ventas.total`
+            """)
         
-        # 5. Crear prompt para generar SQL
-        prompt = f"""Eres un experto en bases de datos PostgreSQL. Tu tarea es generar UNA consulta SQL válida USANDO EXCLUSIVAMENTE LAS TABLAS Y COLUMNAS DEL ESQUEMA PROPORCIONADO.
+        # 5. Crear prompt mejorado con tu enfoque
+        prompt = textwrap.dedent(f"""
+        ### Rol:
+        Eres un experto en PostgreSQL. Convierte preguntas en lenguaje natural a consultas SQL eficientes y de solo lectura.
 
-BASE DE DATOS: {request.database_id}
+        ### Contexto:
+        - Base de datos: {request.database_id}
+        - Fecha actual: {current_date} (usa esto para calcular fechas relativas)
 
-ESQUEMA DE LA BASE DE DATOS:
-{db_schema}
-{ejemplos_especificos}
+        ### Esquema de la Base de Datos:
+        {db_schema}
+        {ejemplos_especificos}
 
-PREGUNTA DEL USUARIO: {request.question}
+        ### Reglas Críticas:
+        1. **Solo Lectura**: JAMÁS generes INSERT, UPDATE, DELETE o DROP
+        2. **Búsqueda Flexible**: Para nombres de texto, usa `ILIKE '%valor%'` en lugar de `=`
+        3. **Stock Crítico**: Usa `stock_actual < stock_minimo` (NO valores fijos)
+        4. **Límites de Seguridad**: Para listas de datos, añade `LIMIT 50` por defecto
+        5. **Salida Limpia**: Devuelve SOLAMENTE el bloque SQL en formato Markdown
+        6. **Lee el Esquema**: SOLO usa tablas y columnas que existen en el esquema
 
-INSTRUCCIONES CRÍTICAS:
-1. **SOLO USA TABLAS Y COLUMNAS QUE EXISTEN EN EL ESQUEMA** - No inventes nombres
-2. **Lee TODO el esquema** antes de generar la consulta
-3. Genera SOLO la consulta SQL, sin explicaciones
-4. Usa sintaxis PostgreSQL estándar
-5. La consulta debe terminar con punto y coma (;)
-6. Si una tabla no existe, busca alternativas en el esquema
-7. Verifica que cada columna usada existe en su tabla
+        ### Pregunta del Usuario:
+        {request.question}
 
-CONSULTA SQL:
-```sql
-"""
+        ### SQL:
+        ```sql
+        """)
         
-        # 5. Generar SQL usando el modelo seleccionado
+        # 6. Generar SQL usando el modelo seleccionado
         response = await llm_interface.get_llama_response_async(prompt)
         sql_query = extract_sql_from_response(response)
         
         if not sql_query:
             raise ValueError("El LLM no pudo generar una consulta SQL válida.")
         
-        # 6. Ejecutar la consulta en la BD seleccionada
+        # Validación de seguridad: rechazar operaciones de escritura
+        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE']
+        sql_upper = sql_query.upper()
+        for keyword in dangerous_keywords:
+            if keyword in sql_upper:
+                raise ValueError(f"Operación no permitida: {keyword}. Solo se aceptan consultas de lectura (SELECT).")
+        
+        # 7. Ejecutar la consulta en la BD seleccionada
         results, _ = db_analyzer.execute_query(sql_query)
         
-        # 7. Generar explicación usando el mismo modelo
+        # 8. Generar explicación usando el mismo modelo
         explanation = await llm_interface.explain_results_async(
             request.question, sql_query, results
         )
