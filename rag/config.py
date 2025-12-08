@@ -40,10 +40,10 @@ class Config:
             "name": "Gemma 4B",
             "description": "Balance velocidad/calidad"
         },
-        "gemma-12b": {
-            "host": "gemma-12b", 
+        "arctic-text2sql": {
+            "host": "arctic-text2sql", 
             "port": "8080", 
-            "name": "Gemma 12B",
+            "name": "Arctic Text2SQL R1 7B",
             "description": "Alta calidad, más recursos"
         },
         "mistral-7b": {

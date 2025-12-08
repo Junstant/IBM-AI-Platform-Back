@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS ai_models_metrics (
     id SERIAL PRIMARY KEY,
     model_name VARCHAR(100) NOT NULL,
     model_type VARCHAR(50) NOT NULL, -- 'llm', 'fraud', 'textosql'
-    model_size VARCHAR(20), -- '2B', '4B', '7B', '8B', '12B', '14B'
+    model_size VARCHAR(20), -- '2B', '4B', '7B', '8B',
     status VARCHAR(20) NOT NULL DEFAULT 'inactive', -- 'active', 'inactive', 'loading', 'error', 'maintenance'
     port INTEGER,
     host VARCHAR(100) DEFAULT 'localhost',
@@ -368,7 +368,7 @@ SELECT
     CASE 
         WHEN model_name = 'gemma-2b' THEN 'Gemma 2B'
         WHEN model_name = 'gemma-4b' THEN 'Gemma 4B'
-        WHEN model_name = 'gemma-12b' THEN 'Gemma 12B'
+        WHEN model_name = 'arctic-text2sql' THEN 'Arctic Text2SQL R1 7B'
         WHEN model_name = 'mistral-7b' THEN 'Mistral 7B'
         WHEN model_name = 'deepseek-8b' THEN 'DeepSeek 8B'
         WHEN model_name = 'fraud-api' THEN 'Fraud Detection API'

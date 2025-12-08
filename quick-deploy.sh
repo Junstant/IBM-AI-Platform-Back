@@ -273,7 +273,7 @@ case "${1:-menu}" in
                 echo -e "${WHITE}Modelos disponibles:${NC}"
                 echo "  • gemma-2b"
                 echo "  • gemma-4b"
-                echo "  • gemma-12b"
+                echo "  • artic-text2sql"
                 echo "  • mistral-7b"
                 echo "  • deepseek-8b"
                 read -p "Nombre del modelo: " model_name
@@ -289,7 +289,7 @@ case "${1:-menu}" in
                 ;;
             4)
                 log "Deteniendo modelos secundarios..."
-                docker compose stop gemma-4b gemma-12b mistral-7b deepseek-8b
+                docker compose stop gemma-4b artic-text2sql mistral-7b deepseek-8b
                 ;;
         esac
         ;;

@@ -748,7 +748,7 @@ deploy_services() {
     log "📊 Esto incluye:"
     log "   • Gemma 2B (siempre activo)"
     log "   • Gemma 4B"
-    log "   • Gemma 12B"
+    log "   • Artic Text2SQL 7b"
     log "   • Mistral 7B"
     log "   • DeepSeek 8B"
     log "   • APIs (Fraude, TextoSQL, Stats, RAG)"

@@ -4,7 +4,7 @@ Conversor de lenguaje natural a SQL con múltiples modelos LLM.
 
 ## Características
 
-- 6 modelos LLM: Gemma (2B, 4B, 12B), Mistral 7B, DeepSeek 8B
+- 6 modelos LLM: Gemma (2B, 4B), Mistral 7B, DeepSeek 8B, Artic text 2sql 7b
 - Soporte multi-base de datos PostgreSQL
 - Análisis semántico de consultas
 - Ejecución automática de SQL generado
