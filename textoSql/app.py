@@ -60,11 +60,9 @@ class SQLGenerator:
         self.db_schema = db_schema
 
     async def generate_sql_async(self, question: str) -> str:
-        """Crea el prompt, inyecta fecha actual y contexto, llama al LLM."""
-        import textwrap
+        """Genera SQL usando mejores prácticas de los papers: retrieval + self-correction."""
         from datetime import datetime
         
-        # Inyectar fecha actual para resolver "este mes", "ayer", "último año", etc.
         current_date = datetime.now().strftime("%Y-%m-%d")
         
         prompt = textwrap.dedent(f"""
@@ -295,6 +293,147 @@ async def ask_question(request: QueryRequest):
             results=[],
             explanation=explanation,
             error=error_message
+        )
+
+@app.post("/query/ask-dynamic", response_model=QueryResponse, summary="Consulta con BD y modelo seleccionables", tags=["💬 Consultas Dinámicas"])
+async def ask_question_dynamic(request: DynamicQueryRequest):
+    """
+    Procesa una pregunta con selección dinámica de base de datos y modelo LLM.
+    Permite al usuario elegir qué BD consultar y qué modelo usar para generar el SQL.
+    """
+    try:
+        # 1. Obtener el analizador de BD específico
+        db_analyzer = connection_manager.get_database_analyzer(request.database_id)
+        
+        # 2. Obtener la interfaz LLM específica
+        llm_interface = connection_manager.get_llm_interface(request.model_id)
+        
+        # 3. Obtener el esquema de la BD
+        db_schema = connection_manager.get_database_schema(request.database_id)
+        
+        # 4. Preparar contexto temporal y ejemplos específicos
+        import textwrap
+        from datetime import datetime
+        
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
+        ejemplos_especificos = ""
+        if request.database_id == "ferreteria_weitzler":
+            ejemplos_especificos = textwrap.dedent("""
+
+            ### EJEMPLOS ESPECÍFICOS PARA ESTA BASE DE DATOS:
+
+            **Stock bajo:**
+            Pregunta: "¿Productos con stock bajo?"
+            ```sql
+            SELECT p.nombre, p.stock_actual, p.stock_minimo
+            FROM productos p
+            WHERE p.stock_actual < p.stock_minimo
+            LIMIT 50;
+            ```
+
+            **Productos de una marca (usa ILIKE):**
+            Pregunta: "¿Productos de Makita?"
+            ```sql
+            SELECT p.codigo_sku, p.nombre, p.stock_actual, m.nombre AS marca
+            FROM productos p 
+            JOIN marcas m ON p.id_marca = m.id_marca
+            WHERE m.nombre ILIKE '%Makita%'
+            LIMIT 50;
+            ```
+            ❌ NO uses "nombre_marca" - la columna correcta es `marcas.nombre`
+
+            **Ventas recientes (usa fecha actual):**
+            Pregunta: "¿Ventas de los últimos 30 días?"
+            ```sql
+            SELECT c.nombre, SUM(v.total) AS total_gastado
+            FROM clientes c 
+            JOIN ventas v ON c.id_cliente = v.id_cliente
+            WHERE v.fecha >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY c.id_cliente, c.nombre
+            ORDER BY total_gastado DESC;
+            ```
+            ❌ NO uses "total_ventas" - la columna correcta es `ventas.total`
+            """)
+        
+        # 5. Crear prompt compacto
+        prompt = textwrap.dedent(f"""
+        Eres experto en PostgreSQL. Genera SQL de solo lectura.
+        
+        BD: {request.database_id}
+        Fecha: {current_date}
+        
+        Esquema:
+        {db_schema}
+        {ejemplos_especificos}
+        
+        Reglas:
+        1. Solo SELECT (no INSERT/UPDATE/DELETE/DROP)
+        2. Texto: usa ILIKE '%valor%'
+        3. Stock crítico: stock_actual < stock_minimo
+        4. LIMIT 50 por defecto
+        5. ❌ NUNCA COUNT(*) solo - lista detalles completos
+        6. Lee esquema: SOLO tablas/columnas existentes
+        
+        Pregunta: {request.question}
+        
+        SQL:
+        ```sql
+        """)
+        
+        # 6. Generar SQL usando el modelo seleccionado
+        response = await llm_interface.get_llama_response_async(prompt)
+        sql_query = extract_sql_from_response(response)
+        
+        if not sql_query:
+            raise ValueError("El LLM no pudo generar una consulta SQL válida.")
+        
+        # Validación de seguridad: rechazar operaciones de escritura
+        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE']
+        sql_upper = sql_query.upper()
+        for keyword in dangerous_keywords:
+            if keyword in sql_upper:
+                raise ValueError(f"Operación no permitida: {keyword}. Solo se aceptan consultas de lectura (SELECT).")
+        
+        # 7. Ejecutar la consulta en la BD seleccionada
+        results, _ = db_analyzer.execute_query(sql_query)
+        
+        # 8. Generar explicación usando el mismo modelo
+        explanation = await llm_interface.explain_results_async(
+            request.question, sql_query, results
+        )
+        
+        return QueryResponse(
+            question=request.question,
+            sql_query=sql_query,
+            results=results,
+            explanation=explanation,
+            database_used=request.database_id,
+            model_used=request.model_id
+        )
+        
+    except Exception as e:
+        # Manejo de errores
+        error_message = str(e)
+        explanation = f"Error procesando la consulta en BD '{request.database_id}' con modelo '{request.model_id}': {error_message}"
+        
+        try:
+            # Intentar obtener explicación del LLM si está disponible
+            llm_interface = connection_manager.get_llm_interface(request.model_id)
+            explanation = await llm_interface.explain_results_async(
+                request.question, "", [], error=error_message
+            )
+        except:
+            pass
+        
+        return QueryResponse(
+            question=request.question,
+            sql_query="",
+            results=[],
+            explanation=explanation,
+            error=error_message,
+            database_used=request.database_id,
+            model_used=request.model_id
         )
 
 @app.post("/query/ask-dynamic", response_model=QueryResponse, summary="Consulta con BD y modelo seleccionables", tags=["💬 Consultas Dinámicas"])
