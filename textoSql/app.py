@@ -187,12 +187,17 @@ async def get_models():
 
 @app.get("/schema/{database_id}", tags=["📚 Recursos"])
 async def get_schema_for_database(database_id: str):
+    """
+    Devuelve la estructura del esquema de una base de datos específica en formato JSON estructurado (no markdown).
+    """
     try:
-        # Aseguramos que el schema esté actualizado
-        schema = connection_manager.get_database_schema(database_id)
-        return {"database_id": database_id, "schema": schema}
+        db_analyzer = connection_manager.get_database_analyzer(database_id)
+        return {
+            "database_id": database_id,
+            "schema": db_analyzer.schema_info
+        }
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Error al obtener esquema de BD '{database_id}': {e}")
 
 # --- Endpoints Principales de Consulta ---
 
