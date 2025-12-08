@@ -41,7 +41,7 @@ sudo ./setup.sh full
 |--------|--------|---------|--------------|
 | **Gemma 2B** | 8085 | ~1.5GB | Respuestas rápidas |
 | **Gemma 4B** | 8086 | ~3GB | Equilibrio velocidad/calidad |
-| **Artic text2sql 7b** | 8087 | 4,68GB | Texto a SQL |
+| **Arctic text2sql 7b** | 8087 | 4,68GB | Texto a SQL |
 | **Mistral 7B** | 8088 | ~5GB | Tareas generales |
 | **DeepSeek 8B** | 8089 | ~6GB | Razonamiento lógico |
 
