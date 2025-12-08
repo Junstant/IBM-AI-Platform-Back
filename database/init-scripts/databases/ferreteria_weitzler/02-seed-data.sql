@@ -127,7 +127,55 @@ INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, 
 ('MAK-M9204', 'Pulidora Recta M9204 Makita', 'Pulidora recta 750W, 25000 RPM, para desbaste y pulido', 11, 1, 1, 48000, 79990, 1, 6, FALSE),
 ('FXT-SERRUCH22', 'Serrucho 22" Diente Fino Fixtec', 'Serrucho carpintería 22 pulgadas, diente fino, mango ergonómico', 14, 2, 2, 3800, 8490, 4, 18, TRUE),
 ('MAK-HR2470', 'Taladro Rotomartillo HR2470 Makita', 'Rotomartillo 780W, 3 modos, SDS-Plus, incluye maletín', 1, 1, 1, 95000, 159990, 4, 15, TRUE),
-('FXT-NIVEL24', 'Nivel de Burbuja 24" Fixtec', 'Nivel de aluminio 24 pulgadas, 3 burbujas', 2, 2, 2, 4800, 9990, 65, TRUE),
+('FXT-NIVEL24', 'Nivel de Burbuja 24" Fixtec', 'Nivel de aluminio 24 pulgadas, 3 burbujas', 2, 2, 2, 4800, 9990, 65, TRUE);
+
+-- ===== PRODUCTOS DE ALTA GAMA (Maquinaria Industrial y Profesional) =====
+-- Estos productos enriquecen las consultas de "productos más caros"
+
+INSERT INTO productos (codigo_sku, nombre, descripcion, id_categoria, id_marca, id_proveedor, precio_costo, precio_venta, stock_actual, stock_minimo, permite_despacho) VALUES
+-- Equipos de construcción pesada
+('MAK-HM1317C', 'Martillo Demoledor Hexagonal HM1317C Makita', 'Martillo demoledor 30kg, 2000W, 42J, hexagonal 30mm, para construcción pesada', 1, 1, 1, 1250000, 1989990, 2, 3, FALSE),
+('MAK-DPC7331', 'Cortadora de Concreto DPC7331 Makita', 'Cortadora gasolina 14", motor 4 tiempos, 73cc, para corte húmedo/seco', 1, 1, 1, 980000, 1649990, 3, 4, FALSE),
+('BSH-GBH12-52D', 'Martillo Perforador GBH 12-52 D Professional Bosch', 'Martillo perforador SDS-max 1700W, 19J, profesional para demolición', 1, 5, 1, 845000, 1429990, 4, 5, FALSE),
+('DWT-D25981K', 'Martillo Demoledor D25981K DeWalt', 'Martillo demoledor 22kg, 1700W, SDS-Max, antivibración, incluye carro', 1, 6, 1, 785000, 1329990, 3, 4, FALSE),
+
+-- Herramientas eléctricas de alta potencia
+('MAK-GA9020S', 'Esmeril Angular 9" GA9020S Makita', 'Esmeril angular industrial 2200W, 9 pulgadas, arranque suave, para uso profesional intensivo', 1, 1, 1, 425000, 719990, 5, 6, FALSE),
+('MAK-LS1219L', 'Ingletadora Doble 12" LS1219L Makita', 'Ingletadora telescópica 12", láser dual, motor 1650W, capacidad corte 305mm', 1, 1, 1, 520000, 879990, 4, 5, FALSE),
+('BSH-GCM12SD', 'Ingletadora Deslizable 12" GCM 12 SD Bosch', 'Ingletadora deslizable 12", sistema Axial-Glide, motor 1800W, láser integrado', 1, 5, 1, 485000, 819990, 3, 4, FALSE),
+('DWT-DWS780', 'Ingletadora Compuesta 12" DWS780 DeWalt', 'Ingletadora doble bisel 12", sistema XPS, motor 1675W, luz LED integrada', 1, 6, 1, 495000, 839990, 4, 5, FALSE),
+
+-- Compresores y sistemas neumáticos
+('MAK-MAC5200', 'Compresor de Aire MAC5200 Makita', 'Compresor 3HP, tanque 196 litros, 145 PSI, trifásico industrial', 1, 1, 1, 580000, 979990, 2, 3, FALSE),
+('BSH-GDE18V-26', 'Sistema Extracción Polvo Industrial Bosch', 'Sistema extracción con filtro HEPA, compatible con herramientas profesionales Bosch', 1, 5, 1, 325000, 549990, 3, 4, FALSE),
+
+-- Generadores y equipos eléctricos industriales
+('MAK-EG6050A', 'Generador Eléctrico 6000W EG6050A Makita', 'Generador gasolina 6000W, arranque eléctrico, AVR, tanque 25L, uso profesional', 1, 1, 1, 650000, 1099990, 2, 3, FALSE),
+('DWT-DXGN6500E', 'Generador Portátil 6500W DXGN6500E DeWalt', 'Generador gasolina 6500W, motor OHV, panel digital, arranque eléctrico', 1, 6, 1, 580000, 989990, 3, 4, FALSE),
+
+-- Equipos de soldadura profesional
+('MAK-AC310MA', 'Máquina de Soldar MMA/TIG AC310MA Makita', 'Equipo soldadura inverter 310A, tecnología IGBT, MMA/TIG AC/DC profesional', 1, 1, 1, 485000, 819990, 2, 3, FALSE),
+
+-- Sierras de mesa industriales
+('MAK-2712', 'Sierra de Mesa 12" 2712 Makita', 'Sierra de mesa 12", motor 1650W, mesa extensible, guía telescópica profesional', 1, 1, 1, 425000, 719990, 3, 4, FALSE),
+('BSH-GTS635-216', 'Sierra de Mesa 10" GTS 635-216 Bosch', 'Sierra circular de mesa 10", 1600W, Smart Guard System, uso intensivo', 1, 5, 1, 395000, 669990, 4, 5, FALSE),
+('DWT-DWE7491RS', 'Sierra de Mesa Portátil 10" DWE7491RS DeWalt', 'Sierra mesa 10" con base rodante, motor 1850W, fence telescópico', 1, 6, 1, 445000, 749990, 3, 4, FALSE),
+
+-- Sistemas de aspiración industrial
+('MAK-VC4710', 'Aspiradora Industrial VC4710 Makita', 'Aspiradora industrial 1200W, tanque 45L, clase L polvo, sistema autolimpieza', 1, 1, 1, 365000, 619990, 4, 5, FALSE),
+
+-- Equipo de medición láser profesional
+('BSH-GRL500HV', 'Nivel Láser Rotativo GRL 500 HV Professional Bosch', 'Nivel láser rotativo autoalimentado, alcance 500m, precisión ±0.1mm/m, receptor incluido', 1, 5, 1, 685000, 1159990, 2, 3, FALSE),
+('DWT-DW0811', 'Nivel Láser Multilínea DW0811 DeWalt', 'Láser multilínea 360°, alcance 50m, autonivelante, soporte magnético', 1, 6, 1, 285000, 479990, 5, 6, TRUE);
+
+-- ===== CLIENTES Y VENTAS DE PRODUCTOS CAROS =====
+INSERT INTO clientes (rut, nombre, apellido, email, telefono, ciudad, region, tipo_cliente, descuento_especial) VALUES
+('89.567.890-2', 'Constructora', 'Los Andes Ltda.', 'compras@losandes.cl', '+56-65-2345-678', 'Puerto Montt', 'Los Lagos', 'Empresa', 15),
+('90.678.901-3', 'Inversiones', 'Puerto Sur SpA', 'adquisiciones@puertosur.cl', '+56-65-2456-789', 'Puerto Varas', 'Los Lagos', 'Empresa', 12),
+('91.789.012-4', 'Ingeniería y Proyectos', 'Austral S.A.', 'proyectos@austral.cl', '+56-64-2567-890', 'Osorno', 'Los Lagos', 'Empresa', 18),
+('12.345.678-9', 'Roberto', 'Muñoz', 'r.munoz@gmail.com', '+56-9-8765-4321', 'Puerto Montt', 'Los Lagos', 'Constructor', 8);
+
+\echo '✅ Datos de productos Weitzler insertados exitosamente (incluye productos premium).';
 ('FXT-SERRUCHO', 'Serrucho Carpintero 22" Fixtec', 'Serrucho para madera 22 pulgadas, mango de plástico', 14, 2, 2, 3500, 7490, 75, TRUE),
 ('FXT-DESTPUNTA', 'Set 6 Destornilladores Punta Plana/Phillips Fixtec', 'Juego de 6 destornilladores con estuche, puntas planas y phillips', 2, 2, 2, 5500, 11990, 52, TRUE);
 

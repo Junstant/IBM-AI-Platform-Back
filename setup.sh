@@ -1042,7 +1042,7 @@ show_final_info() {
     echo "🧠 MODELOS LLM:"
     echo "   Gemma 2B: http://$IP:${GEMMA_2B_PORT:-8085}"
     echo "   Gemma 4B: http://$IP:${GEMMA_4B_PORT:-8086}"
-    echo "   Gemma 12B: http://$IP:${GEMMA_12B_PORT:-8087}"
+    echo "   Artic Text2SQL 7b: http://$IP:${ARTIC_TEXT2SQL_PORT:-8087}"
     echo "   Mistral: http://$IP:${MISTRAL_PORT:-8088}"
     echo "   DeepSeek 8B: http://$IP:${DEEPSEEK_8B_PORT:-8089}"
     echo ""

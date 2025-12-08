@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # Puertos de modelos LLM (desde .env)
     gemma_2b_port: int = 8085
     gemma_4b_port: int = 8086
-    gemma_12b_port: int = 8087
+    artic_text2sql_port: int = 8087
     mistral_port: int = 8088
     deepseek_8b_port: int = 8089
     
@@ -110,11 +110,11 @@ class Settings(BaseSettings):
                 "size": "4B",
                 "container_name": "gemma-4b"
             },
-            "gemma-12b": {
-                "port": self.gemma_12b_port,
+            "artic-text2sql-7b": {
+                "port": self.artic_text2sql_port,
                 "type": "llm",
-                "size": "12B",
-                "container_name": "gemma-12b"
+                "size": "7B",
+                "container_name": "artic-text2sql-7b"
             },
             "mistral-7b": {
                 "port": self.mistral_port,

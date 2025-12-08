@@ -51,12 +51,12 @@ def get_available_models():
                 "container_name": "gemma-4b"
             },
             {
-                "id": "gemma-12b",
-                "name": "Google Gemma 12B", 
-                "description": "Modelo Google Gemma 12B de alta capacidad",
-                "host": "gemma-12b",  # ← Nombre del contenedor
-                "port": "8080",       # ← Puerto interno del contenedor
-                "container_name": "gemma-12b"
+                "id": "arctic-text2sql",
+                "name": "Arctic Text2SQL R1 7B", 
+                "description": "🎯 Modelo especializado en generación de SQL - Optimizado para Text-to-SQL",
+                "host": "arctic-text2sql",  # ← Nombre del contenedor
+                "port": "8080",             # ← Puerto interno del contenedor
+                "container_name": "arctic-text2sql"
             },
             {
                 "id": "deepseek-8b",
@@ -96,12 +96,12 @@ def get_available_models():
                 "container_name": "gemma-4b"
             },
             {
-                "id": "gemma-12b",
-                "name": "Google Gemma 12B", 
-                "description": "Modelo Google Gemma 12B de alta capacidad",
+                "id": "arctic-text2sql",
+                "name": "Arctic Text2SQL R1 7B", 
+                "description": "🎯 Modelo especializado en generación de SQL - Optimizado para Text-to-SQL",
                 "host": "127.0.0.1",
-                "port": os.getenv("GEMMA_12B_PORT", "8087"),
-                "container_name": "gemma-12b"
+                "port": os.getenv("ARCTIC_TEXT2SQL_PORT", "8087"),
+                "container_name": "arctic-text2sql"
             },
             {
                 "id": "deepseek-8b",
