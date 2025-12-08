@@ -58,44 +58,6 @@ class SQLGenerator:
     def _build_system_prompt(self, schema: str, custom_examples: str = "") -> str:
         current_date = datetime.now().strftime("%Y-%m-%d")
         
-<<<<<<< HEAD
-        prompt = textwrap.dedent(f"""
-        Eres un experto en PostgreSQL. Genera consultas SQL de solo lectura.
-        
-        Fecha actual: {current_date}
-        
-        Esquema:
-        {self.db_schema}
-        
-        Reglas:
-        1. Solo SELECT (no INSERT/UPDATE/DELETE/DROP)
-        2. Para texto usa ILIKE '%valor%' (no =)
-        3. Stock crítico: stock_actual < stock_minimo
-        4. Añade LIMIT 50 por defecto
-        5. ❌ NUNCA uses solo COUNT(*) cuando pregunten "¿Cuántos X?" - lista los detalles completos
-        6. Para TOP N o favoritos usa subqueries con ORDER BY COUNT(*) DESC
-        7. Lee el esquema: SOLO usa tablas/columnas que existen
-        
-        Ejemplos:
-        
-        P: "¿Cuántos productos de Makita tenemos?"
-        SELECT p.codigo_sku, p.nombre, p.stock_actual, p.precio_venta, m.nombre AS marca
-        FROM productos p JOIN marcas m ON p.id_marca = m.id_marca
-        WHERE m.nombre ILIKE '%Makita%' ORDER BY p.stock_actual DESC LIMIT 50;
-        
-        P: "¿Top 3 clientes y su método de pago favorito?"
-        SELECT c.nombre, SUM(v.total) AS total,
-               (SELECT metodo_pago FROM ventas v2 WHERE v2.id_cliente = c.id_cliente 
-                GROUP BY metodo_pago ORDER BY COUNT(*) DESC LIMIT 1) AS favorito
-        FROM clientes c JOIN ventas v ON c.id_cliente = v.id_cliente
-        GROUP BY c.id_cliente, c.nombre ORDER BY total DESC LIMIT 3;
-        
-        Pregunta: {question}
-        
-        SQL:
-        ```sql
-        """)
-=======
         # Prompt diseñado para Mistral 7B: Estructura clara, reglas negativas y CoT implícito.
         return textwrap.dedent(f"""
         ### ROLE
@@ -128,7 +90,6 @@ class SQLGenerator:
         # Prompt construcción
         system_prompt = self._build_system_prompt(self.db_schema)
         full_prompt = f"{system_prompt}\n\n### USER QUESTION\n{question}\n\n### SQL QUERY\n```sql"
->>>>>>> 9893fa0 (fix(docker-compose): update healthcheck intervals and timeouts for improved service reliability)
         
         # Llamada al LLM
         response = await self.llm_interface.get_llama_response_async(full_prompt)
@@ -286,37 +247,10 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
         # 3. Construcción del Generador al vuelo
         generator = SQLGenerator(llm_interface, db_schema)
         
-<<<<<<< HEAD
-        # 5. Crear prompt compacto
-        prompt = textwrap.dedent(f"""
-        Eres experto en PostgreSQL. Genera SQL de solo lectura.
-        
-        BD: {request.database_id}
-        Fecha: {current_date}
-        
-        Esquema:
-        {db_schema}
-        {ejemplos_especificos}
-        
-        Reglas:
-        1. Solo SELECT (no INSERT/UPDATE/DELETE/DROP)
-        2. Texto: usa ILIKE '%valor%'
-        3. Stock crítico: stock_actual < stock_minimo
-        4. LIMIT 50 por defecto
-        5. ❌ NUNCA COUNT(*) solo - lista detalles completos
-        6. Lee esquema: SOLO tablas/columnas existentes
-        
-        Pregunta: {request.question}
-        
-        SQL:
-        ```sql
-        """)
-=======
         # 4. Generación y Validación del Prompt
         # Usamos un método privado manual para inyectar los ejemplos específicos
         system_prompt = generator._build_system_prompt(db_schema, custom_examples)
         full_prompt = f"{system_prompt}\n\n### USER QUESTION\n{request.question}\n\n### SQL QUERY\n```sql"
->>>>>>> 9893fa0 (fix(docker-compose): update healthcheck intervals and timeouts for improved service reliability)
         
         # 5. Ejecución LLM
         response = await llm_interface.get_llama_response_async(full_prompt)
@@ -360,126 +294,7 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
 
 # --- Endpoints de Ejecución Directa ---
 
-<<<<<<< HEAD
-            ### EJEMPLOS ESPECÍFICOS PARA ESTA BASE DE DATOS:
-
-            **Stock bajo:**
-            Pregunta: "¿Productos con stock bajo?"
-            ```sql
-            SELECT p.nombre, p.stock_actual, p.stock_minimo
-            FROM productos p
-            WHERE p.stock_actual < p.stock_minimo
-            LIMIT 50;
-            ```
-
-            **Productos de una marca (usa ILIKE):**
-            Pregunta: "¿Productos de Makita?"
-            ```sql
-            SELECT p.codigo_sku, p.nombre, p.stock_actual, m.nombre AS marca
-            FROM productos p 
-            JOIN marcas m ON p.id_marca = m.id_marca
-            WHERE m.nombre ILIKE '%Makita%'
-            LIMIT 50;
-            ```
-            ❌ NO uses "nombre_marca" - la columna correcta es `marcas.nombre`
-
-            **Ventas recientes (usa fecha actual):**
-            Pregunta: "¿Ventas de los últimos 30 días?"
-            ```sql
-            SELECT c.nombre, SUM(v.total) AS total_gastado
-            FROM clientes c 
-            JOIN ventas v ON c.id_cliente = v.id_cliente
-            WHERE v.fecha >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY c.id_cliente, c.nombre
-            ORDER BY total_gastado DESC;
-            ```
-            ❌ NO uses "total_ventas" - la columna correcta es `ventas.total`
-            """)
-        
-        # 5. Crear prompt compacto
-        prompt = textwrap.dedent(f"""
-        Eres experto en PostgreSQL. Genera SQL de solo lectura.
-        
-        BD: {request.database_id}
-        Fecha: {current_date}
-        
-        Esquema:
-        {db_schema}
-        {ejemplos_especificos}
-        
-        Reglas:
-        1. Solo SELECT (no INSERT/UPDATE/DELETE/DROP)
-        2. Texto: usa ILIKE '%valor%'
-        3. Stock crítico: stock_actual < stock_minimo
-        4. LIMIT 50 por defecto
-        5. ❌ NUNCA COUNT(*) solo - lista detalles completos
-        6. Lee esquema: SOLO tablas/columnas existentes
-        
-        Pregunta: {request.question}
-        
-        SQL:
-        ```sql
-        """)
-        
-        # 6. Generar SQL usando el modelo seleccionado
-        response = await llm_interface.get_llama_response_async(prompt)
-        sql_query = extract_sql_from_response(response)
-        
-        if not sql_query:
-            raise ValueError("El LLM no pudo generar una consulta SQL válida.")
-        
-        # Validación de seguridad: rechazar operaciones de escritura
-        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE']
-        sql_upper = sql_query.upper()
-        for keyword in dangerous_keywords:
-            if keyword in sql_upper:
-                raise ValueError(f"Operación no permitida: {keyword}. Solo se aceptan consultas de lectura (SELECT).")
-        
-        # 7. Ejecutar la consulta en la BD seleccionada
-        results, _ = db_analyzer.execute_query(sql_query)
-        
-        # 8. Generar explicación usando el mismo modelo
-        explanation = await llm_interface.explain_results_async(
-            request.question, sql_query, results
-        )
-        
-        return QueryResponse(
-            question=request.question,
-            sql_query=sql_query,
-            results=results,
-            explanation=explanation,
-            database_used=request.database_id,
-            model_used=request.model_id
-        )
-        
-    except Exception as e:
-        # Manejo de errores
-        error_message = str(e)
-        explanation = f"Error procesando la consulta en BD '{request.database_id}' con modelo '{request.model_id}': {error_message}"
-        
-        try:
-            # Intentar obtener explicación del LLM si está disponible
-            llm_interface = connection_manager.get_llm_interface(request.model_id)
-            explanation = await llm_interface.explain_results_async(
-                request.question, "", [], error=error_message
-            )
-        except:
-            pass
-        
-        return QueryResponse(
-            question=request.question,
-            sql_query="",
-            results=[],
-            explanation=explanation,
-            error=error_message,
-            database_used=request.database_id,
-            model_used=request.model_id
-        )
-
-@app.post("/query/execute", summary="Ejecuta una consulta SQL directamente", tags=["💬 Consultas"])
-=======
 @app.post("/query/execute", tags=["💬 Consultas"])
->>>>>>> 9893fa0 (fix(docker-compose): update healthcheck intervals and timeouts for improved service reliability)
 async def execute_raw_sql(request: SQLExecuteRequest):
     try:
         results, columns = app.state.db_analyzer.execute_query(request.sql_query)
