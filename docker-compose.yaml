@@ -21,10 +21,10 @@ services:
       - ai_platform_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 90s
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
     shm_size: 2g
     deploy:
       resources:
@@ -84,10 +84,10 @@ services:
         restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 45s
 
   #? ======================== MODEL DOWNLOADER ========================
   model-downloader:
@@ -195,12 +195,6 @@ services:
     depends_on:
       model-downloader:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 60s
     deploy:
       resources:
         limits:
@@ -236,12 +230,6 @@ services:
     depends_on:
       model-downloader:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s
     deploy:
       resources:
         limits:
@@ -277,12 +265,6 @@ services:
     depends_on:
       model-downloader:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
     deploy:
       resources:
         limits:
@@ -321,9 +303,9 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      interval: 60s
+      timeout: 3s
+      retries: 2
       start_period: 120s
     deploy:
       resources:
@@ -362,12 +344,6 @@ services:
     depends_on:
       model-downloader:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
     deploy:
       resources:
         limits:
@@ -400,12 +376,6 @@ services:
     depends_on:
       model-downloader:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     deploy:
       resources:
         limits:
@@ -443,9 +413,9 @@ services:
         condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 20s
-      timeout: 10s
-      retries: 5
+      interval: 45s
+      timeout: 5s
+      retries: 3
       start_period: 330s  # 5.5 min (espera a gemma-2b)
 
   #% ======================== FRAUDE API ========================
@@ -477,9 +447,9 @@ services:
         restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
+      interval: 45s
+      timeout: 5s
+      retries: 3
       start_period: 90s   # Solo 1.5 min (no depende de LLMs)
 
   #% ======================== STATS API ========================
@@ -521,9 +491,9 @@ services:
       # El health checker interno ya maneja la verificación de modelos
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
+      interval: 45s
+      timeout: 5s
+      retries: 3
       start_period: 120s  # 2 minutos en lugar de 1
 
   #% ======================== MILVUS DEPENDENCIES ========================
@@ -543,11 +513,6 @@ services:
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - ai_platform_network
-    healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
   
   # MinIO - Object storage for Milvus
   minio:
@@ -565,11 +530,6 @@ services:
     command: minio server /data --console-address ":9001"
     networks:
       - ai_platform_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
   
   # Milvus - Vector Database
   milvus:
@@ -591,14 +551,14 @@ services:
       - ai_platform_network
     depends_on:
       etcd:
-        condition: service_healthy
+        condition: service_started
       minio:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      interval: 60s
+      timeout: 5s
+      retries: 3
       start_period: 120s
     deploy:
       resources:
@@ -645,16 +605,16 @@ services:
         condition: service_healthy
         restart: true
       embeddings-api:
-        condition: service_healthy
+        condition: service_started
         restart: true
       mistral-7b:
-        condition: service_healthy
+        condition: service_started
         restart: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      interval: 45s
+      timeout: 5s
+      retries: 3
       start_period: 90s
     deploy:
       resources:

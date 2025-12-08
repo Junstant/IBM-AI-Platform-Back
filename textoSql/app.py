@@ -1,11 +1,14 @@
 # main.py
 
 import os
+import textwrap
+from datetime import datetime
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
 
 # --- Importa tus clases y utilidades ---
 from database_analyzer import DatabaseAnalyzer
@@ -15,34 +18,27 @@ from connection_manager import connection_manager
 from config import get_available_models
 from smart_config import get_db_connection_params, DB1_NAME
 
-# Carga las variables de entorno del archivo .env desde el directorio padre
+# Carga las variables de entorno
 env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 load_dotenv(dotenv_path=env_path)
 
-# --- Modelos Pydantic para la validación de datos ---
-# Definen la estructura esperada de las solicitudes (requests) y respuestas (responses)
-
+# --- Modelos Pydantic ---
 class QueryRequest(BaseModel):
-    """Modelo para una pregunta en lenguaje natural."""
-    question: str = Field(..., min_length=3, description="La pregunta del usuario en lenguaje natural.")
+    question: str = Field(..., min_length=3, description="La pregunta del usuario.")
 
 class DynamicQueryRequest(BaseModel):
-    """Modelo para consulta con selección de BD y modelo."""
-    database_id: str = Field(..., description="ID de la base de datos a consultar")
-    model_id: str = Field(..., description="ID del modelo LLM a usar")
-    question: str = Field(..., min_length=3, description="La pregunta del usuario en lenguaje natural.")
+    database_id: str = Field(..., description="ID de la base de datos")
+    model_id: str = Field(..., description="ID del modelo LLM")
+    question: str = Field(..., min_length=3, description="La pregunta del usuario.")
 
 class SQLExecuteRequest(BaseModel):
-    """Modelo para ejecutar una consulta SQL directamente."""
-    sql_query: str = Field(..., description="La consulta SQL a ejecutar.")
+    sql_query: str = Field(..., description="Consulta SQL directa.")
 
 class DynamicSQLExecuteRequest(BaseModel):
-    """Modelo para ejecutar SQL con selección de BD."""
-    database_id: str = Field(..., description="ID de la base de datos a consultar")
-    sql_query: str = Field(..., description="La consulta SQL a ejecutar.")
+    database_id: str = Field(..., description="ID de la base de datos")
+    sql_query: str = Field(..., description="Consulta SQL directa.")
 
 class QueryResponse(BaseModel):
-    """Modelo para la respuesta completa de una consulta."""
     question: str
     sql_query: str
     results: List[Dict[str, Any]]
@@ -51,20 +47,18 @@ class QueryResponse(BaseModel):
     database_used: Optional[str] = None
     model_used: Optional[str] = None
 
-# --- Clase de ayuda para la generación de SQL ---
+# --- Generador SQL Maestro (Optimizado para Mistral 7B) ---
 
 class SQLGenerator:
-    """Encapsula la lógica para generar SQL a partir de lenguaje natural."""
+    """Encapsula la lógica de 'Golden Prompt' para generación SQL de alta precisión."""
     def __init__(self, llm_interface: LlamaInterface, db_schema: str):
         self.llm_interface = llm_interface
         self.db_schema = db_schema
 
-    async def generate_sql_async(self, question: str) -> str:
-        """Genera SQL usando mejores prácticas de los papers: retrieval + self-correction."""
-        from datetime import datetime
-        
+    def _build_system_prompt(self, schema: str, custom_examples: str = "") -> str:
         current_date = datetime.now().strftime("%Y-%m-%d")
         
+<<<<<<< HEAD
         prompt = textwrap.dedent(f"""
         Eres un experto en PostgreSQL. Genera consultas SQL de solo lectura.
         
@@ -101,34 +95,72 @@ class SQLGenerator:
         SQL:
         ```sql
         """)
+=======
+        # Prompt diseñado para Mistral 7B: Estructura clara, reglas negativas y CoT implícito.
+        return textwrap.dedent(f"""
+        ### ROLE
+        You are a Senior PostgreSQL Architect. Your goal is to generate precise, read-only SQL queries.
+
+        ### DATABASE SCHEMA
+        Only use the tables and columns defined below:
+        {schema}
+
+        ### CONTEXT
+        - Today's Date: {current_date}
+        - Dialect: PostgreSQL
+
+        ### CRITICAL RULES (MANDATORY)
+        1. **Output Format**: Return ONLY the raw SQL code inside ```sql``` blocks. No explanations.
+        2. **Safety**: NEVER generate INSERT, UPDATE, DELETE, or DROP operations.
+        3. **Text Search**: Always use `ILIKE '%term%'` for text matching (case-insensitive).
+        4. **Joins**: Use explicit JOINs based on foreign keys defined in the schema.
+        5. **Ambiguity**: Use table aliases (e.g., `t.column`) to avoid ambiguous column errors.
+        6. **Limits**: Add `LIMIT 50` if the query implies a list, unless a specific number is requested.
+
+        {custom_examples}
+
+        ### THINKING PROCESS
+        Before answering, think: Which tables do I need? How do I join them? Do I need to group?
+        Then, write the SQL.
+        """)
+
+    async def generate_sql_async(self, question: str) -> str:
+        # Prompt construcción
+        system_prompt = self._build_system_prompt(self.db_schema)
+        full_prompt = f"{system_prompt}\n\n### USER QUESTION\n{question}\n\n### SQL QUERY\n```sql"
+>>>>>>> 9893fa0 (fix(docker-compose): update healthcheck intervals and timeouts for improved service reliability)
         
-        # Llamar al LLM con el prompt mejorado
-        response = await self.llm_interface.get_llama_response_async(prompt)
+        # Llamada al LLM
+        response = await self.llm_interface.get_llama_response_async(full_prompt)
         
-        # Extraer SQL de la respuesta del LLM
+        # Extracción y Validación
         sql_query = extract_sql_from_response(response)
         if not sql_query:
-            raise ValueError("El LLM no pudo generar una consulta SQL válida.")
-        
-        # Validación de seguridad: rechazar operaciones de escritura
-        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE']
+            # Fallback: Intentar limpiar la respuesta si Mistral fue verborrágico fuera de los backticks
+            sql_query = response.replace("```sql", "").replace("```", "").strip()
+            if not sql_query.upper().startswith("SELECT"):
+                 raise ValueError("El LLM no generó una consulta SELECT válida.")
+
+        self._validate_security(sql_query)
+        return sql_query
+
+    @staticmethod
+    def _validate_security(sql_query: str):
+        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE', 'GRANT', 'REVOKE']
         sql_upper = sql_query.upper()
         for keyword in dangerous_keywords:
-            if keyword in sql_upper:
-                raise ValueError(f"Operación no permitida: {keyword}. Solo se aceptan consultas de lectura (SELECT).")
-        
-        return sql_query
+            # Verificación simple de palabra completa para evitar falsos positivos dentro de strings
+            if f" {keyword} " in f" {sql_upper} " or sql_upper.startswith(keyword):
+                raise ValueError(f"Security Alert: Operación prohibida '{keyword}' detectada.")
 
 # --- Aplicación FastAPI ---
 
 app = FastAPI(
-    title="🤖 API de Consulta a Base de Datos con IA",
-    description="Una API para interactuar con una base de datos PostgreSQL usando lenguaje natural.",
-    version="1.0.0",
+    title="🤖 API de Consulta a Base de Datos con IA (Master Edition)",
+    description="API optimizada para Text-to-SQL con arquitectura cognitiva para Mistral 7B.",
+    version="2.0.0",
 )
 
-# ✅ Configurar CORS
-from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -137,10 +169,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Agregar middleware de reporte de métricas a Stats API
+# Middleware de Stats
 import os
 from stats_reporter import StatsReporterMiddleware
-
 STATS_API_URL = os.getenv("STATS_API_URL", "http://stats-api:8003")
 app.add_middleware(
     StatsReporterMiddleware,
@@ -149,213 +180,113 @@ app.add_middleware(
     timeout=2.0,
     excluded_paths={'/health', '/docs', '/redoc', '/openapi.json', '/databases', '/models', '/schema'}
 )
-print(f"✅ Stats reporter middleware configurado: textosql → {STATS_API_URL}")
 
-# --- Gestión del Ciclo de Vida de la Aplicación ---
+# --- Ciclo de Vida ---
 
 @app.on_event("startup")
 async def startup_event():
-    """
-    Se ejecuta cuando la aplicación se inicia.
-    Inicializa los objetos principales y los almacena en el estado de la app.
-    """
-    # 1. Inicializar el analizador de la base de datos usando configuración inteligente
+    # Inicialización estándar para la BD por defecto
     db_params = get_db_connection_params(DB1_NAME)
-    db_analyzer = DatabaseAnalyzer(
-        dbname=db_params["dbname"],
-        user=db_params["user"],
-        password=db_params["password"],
-        host=db_params["host"],
-        port=db_params["port"],
-    )
+    db_analyzer = DatabaseAnalyzer(**db_params)
     
-    # 2. Conectar a la BD y analizar el esquema
-    success, message = db_analyzer.connect()
-    if not success:
-        raise RuntimeError(f"No se pudo conectar a la base de datos al iniciar: {message}")
-    print(message)
-    print("Analizando el esquema de la base de datos...")
-    db_analyzer.analyze_schema()
-    print("Análisis del esquema completado.")
-    
-    print(f"--- ESQUEMA GENERADO PARA EL LLM ---\n{db_analyzer.generate_schema_for_llm()}\n--- FIN DEL ESQUEMA ---")
-
-    # Solo guardar el analizador de BD por compatibilidad con endpoints legacy
-    app.state.db_analyzer = db_analyzer
-    print("🚀 Aplicación iniciada y lista para recibir peticiones.")
+    if db_analyzer.connect()[0]:
+        db_analyzer.analyze_schema()
+        # Inicializar el generador por defecto en el estado
+        # Nota: Asumimos que LlamaInterface se inicializa en otro lugar o aquí si es necesario
+        # app.state.sql_generator = SQLGenerator(llama_interface_default, db_analyzer.schema_info)
+        app.state.db_analyzer = db_analyzer
+        print("✅ Sistema central iniciado correctamente.")
+    else:
+        print("⚠️ Advertencia: No se pudo conectar a la BD principal al inicio.")
 
 @app.on_event("shutdown")
 def shutdown_event():
-    """Se ejecuta cuando la aplicación se apaga."""
-    if hasattr(app.state, 'db_analyzer') and app.state.db_analyzer:
-        message = app.state.db_analyzer.close()
-        print(message)
-    
-    # Cerrar todas las conexiones del administrador
+    if hasattr(app.state, 'db_analyzer'):
+        app.state.db_analyzer.close()
     connection_manager.close_all_connections()
-    print("👋 Aplicación apagada.")
+    print("👋 Sistema apagado.")
 
-# --- Endpoints de la API ---
+# --- Endpoints ---
 
-@app.get("/health", summary="Verifica el estado de la API", tags=["✅ Estado"])
+@app.get("/health", tags=["✅ Estado"])
 async def health_check():
-    """
-    Endpoint de salud para verificar si la API está funcionando y conectada a la BD.
-    """
-    if not app.state.db_analyzer or not app.state.db_analyzer.check_connection_health():
-        raise HTTPException(status_code=503, detail="La conexión a la base de datos no está saludable.")
-    return {"status": "ok", "database_connection": "healthy"}
+    if not hasattr(app.state, 'db_analyzer') or not app.state.db_analyzer.check_connection_health():
+        raise HTTPException(status_code=503, detail="Database connection unhealthy")
+    return {"status": "ok", "system": "operational"}
 
-@app.get("/databases", summary="Lista las bases de datos disponibles", tags=["📚 Recursos"])
+@app.get("/databases", tags=["📚 Recursos"])
 async def get_databases():
-    """
-    Devuelve una lista de todas las bases de datos disponibles en el servidor PostgreSQL.
-    """
-    try:
-        print("🔍 Iniciando get_databases...")
-        databases = connection_manager.get_available_databases()
-        print(f"📊 Bases de datos encontradas: {len(databases)}")
-        print(f"📊 Datos: {databases}")
-        result = {
-            "databases": databases,
-            "total_count": len(databases)
-        }
-        print(f"📊 Resultado final: {result}")
-        return result
-    except Exception as e:
-        print(f"❌ Error en get_databases: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al obtener las bases de datos: {e}")
+    dbs = connection_manager.get_available_databases()
+    return {"databases": dbs, "total_count": len(dbs)}
 
-@app.get("/models", summary="Lista los modelos LLM disponibles", tags=["📚 Recursos"])
+@app.get("/models", tags=["📚 Recursos"])
 async def get_models():
-    """
-    Devuelve una lista de todos los modelos LLM disponibles.
-    """
+    models = connection_manager.get_available_models()
+    return {"models": models, "total_count": len(models)}
+
+@app.get("/schema/{database_id}", tags=["📚 Recursos"])
+async def get_schema_for_database(database_id: str):
     try:
-        models = connection_manager.get_available_models()
-        return {
-            "models": models,
-            "total_count": len(models)
-        }
+        # Aseguramos que el schema esté actualizado
+        schema = connection_manager.get_database_schema(database_id)
+        return {"database_id": database_id, "schema": schema}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener los modelos: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
 
-@app.get("/schema", summary="Obtiene el esquema de la base de datos", tags=["📚 Esquema"])
-async def get_schema():
-    """
-    Devuelve la estructura completa del esquema de la base de datos en formato JSON.
-    """
-    if not app.state.db_analyzer.schema_info:
-        raise HTTPException(status_code=404, detail="El esquema no ha sido analizado o no está disponible.")
-    return app.state.db_analyzer.schema_info
+# --- Endpoints Principales de Consulta ---
 
-@app.post("/query/ask", response_model=QueryResponse, summary="Pregunta en lenguaje natural", tags=["💬 Consultas"])
+@app.post("/query/ask", response_model=QueryResponse, tags=["💬 Consultas"])
 async def ask_question(request: QueryRequest):
-    """
-    Procesa una pregunta, genera y ejecuta una consulta SQL, y devuelve los resultados con una explicación.
-    """
-    question = request.question
-    sql_query = ""
-    try:
-        # 1. Generar la consulta SQL
-        sql_query = await app.state.sql_generator.generate_sql_async(question)
+    # Endpoint Legacy wrapper
+    return await process_query_logic(
+        question=request.question,
+        db_analyzer=app.state.db_analyzer,
+        # Asumiendo que existe un LLM default en app.state o config
+        llm_interface=app.state.sql_generator.llm_interface 
+    )
 
-        # 2. Ejecutar la consulta
-        results, _ = app.state.db_analyzer.execute_query(sql_query)
-        
-        # 3. Explicar los resultados
-        explanation = await app.state.llama_interface.explain_results_async(question, sql_query, results)
-
-        return QueryResponse(
-            question=question,
-            sql_query=sql_query,
-            results=results,
-            explanation=explanation,
-        )
-    except Exception as e:
-        # Si algo sale mal, intenta que el LLM explique el error
-        error_message = str(e)
-        explanation = "Error interno del servidor."
-        
-        try:
-            # Intentar obtener explicación del LLM si está disponible
-            explanation = await app.state.llama_interface.explain_results_async(
-                question=question, sql_query=sql_query, results=[], error=error_message
-            )
-        except:
-            # Si el LLM también falla, usar explicación por defecto
-            explanation = f"Error procesando la consulta: {error_message}"
-        
-        # Devolver JSON válido en lugar de HTTPException
-        return QueryResponse(
-            question=question,
-            sql_query=sql_query,
-            results=[],
-            explanation=explanation,
-            error=error_message
-        )
-
-@app.post("/query/ask-dynamic", response_model=QueryResponse, summary="Consulta con BD y modelo seleccionables", tags=["💬 Consultas Dinámicas"])
+@app.post("/query/ask-dynamic", response_model=QueryResponse, tags=["💬 Consultas Dinámicas"])
 async def ask_question_dynamic(request: DynamicQueryRequest):
     """
-    Procesa una pregunta con selección dinámica de base de datos y modelo LLM.
-    Permite al usuario elegir qué BD consultar y qué modelo usar para generar el SQL.
+    Motor de decisión dinámica optimizado.
+    Selecciona contexto y estrategia según la base de datos solicitada.
     """
     try:
-        # 1. Obtener el analizador de BD específico
+        # 1. Recuperación de recursos
         db_analyzer = connection_manager.get_database_analyzer(request.database_id)
-        
-        # 2. Obtener la interfaz LLM específica
         llm_interface = connection_manager.get_llm_interface(request.model_id)
-        
-        # 3. Obtener el esquema de la BD
         db_schema = connection_manager.get_database_schema(request.database_id)
-        
-        # 4. Preparar contexto temporal y ejemplos específicos
-        import textwrap
-        from datetime import datetime
-        
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        
-        ejemplos_especificos = ""
+
+        # 2. Inyección de conocimiento específico (Few-Shot avanzado)
+        custom_examples = ""
         if request.database_id == "ferreteria_weitzler":
-            ejemplos_especificos = textwrap.dedent("""
-
-            ### EJEMPLOS ESPECÍFICOS PARA ESTA BASE DE DATOS:
-
-            **Stock bajo:**
-            Pregunta: "¿Productos con stock bajo?"
+            custom_examples = textwrap.dedent("""
+            ### REFERENCE EXAMPLES (Use similar logic)
+            
+            User: "¿Productos con stock bajo?"
+            SQL:
             ```sql
-            SELECT p.nombre, p.stock_actual, p.stock_minimo
-            FROM productos p
-            WHERE p.stock_actual < p.stock_minimo
-            LIMIT 50;
-            ```
-
-            **Productos de una marca (usa ILIKE):**
-            Pregunta: "¿Productos de Makita?"
-            ```sql
-            SELECT p.codigo_sku, p.nombre, p.stock_actual, m.nombre AS marca
+            SELECT p.nombre, p.stock_actual, p.stock_minimo 
             FROM productos p 
-            JOIN marcas m ON p.id_marca = m.id_marca
-            WHERE m.nombre ILIKE '%Makita%'
-            LIMIT 50;
+            WHERE p.stock_actual < p.stock_minimo 
+            ORDER BY p.stock_actual ASC LIMIT 50;
             ```
-            ❌ NO uses "nombre_marca" - la columna correcta es `marcas.nombre`
-
-            **Ventas recientes (usa fecha actual):**
-            Pregunta: "¿Ventas de los últimos 30 días?"
+            
+            User: "¿Ventas totales de Makita?"
+            SQL:
             ```sql
-            SELECT c.nombre, SUM(v.total) AS total_gastado
-            FROM clientes c 
-            JOIN ventas v ON c.id_cliente = v.id_cliente
-            WHERE v.fecha >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY c.id_cliente, c.nombre
-            ORDER BY total_gastado DESC;
+            SELECT SUM(v.total) as total_ventas
+            FROM ventas v
+            JOIN productos p ON v.producto_id = p.id
+            JOIN marcas m ON p.marca_id = m.id
+            WHERE m.nombre ILIKE '%Makita%';
             ```
-            ❌ NO uses "total_ventas" - la columna correcta es `ventas.total`
             """)
+
+        # 3. Construcción del Generador al vuelo
+        generator = SQLGenerator(llm_interface, db_schema)
         
+<<<<<<< HEAD
         # 5. Crear prompt compacto
         prompt = textwrap.dedent(f"""
         Eres experto en PostgreSQL. Genera SQL de solo lectura.
@@ -380,29 +311,32 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
         SQL:
         ```sql
         """)
+=======
+        # 4. Generación y Validación del Prompt
+        # Usamos un método privado manual para inyectar los ejemplos específicos
+        system_prompt = generator._build_system_prompt(db_schema, custom_examples)
+        full_prompt = f"{system_prompt}\n\n### USER QUESTION\n{request.question}\n\n### SQL QUERY\n```sql"
+>>>>>>> 9893fa0 (fix(docker-compose): update healthcheck intervals and timeouts for improved service reliability)
         
-        # 6. Generar SQL usando el modelo seleccionado
-        response = await llm_interface.get_llama_response_async(prompt)
+        # 5. Ejecución LLM
+        response = await llm_interface.get_llama_response_async(full_prompt)
         sql_query = extract_sql_from_response(response)
         
-        if not sql_query:
-            raise ValueError("El LLM no pudo generar una consulta SQL válida.")
-        
-        # Validación de seguridad: rechazar operaciones de escritura
-        dangerous_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE']
-        sql_upper = sql_query.upper()
-        for keyword in dangerous_keywords:
-            if keyword in sql_upper:
-                raise ValueError(f"Operación no permitida: {keyword}. Solo se aceptan consultas de lectura (SELECT).")
-        
-        # 7. Ejecutar la consulta en la BD seleccionada
+        if not sql_query: 
+             # Fallback simple para cuando el modelo olvida los backticks
+             if "SELECT" in response:
+                 sql_query = response[response.find("SELECT"):]
+             else:
+                 raise ValueError("No SQL found in response")
+
+        generator._validate_security(sql_query)
+
+        # 6. Ejecución SQL
         results, _ = db_analyzer.execute_query(sql_query)
-        
-        # 8. Generar explicación usando el mismo modelo
-        explanation = await llm_interface.explain_results_async(
-            request.question, sql_query, results
-        )
-        
+
+        # 7. Explicación (Opcional: se puede hacer asíncrona para velocidad)
+        explanation = await llm_interface.explain_results_async(request.question, sql_query, results)
+
         return QueryResponse(
             question=request.question,
             sql_query=sql_query,
@@ -411,57 +345,22 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
             database_used=request.database_id,
             model_used=request.model_id
         )
-        
+
     except Exception as e:
-        # Manejo de errores
-        error_message = str(e)
-        explanation = f"Error procesando la consulta en BD '{request.database_id}' con modelo '{request.model_id}': {error_message}"
-        
-        try:
-            # Intentar obtener explicación del LLM si está disponible
-            llm_interface = connection_manager.get_llm_interface(request.model_id)
-            explanation = await llm_interface.explain_results_async(
-                request.question, "", [], error=error_message
-            )
-        except:
-            pass
-        
+        # Manejo de errores robusto
         return QueryResponse(
             question=request.question,
             sql_query="",
             results=[],
-            explanation=explanation,
-            error=error_message,
+            explanation=f"Error en el procesamiento cognitivo: {str(e)}",
+            error=str(e),
             database_used=request.database_id,
             model_used=request.model_id
         )
 
-@app.post("/query/ask-dynamic", response_model=QueryResponse, summary="Consulta con BD y modelo seleccionables", tags=["💬 Consultas Dinámicas"])
-async def ask_question_dynamic(request: DynamicQueryRequest):
-    """
-    Procesa una pregunta con selección dinámica de base de datos y modelo LLM.
-    Permite al usuario elegir qué BD consultar y qué modelo usar para generar el SQL.
-    """
-    try:
-        # 1. Obtener el analizador de BD específico
-        db_analyzer = connection_manager.get_database_analyzer(request.database_id)
-        
-        # 2. Obtener la interfaz LLM específica
-        llm_interface = connection_manager.get_llm_interface(request.model_id)
-        
-        # 3. Obtener el esquema de la BD
-        db_schema = connection_manager.get_database_schema(request.database_id)
-        
-        # 4. Preparar contexto temporal y ejemplos específicos
-        import textwrap
-        from datetime import datetime
-        
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        
-        ejemplos_especificos = ""
-        if request.database_id == "ferreteria_weitzler":
-            ejemplos_especificos = textwrap.dedent("""
+# --- Endpoints de Ejecución Directa ---
 
+<<<<<<< HEAD
             ### EJEMPLOS ESPECÍFICOS PARA ESTA BASE DE DATOS:
 
             **Stock bajo:**
@@ -578,28 +477,21 @@ async def ask_question_dynamic(request: DynamicQueryRequest):
         )
 
 @app.post("/query/execute", summary="Ejecuta una consulta SQL directamente", tags=["💬 Consultas"])
+=======
+@app.post("/query/execute", tags=["💬 Consultas"])
+>>>>>>> 9893fa0 (fix(docker-compose): update healthcheck intervals and timeouts for improved service reliability)
 async def execute_raw_sql(request: SQLExecuteRequest):
-    """
-    Permite a un usuario avanzado ejecutar una consulta SQL directamente.
-    """
     try:
         results, columns = app.state.db_analyzer.execute_query(request.sql_query)
         return {"sql_query": request.sql_query, "columns": columns, "results": results}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al ejecutar la consulta: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/query/execute-dynamic", summary="Ejecuta SQL en BD seleccionable", tags=["💬 Consultas Dinámicas"])
+@app.post("/query/execute-dynamic", tags=["💬 Consultas Dinámicas"])
 async def execute_raw_sql_dynamic(request: DynamicSQLExecuteRequest):
-    """
-    Permite ejecutar una consulta SQL directamente en una base de datos específica.
-    """
     try:
-        # Obtener analizador de la BD específica
         db_analyzer = connection_manager.get_database_analyzer(request.database_id)
-        
-        # Ejecutar consulta
         results, columns = db_analyzer.execute_query(request.sql_query)
-        
         return {
             "database_id": request.database_id,
             "sql_query": request.sql_query, 
@@ -607,45 +499,15 @@ async def execute_raw_sql_dynamic(request: DynamicSQLExecuteRequest):
             "results": results
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al ejecutar la consulta en BD '{request.database_id}': {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/schema/{database_id}", summary="Obtiene esquema de BD específica", tags=["📚 Recursos"])
-async def get_schema_for_database(database_id: str):
-    """
-    Devuelve la estructura del esquema de una base de datos específica.
-    """
-    try:
-        db_analyzer = connection_manager.get_database_analyzer(database_id)
-        return {
-            "database_id": database_id,
-            "schema": db_analyzer.schema_info
-        }
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Error al obtener esquema de BD '{database_id}': {e}")
-
-@app.post("/test-connections", summary="Prueba conexiones a BD y modelo", tags=["✅ Diagnóstico"])
+@app.post("/test-connections", tags=["✅ Diagnóstico"])
 async def test_connections(database_id: str, model_id: str):
-    """
-    Prueba las conexiones a una base de datos y modelo específicos.
-    """
-    results = {}
+    db_success, db_msg = connection_manager.test_database_connection(database_id)
+    model_success, model_msg = connection_manager.test_model_connection(model_id)
     
-    # Probar BD
-    db_success, db_message = connection_manager.test_database_connection(database_id)
-    results["database"] = {
-        "id": database_id,
-        "success": db_success,
-        "message": db_message
+    return {
+        "database": {"id": database_id, "success": db_success, "message": db_msg},
+        "model": {"id": model_id, "success": model_success, "message": model_msg},
+        "overall_success": db_success and model_success
     }
-    
-    # Probar modelo
-    model_success, model_message = connection_manager.test_model_connection(model_id)
-    results["model"] = {
-        "id": model_id,
-        "success": model_success,
-        "message": model_message
-    }
-    
-    results["overall_success"] = db_success and model_success
-    
-    return results
