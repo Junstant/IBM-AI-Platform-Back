@@ -1,88 +1,90 @@
-# Contribuyendo a IBM AI Platform Backend
+# Contributing to IBM AI Platform Backend
 
-¡Gracias por tu interés en contribuir! Este documento proporciona guías para contribuir al proyecto.
+Thank you for your interest in contributing! This document provides guidelines for contributing to the project.
 
-## 🚀 Proceso de Contribución
+## 🚀 Contribution Process
 
-1. **Fork** del repositorio
-2. **Clonar** tu fork localmente
-3. **Crear rama** para tu feature: `git checkout -b feature/nombre-feature`
-4. **Desarrollar** siguiendo las convenciones del proyecto
-5. **Probar** exhaustivamente tus cambios
-6. **Commit** con mensajes descriptivos
-7. **Push** a tu fork: `git push origin feature/nombre-feature`
-8. **Pull Request** al repositorio principal
+1. **Fork** the repository
+2. **Clone** your fork locally
+3. **Create a branch** for your feature: `git checkout -b feature/feature-name`
+4. **Develop** following the project conventions
+5. **Test** your changes thoroughly
+6. **Commit** with descriptive messages
+7. **Push** to your fork: `git push origin feature/feature-name`
+8. **Pull Request** to the main repository
 
-## 📝 Convenciones de Código
+## 📝 Code Conventions
 
 ### Python
-- Seguir **PEP 8** para estilo de código
-- Usar **type hints** cuando sea posible
-- Docstrings en formato **Google Style**
-- Máximo 100 caracteres por línea
+- Follow **PEP 8** for code style
+- Use **type hints** whenever possible
+- Docstrings in **Google Style** format
+- Maximum 100 characters per line
 
 ### Commits
-Usar **Conventional Commits**:
-- `feat:` - Nueva funcionalidad
-- `fix:` - Corrección de bug
-- `docs:` - Cambios en documentación
-- `refactor:` - Refactorización de código
-- `test:` - Agregar o modificar tests
-- `chore:` - Tareas de mantenimiento
+Use **Conventional Commits**:
+- `feat:` - New functionality
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `test:` - Add or modify tests
+- `chore:` - Maintenance tasks
 
-Ejemplo: `feat: agregar soporte para modelo Llama 3`
+Example: `feat: add support for Llama 3 model`
 
 ## 🧪 Testing
 
-Antes de crear un PR, asegúrate de:
-- [ ] Ejecutar `docker-compose up -d` sin errores
-- [ ] Verificar que todas las APIs respondan correctamente
-- [ ] Probar endpoints modificados con requests de ejemplo
-- [ ] Revisar logs en busca de errores
+Before creating a PR, make sure to:
+- [ ] Run `docker-compose up -d` without errors
+- [ ] Verify that all APIs respond correctly
+- [ ] Test modified endpoints with example requests
+- [ ] Check logs for errors
 
-## 🏗️ Arquitectura
+## 🏗️ Architecture
 
-### Compatibilidad PPC64le
-- **CRÍTICO**: Todas las soluciones deben ser compatibles con arquitectura Power PC (ppc64le)
-- Usar repositorio de wheels: `https://repo.fury.io/mgiessing`
-- Evitar dependencias que no tengan builds para ppc64le
-- Probar en entorno CentOS 9 cuando sea posible
+### PPC64le Compatibility
+- **CRITICAL**: All solutions must be compatible with Power PC architecture (ppc64le)
+- Use the wheels repository: `https://repo.fury.io/mgiessing`
+- Avoid dependencies without builds for ppc64le
+- Test in a CentOS 9 environment whenever possible
 
 ### Docker
-- Todo debe funcionar con `./setup.sh full`
-- No crear soluciones temporales o manuales
-- Documentar cambios en docker-compose.yaml
-- Optimizar uso de recursos (CPU/RAM limitados)
+- Everything must work with `./setup.sh full`
+- Do not create temporary or manual solutions
+- Document changes in docker-compose.yaml
+- Optimize resource usage (limited CPU/RAM)
 
-## 📚 Documentación
+## 📚 Documentation
 
-Al agregar nuevas features:
-- Actualizar README.md relevante
-- Agregar docstrings a funciones/clases
-- Documentar variables de entorno en `.env`
-- Incluir ejemplos de uso
+When adding new features:
+- Update the relevant README.md
+- Add docstrings to functions/classes
+- Document environment variables in `.env`
+- Include usage examples
 
-## ⚠️ Importante
+## ⚠️ Important
 
-- **NO** commitear archivos `.env`
-- **NO** commitear archivos de modelos (*.gguf, *.bin)
-- **NO** commitear logs o dumps de bases de datos
-- **SÍ** probar en ambiente limpio antes del PR
+- **DO NOT** commit `.env` files
+- **DO NOT** commit model files (*.gguf, *.bin)
+- **DO NOT** commit logs or database dumps
+- **DO** test in a clean environment before the PR
 
-## 🤝 Código de Conducta
+## 🤝 Code of Conduct
 
-- Ser respetuoso y profesional
-- Aceptar críticas constructivas
-- Enfocarse en lo mejor para el proyecto
-- Ayudar a otros colaboradores
+- Be respectful and professional
+- Accept constructive criticism
+- Focus on what is best for the project
+- Help other contributors
 
-## 📞 Contacto
+## 📞 Contact
 
-Para preguntas o discusiones:
-- Abrir un **Issue** en GitHub
-- Etiquetar apropiadamente (bug, enhancement, question)
-- Proporcionar contexto detallado
+For questions or discussions:
+- Open an **Issue** on GitHub
+- Tag appropriately (bug, enhancement, question)
+- Provide detailed context
 
 ---
 
-¡Gracias por contribuir a IBM AI Platform Backend! 🚀
+Thank you for contributing to IBM AI Platform Backend! 🚀
+
+

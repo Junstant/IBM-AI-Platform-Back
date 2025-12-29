@@ -1,73 +1,73 @@
 # 🤖 IBM AI Platform Backend
 
-Plataforma de inteligencia artificial con múltiples modelos LLM, PostgreSQL y APIs especializadas.
+Artificial intelligence platform with multiple LLM models, PostgreSQL, and specialized APIs.
 
-## ⚡ Instalación
+## ⚡ Installation
 
 ```bash
-# Clonar repositorio
+# Clone the repository
 git clone https://github.com/Junstant/IBM-AI-Platform-Back.git
 cd IBM-AI-Platform-Back
 
-# Crear archivo .env con configuración requerida
+# Create a .env file with the required configuration
 # (FRONT_DIR, BACK_DIR, DB_PASSWORD, TOKEN_HUGGHINGFACE, DEFAULT_PORTS)
 
-# Ejecutar instalación automática
+# Run the automatic installation
 chmod +x setup.sh
 sudo ./setup.sh full
 ```
 
-## 🎯 Servicios
+## 🎯 Services
 
 - **Frontend**: `http://localhost:2012`
-- **API Fraude**: `http://localhost:8001/docs`
-- **API TextoSQL**: `http://localhost:8000/docs`
-- **API Stats**: `http://localhost:8003/docs`
-- **API RAG**: `http://localhost:8004/docs`
+- **Fraud API**: `http://localhost:8001/docs`
+- **TextoSQL API**: `http://localhost:8000/docs`
+- **Stats API**: `http://localhost:8003/docs`
+- **RAG API**: `http://localhost:8004/docs`
 - **PostgreSQL**: `localhost:8070`
 - **Milvus**: `localhost:19530`
 
-## 🗄️ Bases de Datos
+## 🗄️ Databases
 
-- **ai_platform_stats**: Métricas y estadísticas
-- **banco_global**: Demo banco ficticio
-- **bank_transactions**: Detección de fraude
-- **ai_platform_rag**: Vectores y embeddings
-- **ferreteria_weitzler**: Demo TextoSQL (Ferretería real chilena)
+- **ai_platform_stats**: Metrics and statistics
+- **banco_global**: Demo for a fictitious bank
+- **bank_transactions**: Fraud detection
+- **ai_platform_rag**: Vectors and embeddings
+- **ferreteria_weitzler**: TextoSQL demo (real Chilean hardware store)
 
-## 🧠 Modelos LLM
+## 🧠 LLM Models
 
-| Modelo | Puerto | Tamaño | Especialidad |
-|--------|--------|---------|--------------|
-| **Gemma 2B** | 8085 | ~1.5GB | Respuestas rápidas |
-| **Gemma 4B** | 8086 | ~3GB | Equilibrio velocidad/calidad |
-| **Arctic text2sql 7b** | 8087 | 4,68GB | Texto a SQL |
-| **Mistral 7B** | 8088 | ~5GB | Tareas generales |
-| **DeepSeek 8B** | 8089 | ~6GB | Razonamiento lógico |
+| Model | Port | Size | Specialty |
+|-------|------|------|-----------|
+| **Gemma 2B** | 8085 | ~1.5GB | Fast responses |
+| **Gemma 4B** | 8086 | ~3GB | Balance between speed and quality |
+| **Arctic text2sql 7b** | 8087 | 4.68GB | Text to SQL |
+| **Mistral 7B** | 8088 | ~5GB | General tasks |
+| **DeepSeek 8B** | 8089 | ~6GB | Logical reasoning |
 
-## 📝 Comandos Útiles
+## 📝 Useful Commands
 
 ```bash
-# Ver logs de servicios
-docker-compose logs -f [servicio]
+# View service logs
+docker-compose logs -f [service]
 
-# Reiniciar servicios
+# Restart services
 docker-compose restart
 
-# Ver estado
+# Check status
 docker-compose ps
 
-# Parar servicios
+# Stop services
 docker-compose down
 
-# Ver uso de recursos
+# View resource usage
 docker stats
 ```
 
-## 🤝 Contribuir
+## 🤝 Contribute
 
-Lee [CONTRIBUTING.md](CONTRIBUTING.md) para conocer las guías de contribución.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) to learn about the contribution guidelines.
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto está bajo la licencia MIT - ver [LICENSE](LICENSE) para más detalles.
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for more details.
