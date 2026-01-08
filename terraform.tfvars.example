@@ -1,0 +1,32 @@
+# ========================================================================
+# terraform.tfvars.example
+# Plantilla de variables para TechZone - Copiar a terraform.tfvars
+# ========================================================================
+
+# === CONFIGURACIÓN DE POWERVS ===
+powervs_region    = "us-south"
+powervs_zone      = "us-south"
+workspace_guid    = "REEMPLAZAR_CON_WORKSPACE_GUID"
+
+# === CONFIGURACIÓN DE SSH ===
+ssh_key_name      = "techzone-ai-platform-key"
+ssh_public_key    = "ssh-ed25519 AAAAC3... tu-clave-publica-completa"
+
+# === CONFIGURACIÓN DE VM ===
+vm_name           = "ai-platform-s1022"
+vm_sys_type       = "s1022"         # Opciones: s922, s1022, e980, e1080
+vm_proc_type      = "shared"        # Opciones: shared, dedicated
+vm_cores          = 25
+vm_memory_gb      = 120
+data_volume_size_gb = 50
+
+# === CONFIGURACIÓN DE IMAGEN ===
+image_name        = "CentOS-Stream-9"
+
+# === REPOSITORIOS GIT ===
+repo_back_url     = "https://github.com/Junstant/IBM-AI-Platform-Back.git"
+repo_front_url    = "https://github.com/Junstant/IBM-AI-Platform-Front.git"
+
+# === CREDENCIALES (SENSIBLES) ===
+huggingface_token = "hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+db_password       = "root"

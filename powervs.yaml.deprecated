@@ -1,0 +1,38 @@
+# ========================================================================
+# powervs.yaml (DEPRECADO - Usar terraform.tfvars en su lugar)
+# ========================================================================
+# 
+# ⚠️  ESTE ARCHIVO YA NO SE USA CON LA NUEVA CONFIGURACIÓN
+# 
+# En su lugar, configure las variables en terraform.tfvars
+# Ver terraform.tfvars.example para referencia
+# 
+# La configuración ahora se maneja vía:
+#   - variables.tf (definiciones)
+#   - terraform.tfvars (valores)
+#   - main.tf (recursos)
+# 
+# Este archivo se mantiene solo como referencia histórica
+# ========================================================================
+
+powervs:
+  region: "us-south"
+  zone: "us-south"
+  workspace_guid: "REEMPLAZAR_GUID"
+
+vm:
+  name: "s1022-centos9-01"
+  sys_type: "s1022"
+  proc_type: "shared"
+  cores: 25
+  memory_gb: 120
+
+image:
+  name: "CentOS-Stream-9"
+
+ssh:
+  key_name: "key-01"
+  public_key: "ssh-ed25519 AAAA...TU_PUBLIC_KEY..."
+
+network:
+  network_id: "REEMPLAZAR_NETWORK_ID"
