@@ -25,6 +25,51 @@ info() {
     echo -e "[$(date +'%Y-%m-%d %H:%M:%S')] ${BLUE}ℹ️  $1${NC}"
 }
 
+# ===== PREPARAR ARCHIVO .ENV =====
+prepare_env_file() {
+    log "🔧 Preparando archivo de configuración .env..."
+    
+    # Si existe .env.example pero no .env, copiarlo
+    if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+        log "📋 Copiando .env.example a .env..."
+        cp .env.example .env
+    fi
+    
+    # Detectar IP externa del servidor
+    log "🌐 Detectando IP externa del servidor..."
+    EXTERNAL_IP=$(curl -s https://api.ipify.org || curl -s http://checkip.amazonaws.com || curl -s http://icanhazip.com || echo "")
+    
+    if [ -z "$EXTERNAL_IP" ]; then
+        warn "⚠️  No se pudo detectar la IP externa automáticamente"
+        warn "Puede configurarla manualmente en el archivo .env después"
+    else
+        log "✅ IP externa detectada: $EXTERNAL_IP"
+        
+        # Reemplazar VITE_API_HOST en .env si existe el placeholder
+        if [ -f ".env" ]; then
+            if grep -q 'VITE_API_HOST="{EXTERNAL_SERVER_IP}"' .env 2>/dev/null; then
+                log "🔄 Actualizando VITE_API_HOST con IP externa..."
+                sed -i "s|VITE_API_HOST=\"{EXTERNAL_SERVER_IP}\"|VITE_API_HOST=\"$EXTERNAL_IP\"|g" .env
+                log "✅ VITE_API_HOST configurado con: $EXTERNAL_IP"
+            elif grep -q 'VITE_API_HOST=' .env 2>/dev/null; then
+                # Ya tiene un valor, actualizar solo si es el placeholder
+                if grep -q 'VITE_API_HOST="{EXTERNAL_SERVER_IP}"' .env 2>/dev/null; then
+                    sed -i "s|VITE_API_HOST=.*|VITE_API_HOST=\"$EXTERNAL_IP\"|g" .env
+                    log "✅ VITE_API_HOST actualizado a: $EXTERNAL_IP"
+                else
+                    info "ℹ️  VITE_API_HOST ya tiene un valor configurado, no se modificará"
+                fi
+            else
+                # No existe la variable, agregarla
+                echo "" >> .env
+                echo "# IP externa detectada automáticamente" >> .env
+                echo "VITE_API_HOST=\"$EXTERNAL_IP\"" >> .env
+                log "✅ VITE_API_HOST agregado con: $EXTERNAL_IP"
+            fi
+        fi
+    fi
+}
+
 # ===== CARGAR CONFIGURACIÓN DEL .ENV =====
 load_env_config() {
     # Verificar si existe .env
