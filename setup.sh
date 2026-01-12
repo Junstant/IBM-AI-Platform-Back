@@ -1115,6 +1115,11 @@ main() {
         exit 1
     fi
     
+    # Preparar archivo .env (renombrar .env.example y detectar IP externa)
+    if [[ "${1:-full}" == "full" ]] || [[ "${1:-full}" == "prepare" ]] || [[ "${1:-full}" == "deploy" ]]; then
+        prepare_env_file
+    fi
+    
     # Cargar configuración del .env como primer paso
     if [[ "${1:-full}" == "full" ]] || [[ "${1:-full}" == "prepare" ]] || [[ "${1:-full}" == "deploy" ]]; then
         load_env_config
