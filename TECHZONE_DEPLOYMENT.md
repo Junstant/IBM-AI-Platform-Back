@@ -59,24 +59,48 @@ huggingface_token = "hf_xxx..."
 
 ## Monitor Deployment
 
-`ash
-IP=
-ssh root@ "tail -f /var/log/cloud-init-output.log"
-ssh root@ "docker ps"
-`
+```bash
+# Watch container status
+watch docker ps
+
+# View logs
+docker-compose logs -f
+
+# Check specific service
+docker logs <container-name>
+```
 
 ## Troubleshooting
 
-**Auth fails**: xport IC_API_KEY="your-key"
-**Image not found**: Verify CentOS-Stream-9 in workspace
-**Cloud-init fails**: ssh root@ "cat /var/log/cloud-init-output.log"
-**Docker issues**: ssh root@ "docker logs <container>"
+**Missing TOKEN_HUGGHINGFACE**: Edit .env and add your token
+```bash
+vim .env  # Add: TOKEN_HUGGHINGFACE="hf_xxx..."
+sudo ./setup.sh  # Re-run
+```
+
+**Port already in use**: Stop conflicting services
+```bash
+sudo lsof -i :2012  # Check what's using the port
+sudo systemctl stop <service>
+```
+
+**Docker issues**: Check logs
+```bash
+docker-compose logs -f [service]
+docker ps -a  # See all containers
+```
+
+**IP detection failed**: Manually set in .env
+```bash
+vim .env  # Set: VITE_API_HOST="your-server-ip"
+```
 
 ## Cleanup
 
-`ash
-terraform destroy
-`
+```bash
+cd IBM-AI-Platform-Back
+docker-compose down -v  # Remove containers and volumes
+```
 
 ---
 **Version**: 1.0.0 | **Status**: Production Ready

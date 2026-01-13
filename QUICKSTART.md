@@ -1,43 +1,50 @@
-# ⚡ Quick Start - 5 Minute Deployment
+# ⚡ Quick Start - 15 Minute Deployment
 
 ## Prerequisites
-- IBM Cloud account with PowerVS workspace
-- Terraform >= 1.3.0
-- IBM Cloud API Key
-- HuggingFace token
+- Linux server (CentOS/RHEL/Ubuntu)
+- 20+ GB RAM, 50+ GB disk
+- SSH access (root or sudo)
+- HuggingFace token: https://huggingface.co/settings/tokens
 
-## Deploy in 5 Steps
+## Deploy in 3 Steps
 
 ```bash
-# 1. Export credentials
-export IC_API_KEY="your-ibm-cloud-api-key"
-
-# 2. Clone and configure
+# 1. Clone repository
 git clone https://github.com/Junstant/IBM-AI-Platform-Back.git
 cd IBM-AI-Platform-Back
-cp terraform.tfvars.example terraform.tfvars
 
-# 3. Edit terraform.tfvars (only 3 required values)
-vim terraform.tfvars
-# workspace_guid, ssh_public_key, huggingface_token
+# 2. Run automated setup
+sudo ./setup.sh
 
-# 4. Deploy
-terraform init
-terraform apply -auto-approve
-
-# 5. Get IP and wait 20-25 minutes
-terraform output vm_external_ip
+# 3. Enter HuggingFace token when prompted
+# (The script auto-detects your external IP)
 ```
 
-## Access
+## Access Services
+
+```bash
+# Frontend
+http://<your-server-ip>:2012
+
+# APIs
+http://<your-server-ip>:8003/docs  # Stats
+http://<your-server-ip>:8004/docs  # RAG
+http://<your-server-ip>:8000/docs  # TextoSQL
+http://<your-server-ip>:8001/docs  # Fraud
 ```
-Frontend: http://<IP>:2012
-SSH: ssh root@<IP>
+
+## Verify Deployment
+
+```bash
+docker ps  # Check all containers are running
+curl http://localhost:8003/health  # Test health endpoint
 ```
 
 ## Cleanup
+
 ```bash
-terraform destroy -auto-approve
+cd IBM-AI-Platform-Back
+docker-compose down -v
 ```
 
 📖 **Full guide**: [TECHZONE_DEPLOYMENT.md](TECHZONE_DEPLOYMENT.md)

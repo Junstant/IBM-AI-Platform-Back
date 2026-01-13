@@ -2,53 +2,21 @@
 
 Artificial intelligence platform with multiple LLM models, PostgreSQL, and specialized APIs.
 
-## 🚀 Deployment Options
+## 🚀 Deployment
 
-### Option 1: Automated Deployment on IBM PowerVS (TechZone) ⭐ RECOMMENDED
-
-**Perfect for production environments and demos**
-
-```bash
-# 1. Configure variables
-cp terraform.tfvars.example terraform.tfvars
-vim terraform.tfvars  # Complete workspace_guid, ssh_public_key, huggingface_token
-
-# 2. Deploy (takes ~20-25 minutes)
-export IC_API_KEY="your-ibm-cloud-api-key"
-terraform init
-terraform apply
-
-# 3. Get external IP
-terraform output vm_external_ip
-```
-
-📖 **Complete guide**: [TECHZONE_DEPLOYMENT.md](TECHZONE_DEPLOYMENT.md)  
-⚡ **Quick start**: [QUICKSTART.md](QUICKSTART.md)
-
-**Features**:
-- ✅ Fully automated infrastructure (public network, VM, storage)
-- ✅ Auto-configuration of external IP in environment variables
-- ✅ Downloads setup.sh and deploys automatically
-- ✅ Ready in ~20-25 minutes without manual intervention
-
----
-
-### Option 2: Manual Installation (Local/VMs)
-
-**For development and testing on existing machines**
+**Automated installation on existing machines**
 
 ```bash
 # Clone the repository
 git clone https://github.com/Junstant/IBM-AI-Platform-Back.git
 cd IBM-AI-Platform-Back
 
-# Create a .env file with the required configuration
-cp .env.example .env
-vim .env  # Configure VITE_API_HOST and other variables
-
-# Run the automatic installation
+# Run the automatic installation (auto-configures .env with external IP)
 chmod +x setup.sh
 sudo ./setup.sh
+
+# If you need to configure manually, edit .env:
+# vim .env  # Set TOKEN_HUGGHINGFACE and other variables
 ```
 
 **Requirements**:
@@ -56,6 +24,14 @@ sudo ./setup.sh
 - 20+ GB RAM
 - 50+ GB available disk
 - Docker 24.0+
+- HuggingFace token: https://huggingface.co/settings/tokens
+
+**Features**:
+- ✅ Auto-detects external IP and configures VITE_API_HOST
+- ✅ Copies .env.example to .env automatically
+- ✅ Installs Docker, Docker Compose, and all dependencies
+- ✅ Deploys 15+ containers (APIs, LLMs, databases)
+- ✅ Ready in ~15-20 minutes
 
 ## 🎯 Services
 
