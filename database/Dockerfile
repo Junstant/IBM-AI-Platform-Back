@@ -26,7 +26,9 @@ RUN apk add --no-cache \
 # Compilar e instalar pgvector (v0.8.1 con soporte ppc64le)
 # Nota: Solo compilar el .so (sin bitcode) - clang-19 no disponible en Alpine ppc64le
 RUN cd /tmp && \
-    git clone --branch v0.8.1 https://github.com/pgvector/pgvector.git && \
+    for i in 1 2 3; do \
+        git clone --depth 1 --branch v0.8.1 https://github.com/pgvector/pgvector.git && break || sleep 5; \
+    done && \
     cd pgvector && \
     make OPTFLAGS="" vector.so && \
     cp vector.so $(pg_config --pkglibdir)/ && \
