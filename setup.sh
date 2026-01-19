@@ -1140,17 +1140,25 @@ main() {
         exit 1
     fi
     
+    # Ignorar archivos JSON o YAML como argumentos (ej: deployment_variables.json)
+    # Si el argumento es un archivo, usar modo 'full' por defecto
+    local MODE="${1:-full}"
+    if [[ "$MODE" == *.json ]] || [[ "$MODE" == *.yaml ]] || [[ "$MODE" == *.yml ]] || [[ -f "$MODE" ]]; then
+        MODE="full"
+        info "ℹ️  Ignorando archivo de configuración '$1', ejecutando modo full"
+    fi
+    
     # Preparar archivo .env (renombrar .env.example y detectar IP externa)
-    if [[ "${1:-full}" == "full" ]] || [[ "${1:-full}" == "prepare" ]] || [[ "${1:-full}" == "deploy" ]]; then
+    if [[ "$MODE" == "full" ]] || [[ "$MODE" == "prepare" ]] || [[ "$MODE" == "deploy" ]]; then
         prepare_env_file
     fi
     
     # Cargar configuración del .env como primer paso
-    if [[ "${1:-full}" == "full" ]] || [[ "${1:-full}" == "prepare" ]] || [[ "${1:-full}" == "deploy" ]]; then
+    if [[ "$MODE" == "full" ]] || [[ "$MODE" == "prepare" ]] || [[ "$MODE" == "deploy" ]]; then
         load_env_config
     fi
     
-    case "${1:-full}" in
+    case "$MODE" in
         "detect")
             detect_system
             ;;
