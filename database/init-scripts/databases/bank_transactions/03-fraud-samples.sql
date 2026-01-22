@@ -121,7 +121,12 @@ SELECT
     CASE WHEN random() < 0.60 THEN 'Débito' WHEN random() < 0.85 THEN 'Crédito' ELSE 'Prepaga' END,
     -- Horarios NORMALES (6AM a 11PM) para entrenar el modelo correctamente
     TIME '06:00:00' + (random() * INTERVAL '17 hours'),
-    CURRENT_DATE - (random() * 90)::int,
+    -- ✅ MEJORADO: 70% últimos 30 días, 20% últimos 3 meses, 10% más antiguo
+    CASE 
+        WHEN random() < 0.70 THEN CURRENT_DATE - (random() * 30)::int        -- 70% últimos 30 días
+        WHEN random() < 0.90 THEN CURRENT_DATE - (30 + (random() * 60)::int) -- 20% hace 1-3 meses
+        ELSE CURRENT_DATE - (90 + (random() * 90)::int)                       -- 10% hace 3-6 meses
+    END,
     FALSE,  -- ✅ Definitivamente NO es fraude
     CASE WHEN random() < 0.65 THEN 'pos' WHEN random() < 0.85 THEN 'online' ELSE 'atm' END,
     15000 + (random() * 85000)::NUMERIC(10,2),  -- Saldos realistas
@@ -173,7 +178,12 @@ SELECT
         WHEN random() < 0.8 THEN TIME '22:00:00' + (random() * INTERVAL '3 hours')   -- Tarde
         ELSE TIME '01:00:00' + (random() * INTERVAL '4 hours')                        -- 🚨 Muy tarde
     END,
-    CURRENT_DATE - (random() * 45)::int,
+    -- ✅ MEJORADO: 70% últimos 30 días
+    CASE 
+        WHEN random() < 0.70 THEN CURRENT_DATE - (random() * 30)::int        -- 70% últimos 30 días
+        WHEN random() < 0.90 THEN CURRENT_DATE - (30 + (random() * 30)::int) -- 20% hace 1-2 meses
+        ELSE CURRENT_DATE - (60 + (random() * 30)::int)                       -- 10% hace 2-3 meses
+    END,
     TRUE,  -- ✅ Definitivamente ES fraude
     CASE WHEN random() < 0.7 THEN 'online' WHEN random() < 0.9 THEN 'pos' ELSE 'atm' END,
     CASE
@@ -231,7 +241,12 @@ SELECT
         WHEN random() < 0.85 THEN TIME '23:00:00' + (random() * INTERVAL '2 hours') -- Noche
         ELSE TIME '02:00:00' + (random() * INTERVAL '3 hours')                       -- Madrugada 🚨
     END,
-    CURRENT_DATE - (random() * 75)::int,
+    -- ✅ MEJORADO: 70% últimos 30 días para testeo de tarjetas recientes
+    CASE 
+        WHEN random() < 0.70 THEN CURRENT_DATE - (random() * 30)::int        -- 70% últimos 30 días
+        WHEN random() < 0.90 THEN CURRENT_DATE - (30 + (random() * 45)::int) -- 20% hace 1-2.5 meses
+        ELSE CURRENT_DATE - (75 + (random() * 45)::int)                       -- 10% hace 2.5-4 meses
+    END,
     TRUE,  -- ✅ Definitivamente ES fraude
     CASE WHEN random() < 0.8 THEN 'online' WHEN random() < 0.95 THEN 'pos' ELSE 'mobile' END,
     8000 + (random() * 42000)::NUMERIC(10,2),  -- Saldos variados

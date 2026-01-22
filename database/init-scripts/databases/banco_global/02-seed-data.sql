@@ -173,13 +173,14 @@ BEGIN
         tipo_cuenta_var := 1 + (i % 6);
         sucursal_var := 1 + (i % 25);
         
+        -- ✅ MEJORADO: Más cuentas con saldo > 50,000 para consultas
         saldo_cuenta := CASE tipo_cuenta_var
-            WHEN 1 THEN 1000 + (RANDOM() * 15000)::NUMERIC(12,2)
-            WHEN 2 THEN 5000 + (RANDOM() * 50000)::NUMERIC(12,2)
-            WHEN 3 THEN 50000 + (RANDOM() * 200000)::NUMERIC(12,2)
-            WHEN 4 THEN 10000 + (RANDOM() * 100000)::NUMERIC(12,2)
-            WHEN 5 THEN 500000 + (RANDOM() * 2000000)::NUMERIC(12,2)
-            ELSE 500 + (RANDOM() * 5000)::NUMERIC(12,2)
+            WHEN 1 THEN 1000 + (RANDOM() * 20000)::NUMERIC(12,2)      -- 1K-21K
+            WHEN 2 THEN 5000 + (RANDOM() * 45000)::NUMERIC(12,2)      -- 5K-50K
+            WHEN 3 THEN 20000 + (RANDOM() * 80000)::NUMERIC(12,2)     -- 20K-100K (mayoría > 50K)
+            WHEN 4 THEN 50000 + (RANDOM() * 150000)::NUMERIC(12,2)    -- 50K-200K (todos > 50K)
+            WHEN 5 THEN 100000 + (RANDOM() * 900000)::NUMERIC(12,2)   -- 100K-1M (todos > 50K)
+            ELSE 500 + (RANDOM() * 10000)::NUMERIC(12,2)              -- 500-10.5K
         END;
         
         INSERT INTO cuentas (
@@ -211,10 +212,11 @@ BEGIN
         SELECT saldo INTO saldo_cuenta FROM cuentas WHERE id = cuenta_id_var;
         saldo_anterior := saldo_cuenta;
         
+        -- ✅ MEJORADO: MÁS transacciones recientes (70% últimos 30 días, 20% últimos 6 meses, 10% más antiguas)
         fecha_var := CASE 
-            WHEN i % 10 < 7 THEN CURRENT_DATE - (RANDOM() * 180)::INTEGER
-            WHEN i % 10 < 9 THEN CURRENT_DATE - (180 + (RANDOM() * 180)::INTEGER)
-            ELSE CURRENT_DATE - (360 + (RANDOM() * 365)::INTEGER)
+            WHEN i % 10 < 7 THEN CURRENT_DATE - (RANDOM() * 30)::INTEGER        -- 70% últimos 30 días
+            WHEN i % 10 < 9 THEN CURRENT_DATE - (30 + (RANDOM() * 150)::INTEGER) -- 20% hace 1-6 meses
+            ELSE CURRENT_DATE - (180 + (RANDOM() * 185)::INTEGER)                -- 10% hace 6-12 meses
         END;
         
         hora_var := TIME '08:00:00' + (
@@ -225,17 +227,18 @@ BEGIN
             END
         ) * INTERVAL '1 minute';
         
+        -- ✅ MEJORADO: Más depósitos (tipo 1) para consultas de "total depósitos por mes"
         tipo_transaccion_var := CASE 
-            WHEN i % 100 < 5 THEN 1
-            WHEN i % 100 < 15 THEN 2
-            WHEN i % 100 < 25 THEN 3
-            WHEN i % 100 < 45 THEN 4
-            WHEN i % 100 < 52 THEN 5
-            WHEN i % 100 < 55 THEN 6
-            WHEN i % 100 < 90 THEN 7
-            WHEN i % 100 < 95 THEN 8
-            WHEN i % 100 < 98 THEN 9
-            ELSE 11
+            WHEN i % 100 < 25 THEN 1    -- 25% DEPÓSITOS (antes 5%)
+            WHEN i % 100 < 40 THEN 2    -- 15% retiros
+            WHEN i % 100 < 60 THEN 3    -- 20% transferencias
+            WHEN i % 100 < 72 THEN 7    -- 12% compras con tarjeta
+            WHEN i % 100 < 82 THEN 4    -- 10% pago de servicios
+            WHEN i % 100 < 88 THEN 6    -- 6% acreditaciones
+            WHEN i % 100 < 93 THEN 5    -- 5% débitos automáticos
+            WHEN i % 100 < 96 THEN 8    -- 3% intereses
+            WHEN i % 100 < 98 THEN 9    -- 2% comisiones
+            ELSE 11                      -- 2% otros
         END;
         
         monto_var := CASE tipo_transaccion_var
@@ -424,8 +427,14 @@ END $$;
 \echo '✅ Datos masivos insertados en banco_global';
 \echo '📊 Resumen Final:';
 \echo '   ✓ 5,000 clientes (95% activos)';
-\echo '   ✓ 8,000 cuentas con saldos coherentes';
-\echo '   ✓ 50,000 transacciones realistas (últimos 2 años)';
+\echo '   ✓ 8,000 cuentas (~2,400 con saldo > 50K)';
+\echo '   ✓ 50,000 transacciones (70% últimos 30 días, 25% depósitos)';
 \echo '   ✓ 3,000 préstamos con historial';
 \echo '   ✓ 6,000 tarjetas (débito y crédito)';
+\echo '';
+\echo '🔍 Consultas de ejemplo para TextoSQL:';
+\echo '   • Dame las cuentas bancarias con saldo mayor a 50.000';
+\echo '   • Muestra las transacciones de los últimos 30 días';
+\echo '   • Clientes con más de 2 cuentas bancarias';
+\echo '   • Total de depósitos por mes del último año';
 \echo '';
