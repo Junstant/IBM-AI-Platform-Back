@@ -21,23 +21,17 @@ RUN apk add --no-cache \
     gcc \
     g++ \
     musl-dev \
-    postgresql-dev \
-    wget
+    postgresql-dev
 
-# Compilar e instalar pgvector (v0.8.1 con soporte ppc64le)
-# Nota: Solo compilar el .so (sin bitcode) - clang-19 no disponible en Alpine ppc64le
-# Usar curl/wget con reintentos para mayor resiliencia en redes restrictivas
-RUN cd /tmp && \
-    (curl --retry 5 --retry-delay 3 --retry-max-time 60 -fsSL -o pgvector.tar.gz https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz || \
-     wget --tries=5 --waitretry=3 --timeout=60 -O pgvector.tar.gz https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz) && \
-    tar -xzf pgvector.tar.gz && \
-    cd pgvector-0.8.1 && \
+# Copiar pgvector-0.8.1
+COPY pgvector-0.8.1 /tmp/pgvector-0.8.1
+RUN cd /tmp/pgvector-0.8.1 && \
     make OPTFLAGS="" vector.so && \
     cp vector.so $(pg_config --pkglibdir)/ && \
     cp sql/vector.sql $(pg_config --sharedir)/extension/vector--0.8.1.sql && \
     cp vector.control $(pg_config --sharedir)/extension/ && \
     cd / && \
-    rm -rf /tmp/pgvector* && \
+    rm -rf /tmp/pgvector-0.8.1 && \
     echo "✅ pgvector v0.8.1 instalado (solo shared library, sin bitcode/JIT)"
 
 # Verificar instalación de pgvector
