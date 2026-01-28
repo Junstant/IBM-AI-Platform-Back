@@ -21,13 +21,15 @@ RUN apk add --no-cache \
     gcc \
     g++ \
     musl-dev \
-    postgresql-dev
+    postgresql-dev \
+    wget
 
 # Compilar e instalar pgvector (v0.8.1 con soporte ppc64le)
 # Nota: Solo compilar el .so (sin bitcode) - clang-19 no disponible en Alpine ppc64le
-# Usar curl para descargar tarball (más confiable que git clone en redes restrictivas)
+# Usar curl/wget con reintentos para mayor resiliencia en redes restrictivas
 RUN cd /tmp && \
-    curl -fsSL -o pgvector.tar.gz https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz && \
+    (curl --retry 5 --retry-delay 3 --retry-max-time 60 -fsSL -o pgvector.tar.gz https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz || \
+     wget --tries=5 --waitretry=3 --timeout=60 -O pgvector.tar.gz https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz) && \
     tar -xzf pgvector.tar.gz && \
     cd pgvector-0.8.1 && \
     make OPTFLAGS="" vector.so && \
