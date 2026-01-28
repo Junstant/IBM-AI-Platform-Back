@@ -1,70 +1,67 @@
-# Dockerfile para PostgreSQL con configuración personalizada
 FROM postgres:17-alpine
 
 # Metadatos
 LABEL maintainer="LucasAI Platform"
-LABEL description="PostgreSQL personalizado para plataforma AI con esquemas preconfigurados"
+LABEL description="PostgreSQL para PPC64LE con pgvector (Fixed LLVM paths)"
 
-# Variables de entorno que serán sobrescritas por docker-compose
 ENV POSTGRES_DB=postgres
 ENV POSTGRES_USER=postgres
 ENV POSTGRES_PASSWORD=root
 ENV PGDATA=/var/lib/postgresql/data
 
-# Instalar herramientas adicionales y pgvector
+# 1. Instalar herramientas
+# Añadimos llvm explícitamente y herramientas de sistema
 RUN apk add --no-cache \
+    build-base \
+    clang \
+    llvm \
+    llvm-dev \
+    postgresql-dev \
     curl \
-    bash \
-    postgresql-contrib \
-    git \
-    make \
-    gcc \
-    g++ \
-    musl-dev \
-    postgresql-dev
+    linux-headers
 
-# Copiar pgvector-0.8.1
-COPY pgvector-0.8.1 /tmp/pgvector-0.8.1
-RUN cd /tmp/pgvector-0.8.1 && \
-    make OPTFLAGS="" vector.so && \
-    cp vector.so $(pg_config --pkglibdir)/ && \
-    cp sql/vector.sql $(pg_config --sharedir)/extension/vector--0.8.1.sql && \
-    cp vector.control $(pg_config --sharedir)/extension/ && \
+# 2. Descarga, Parcheo de rutas y Compilación
+RUN cd /tmp && \
+    echo "⬇️ Descargando pgvector..." && \
+    curl -L -o pgvector.tar.gz https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz && \
+    tar -xzf pgvector.tar.gz && \
+    cd pgvector-0.8.1 && \
+    \
+    echo "🩹 Parcheando rutas de LLVM..." && \
+    # Postgres busca llvm-lto en /usr/lib/llvm19/bin/ pero Alpine tiene el actual en /usr/bin/
+    # Creamos la carpeta que espera Postgres
+    mkdir -p /usr/lib/llvm19/bin && \
+    # Creamos un enlace simbólico de la herramienta real a donde Postgres la busca
+    ln -s /usr/bin/llvm-lto /usr/lib/llvm19/bin/llvm-lto && \
+    \
+    echo "🛠️ Compilando..." && \
+    make CLANG=clang && \
+    make CLANG=clang install && \
+    \
+    echo "🧹 Limpiando..." && \
     cd / && \
-    rm -rf /tmp/pgvector-0.8.1 && \
-    echo "✅ pgvector v0.8.1 instalado (solo shared library, sin bitcode/JIT)"
+    rm -rf /tmp/pgvector* && \
+    echo "✅ Instalación completada."
 
-# Verificar instalación de pgvector
-RUN ls -la $(pg_config --pkglibdir) | grep vector || echo "⚠️ pgvector no encontrado en $(pg_config --pkglibdir)"
+# 3. Verificar instalación
+RUN ls -la $(pg_config --pkglibdir) | grep vector || echo "⚠️ Error: pgvector no encontrado"
 
-# Crear directorio para scripts de inicialización
-RUN mkdir -p /docker-entrypoint-initdb.d
+# 4. Configuración final
+RUN mkdir -p /docker-entrypoint-initdb.d /backups && \
+    chmod 777 /backups
 
-# Copiar scripts de inicialización
+# Copia de configuraciones (Opcional)
 COPY init-scripts/ /docker-entrypoint-initdb.d/
-
-# Asegurar permisos de ejecución y orden de ejecución
-# PostgreSQL ejecuta scripts en orden alfabético
-RUN chmod +r /docker-entrypoint-initdb.d/*.sql 2>/dev/null || true && \
-    echo "✅ Scripts de inicialización configurados"
-
-# Copiar configuración personalizada de PostgreSQL
 COPY postgresql.conf /etc/postgresql/postgresql.conf
 COPY pg_hba.conf /etc/postgresql/pg_hba.conf
 
-# Crear directorio para backups
-RUN mkdir -p /backups && chmod 755 /backups
+# Permisos
+RUN chmod +r /docker-entrypoint-initdb.d/*.sql 2>/dev/null || true
 
-# Exponer puerto estándar de PostgreSQL
 EXPOSE 5432
-
-# Punto de montaje para datos persistentes
 VOLUME ["/var/lib/postgresql/data", "/backups"]
 
-# Healthcheck personalizado
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD pg_isready -U $POSTGRES_USER -d $POSTGRES_DB || exit 1
 
-# Usar el entrypoint por defecto de PostgreSQL (no custom script)
-# El entrypoint original de postgres:17-alpine maneja correctamente los permisos
 CMD ["postgres"]
