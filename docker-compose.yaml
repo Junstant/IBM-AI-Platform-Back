@@ -4,6 +4,7 @@ services:
     build:
       context: ./database
       dockerfile: Dockerfile
+      network: host
     image: postgres-pgvector:17-alpine
     container_name: postgres_db
     restart: always
